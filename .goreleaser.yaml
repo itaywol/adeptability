@@ -90,8 +90,15 @@ signs:
     certificate: '${artifact}.pem'
     signature: '${artifact}.sig'
 
+# External publishing channels (Docker, Homebrew tap, Scoop, WinGet, npm) are
+# disabled until adeptability is ready for public release. Each block is
+# templated to skip cleanly when the relevant token/secret is unset; flip the
+# corresponding env var on (e.g. HOMEBREW_TAP_GITHUB_TOKEN, DOCKER_PUBLISH=1)
+# in the workflow once the company / personal launch plan is finalized.
+
 dockers:
   - id: docker-amd64
+    skip_push: '{{ if eq .Env.DOCKER_PUBLISH "1" }}false{{ else }}true{{ end }}'
     image_templates:
       - "ghcr.io/itaywol/adeptability:{{ .Version }}-amd64"
       - "ghcr.io/itaywol/adeptability:latest-amd64"
@@ -104,6 +111,7 @@ dockers:
       - "--label=org.opencontainers.image.revision={{ .Commit }}"
     goarch: amd64
   - id: docker-arm64
+    skip_push: '{{ if eq .Env.DOCKER_PUBLISH "1" }}false{{ else }}true{{ end }}'
     image_templates:
       - "ghcr.io/itaywol/adeptability:{{ .Version }}-arm64"
       - "ghcr.io/itaywol/adeptability:latest-arm64"
@@ -118,16 +126,19 @@ dockers:
 
 docker_manifests:
   - name_template: "ghcr.io/itaywol/adeptability:{{ .Version }}"
+    skip_push: '{{ if eq .Env.DOCKER_PUBLISH "1" }}false{{ else }}true{{ end }}'
     image_templates:
       - "ghcr.io/itaywol/adeptability:{{ .Version }}-amd64"
       - "ghcr.io/itaywol/adeptability:{{ .Version }}-arm64"
   - name_template: "ghcr.io/itaywol/adeptability:latest"
+    skip_push: '{{ if eq .Env.DOCKER_PUBLISH "1" }}false{{ else }}true{{ end }}'
     image_templates:
       - "ghcr.io/itaywol/adeptability:latest-amd64"
       - "ghcr.io/itaywol/adeptability:latest-arm64"
 
 brews:
   - name: adeptability
+    skip_upload: '{{ if .Env.HOMEBREW_TAP_GITHUB_TOKEN }}false{{ else }}true{{ end }}'
     repository:
       owner: itaywol
       name: homebrew-tap
