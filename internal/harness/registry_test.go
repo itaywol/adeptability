@@ -13,11 +13,12 @@ import (
 // to exercise the registry + orchestrator without pulling in the per-harness
 // renderer packages.
 type mockAdapter struct {
-	spec   adept.HarnessSpec
-	render adept.Renderer
-	agg    func(context.Context, []adept.RenderOutput, int) ([]adept.RenderOutput, error)
-	detect func(string) (bool, error)
-	valid  func(string, []adept.RenderOutput) (adept.DriftReport, error)
+	spec    adept.HarnessSpec
+	render  adept.Renderer
+	agg     func(context.Context, []adept.RenderOutput, int) ([]adept.RenderOutput, error)
+	detect  func(string) (bool, error)
+	valid   func(string, []adept.RenderOutput) (adept.DriftReport, error)
+	imports func(context.Context, string) ([]adept.ImportedSkill, error)
 }
 
 func (m *mockAdapter) Spec() adept.HarnessSpec   { return m.spec }
@@ -39,6 +40,12 @@ func (m *mockAdapter) Validate(root string, expected []adept.RenderOutput) (adep
 		return adept.DriftReport{}, nil
 	}
 	return m.valid(root, expected)
+}
+func (m *mockAdapter) Import(ctx context.Context, root string) ([]adept.ImportedSkill, error) {
+	if m.imports == nil {
+		return nil, nil
+	}
+	return m.imports(ctx, root)
 }
 
 func TestRegistry_RegisterAndGet(t *testing.T) {

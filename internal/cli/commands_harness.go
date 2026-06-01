@@ -160,19 +160,76 @@ func (r *harnessSyncRenderable) Plain(w io.Writer) error {
 }
 
 func newHarnessImportCmd(d *Deps) *cobra.Command {
-	var id string
-	c := &cobra.Command{Use: "import", Short: "Adopt harness-side edits into the project canonical copy"}
-	c.Flags().StringVar(&id, "id", "", "harness id (required)")
-	_ = c.MarkFlagRequired("id")
+	var ids []string
+	var strategyStr, prefer string
+	var dryRun, force bool
+	c := &cobra.Command{
+		Use:   "import",
+		Short: "Adopt harness-side edits into the project canonical copy",
+		Long: "Reverse-renders one or more harnesses' on-disk state back into\n" +
+			"the project's canonical .adeptability/skills/. Use --id to limit;\n" +
+			"omit --id to walk every registered harness.",
+	}
+	c.Flags().StringSliceVar(&ids, "id", nil, "harness ids (default: all registered)")
+	c.Flags().StringVar(&strategyStr, "strategy", "first", "conflict strategy: first|error|prefer")
+	c.Flags().StringVar(&prefer, "prefer", "", "harness id to keep when --strategy=prefer")
+	c.Flags().BoolVar(&dryRun, "dry-run", false, "report without writing")
+	c.Flags().BoolVar(&force, "force", false, "overwrite existing project canonical skills")
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
 		p, err := d.Project()
 		if err != nil {
 			return err
 		}
+		if err := d.LoadUserAdapters(); err != nil {
+			d.Log.Warn("load user adapters", "err", err)
+		}
 		ctx := withTimeout(cmd.Context())
-		return d.Orchestrator.Import(ctx, p, id)
+		report, err := d.Orchestrator.Import(ctx, p, harness.ImportOptions{
+			HarnessIDs:    ids,
+			Strategy:      harness.ImportStrategy(strategyStr),
+			PreferHarness: prefer,
+			DryRun:        dryRun,
+			Force:         force,
+		})
+		if err != nil {
+			return err
+		}
+		if printErr := d.Print(cmd.OutOrStdout(), &importRenderable{Report: report}); printErr != nil {
+			return printErr
+		}
+		if len(report.Conflicts) > 0 && !force {
+			return ErrDirty
+		}
+		return nil
 	}
 	return c
+}
+
+type importRenderable struct{ Report harness.ImportReport }
+
+func (r *importRenderable) JSON() any { return r.Report }
+func (r *importRenderable) Plain(w io.Writer) error {
+	tw := NewTabWriter(w)
+	fmt.Fprintln(tw, "SKILL\tHARNESS\tSOURCE")
+	for _, row := range r.Report.Imported {
+		fmt.Fprintf(tw, "%s\t%s\t%s\n", row.SkillID, row.Harness, row.SourcePath)
+	}
+	if err := tw.Flush(); err != nil {
+		return err
+	}
+	if len(r.Report.Conflicts) > 0 {
+		fmt.Fprintln(w, "\nCONFLICTS:")
+		for _, c := range r.Report.Conflicts {
+			fmt.Fprintf(w, "  %s  from=%v  resolved=%s\n", c.SkillID, c.From, c.Resolved)
+		}
+	}
+	if len(r.Report.Skipped) > 0 {
+		fmt.Fprintln(w, "\nSKIPPED:")
+		for _, s := range r.Report.Skipped {
+			fmt.Fprintf(w, "  %s — %s\n", s.Harness, s.Reason)
+		}
+	}
+	return nil
 }
 
 func newHarnessEnableCmd(d *Deps) *cobra.Command {

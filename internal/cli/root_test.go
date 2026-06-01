@@ -13,7 +13,7 @@ func TestRootHasAllCommands(t *testing.T) {
 	t.Parallel()
 	root := NewRoot(BuildInfo{Version: "test", Commit: "abc", Date: "today"})
 	want := []string{
-		"init", "list", "add", "show", "install", "uninstall",
+		"init", "bootstrap", "list", "add", "show", "install", "uninstall",
 		"pull", "push", "status", "diff", "resolve", "harness",
 		"render", "apply-all", "org", "migrate", "doctor", "verify",
 		"scan", "upgrade",

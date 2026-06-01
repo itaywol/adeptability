@@ -33,6 +33,15 @@ type DriftReport struct {
 	Conflict []string
 }
 
+// ImportedSkill is one canonical skill recovered from a harness's on-disk
+// representation. SourcePath is the harness file (or aggregator bucket) the
+// content came from; the orchestrator records it for conflict reporting.
+type ImportedSkill struct {
+	Skill      *Skill
+	Files      []SkillFile
+	SourcePath string
+}
+
 // HarnessAdapter is the contract every built-in or config-driven harness implements.
 type HarnessAdapter interface {
 	Spec() HarnessSpec
@@ -41,4 +50,8 @@ type HarnessAdapter interface {
 	Aggregate(ctx context.Context, parts []RenderOutput, budgetB int) ([]RenderOutput, error)
 	Detect(projectRoot string) (bool, error)
 	Validate(projectRoot string, expected []RenderOutput) (DriftReport, error)
+	// Import reverse-renders the harness's on-disk state into canonical
+	// skills. Aggregator harnesses must parse their own section markers (or
+	// fall back to a single synthesized skill when markers are absent).
+	Import(ctx context.Context, projectRoot string) ([]ImportedSkill, error)
 }

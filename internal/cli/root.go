@@ -72,6 +72,7 @@ func NewRoot(b BuildInfo) *cobra.Command {
 
 	root.AddCommand(
 		newInitCmd(deps),
+		newBootstrapCmd(deps),
 		newListCmd(deps),
 		newAddCmd(deps),
 		newShowCmd(deps),

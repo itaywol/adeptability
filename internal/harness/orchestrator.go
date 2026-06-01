@@ -46,7 +46,7 @@ type SyncResult struct {
 type Orchestrator interface {
 	Sync(ctx context.Context, p project.Project, opts SyncOptions) ([]SyncResult, error)
 	Status(ctx context.Context, p project.Project, harnessIDs []string) ([]adept.DriftReport, error)
-	Import(ctx context.Context, p project.Project, harnessID string) error
+	Import(ctx context.Context, p project.Project, opts ImportOptions) (ImportReport, error)
 }
 
 // NewOrchestrator wires the orchestrator. The canonical.Parser is used by
@@ -364,17 +364,191 @@ func (o *orchestrator) Status(ctx context.Context, p project.Project, harnessIDs
 	return reports, nil
 }
 
-func (o *orchestrator) Import(ctx context.Context, p project.Project, harnessID string) error {
-	_ = ctx
-	_, err := o.reg.Get(harnessID)
-	if err != nil {
-		return fmt.Errorf("import: %w", err)
+// ImportStrategy controls how conflicts are resolved when the same skill ID
+// appears in multiple harnesses with differing content.
+type ImportStrategy string
+
+const (
+	// ImportStrategyFirst keeps the first occurrence (harness IDs walked in
+	// registry order). Conflicts surface in the report.
+	ImportStrategyFirst ImportStrategy = "first"
+	// ImportStrategyError fails the import on any conflict.
+	ImportStrategyError ImportStrategy = "error"
+	// ImportStrategyPrefer keeps the entry from the harness named in
+	// ImportOptions.PreferHarness.
+	ImportStrategyPrefer ImportStrategy = "prefer"
+)
+
+// ImportOptions controls a single Import invocation.
+type ImportOptions struct {
+	// HarnessIDs limits the import to specific harnesses. Empty = all
+	// registered harnesses (skipping those that don't support Import).
+	HarnessIDs []string
+	// Strategy decides conflict resolution. Default: ImportStrategyFirst.
+	Strategy ImportStrategy
+	// PreferHarness is read only when Strategy == ImportStrategyPrefer.
+	PreferHarness string
+	// DryRun reports what would be written without touching the project.
+	DryRun bool
+	// Force allows overwriting project canonical skills that already exist.
+	// Without Force, existing project skills are reported as conflicts.
+	Force bool
+}
+
+// ImportReport summarizes one import run.
+type ImportReport struct {
+	Imported  []ImportedRow `json:"imported"`
+	Conflicts []ConflictRow `json:"conflicts,omitempty"`
+	Skipped   []SkipRow     `json:"skipped,omitempty"`
+}
+
+// ImportedRow is one canonical skill written (or that would be written under
+// --dry-run) into the project.
+type ImportedRow struct {
+	SkillID    string `json:"skillId"`
+	Harness    string `json:"harness"`
+	SourcePath string `json:"sourcePath"`
+}
+
+// ConflictRow records a clash between two harnesses, or between a harness
+// import and an existing project canonical entry.
+type ConflictRow struct {
+	SkillID  string   `json:"skillId"`
+	From     []string `json:"from"`
+	Resolved string   `json:"resolved,omitempty"`
+}
+
+// SkipRow records why a harness contributed nothing.
+type SkipRow struct {
+	Harness string `json:"harness"`
+	Reason  string `json:"reason"`
+}
+
+func (o *orchestrator) Import(ctx context.Context, p project.Project, opts ImportOptions) (ImportReport, error) {
+	if opts.Strategy == "" {
+		opts.Strategy = ImportStrategyFirst
 	}
-	// TODO(v0.2): per-harness reverse rendering. The adapter contract does
-	// not yet expose an Import primitive, so we surface a clear sentinel
-	// rather than silently no-op.
-	_ = p
-	return fmt.Errorf("import %q: %w: reverse rendering not implemented", harnessID, adept.ErrAdapterInvalid)
+	report := ImportReport{}
+	adapters := o.selectAdaptersForImport(opts.HarnessIDs)
+	if len(adapters) == 0 {
+		return report, fmt.Errorf("import: %w", adept.ErrHarnessUnknown)
+	}
+
+	contributions := map[string][]importContribution{}
+	for _, a := range adapters {
+		hid := a.Spec().ID
+		skills, err := a.Import(ctx, p.Root())
+		if err != nil {
+			report.Skipped = append(report.Skipped, SkipRow{Harness: hid, Reason: err.Error()})
+			continue
+		}
+		if len(skills) == 0 {
+			report.Skipped = append(report.Skipped, SkipRow{Harness: hid, Reason: "no skills on disk"})
+			continue
+		}
+		for _, s := range skills {
+			contributions[s.Skill.ID] = append(contributions[s.Skill.ID], importContribution{harness: hid, imported: s})
+		}
+	}
+
+	existingLock, err := p.Lock()
+	if err != nil {
+		return report, fmt.Errorf("import: read project lock: %w", err)
+	}
+
+	// Walk in stable id order so output is deterministic.
+	ids := make([]string, 0, len(contributions))
+	for id := range contributions {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+
+	for _, id := range ids {
+		entries := contributions[id]
+		chosen, conflict := resolveImport(entries, opts)
+		if conflict != nil {
+			report.Conflicts = append(report.Conflicts, *conflict)
+			if opts.Strategy == ImportStrategyError {
+				return report, fmt.Errorf("import: %w: skill %q reported by %v", adept.ErrSkillInvalid, id, conflict.From)
+			}
+		}
+		if chosen == nil {
+			continue
+		}
+		// Detect collision with existing project canonical content.
+		if !opts.Force {
+			if existing, ok := existingLock.Skills[id]; ok && existing.Hash != "" {
+				report.Conflicts = append(report.Conflicts, ConflictRow{
+					SkillID: id,
+					From:    []string{"project-canonical"},
+				})
+				continue
+			}
+		}
+		if !opts.DryRun {
+			libEntry := adept.LockEntry{Version: chosen.imported.Skill.Version}
+			if err := p.InstallSkill(chosen.imported.Skill, chosen.imported.Files, libEntry); err != nil {
+				return report, fmt.Errorf("import: install %s: %w", id, err)
+			}
+		}
+		report.Imported = append(report.Imported, ImportedRow{
+			SkillID:    id,
+			Harness:    chosen.harness,
+			SourcePath: chosen.imported.SourcePath,
+		})
+	}
+
+	return report, nil
+}
+
+func (o *orchestrator) selectAdaptersForImport(ids []string) []adept.HarnessAdapter {
+	if len(ids) > 0 {
+		out := make([]adept.HarnessAdapter, 0, len(ids))
+		for _, id := range ids {
+			a, err := o.reg.Get(id)
+			if err == nil {
+				out = append(out, a)
+			}
+		}
+		return out
+	}
+	return o.reg.List()
+}
+
+type importContribution struct {
+	harness  string
+	imported adept.ImportedSkill
+}
+
+func resolveImport(entries []importContribution, opts ImportOptions) (*importContribution, *ConflictRow) {
+	if len(entries) == 0 {
+		return nil, nil
+	}
+	if len(entries) == 1 {
+		return &entries[0], nil
+	}
+	from := make([]string, 0, len(entries))
+	for _, e := range entries {
+		from = append(from, e.harness)
+	}
+	row := &ConflictRow{SkillID: entries[0].imported.Skill.ID, From: from}
+	switch opts.Strategy {
+	case ImportStrategyPrefer:
+		for i := range entries {
+			if entries[i].harness == opts.PreferHarness {
+				row.Resolved = opts.PreferHarness
+				return &entries[i], row
+			}
+		}
+		// Fall back to first when preferred harness not present.
+		row.Resolved = entries[0].harness
+		return &entries[0], row
+	case ImportStrategyError:
+		return nil, row
+	default:
+		row.Resolved = entries[0].harness
+		return &entries[0], row
+	}
 }
 
 func filterTargets(skills []*adept.Skill, harnessID string) []*adept.Skill {

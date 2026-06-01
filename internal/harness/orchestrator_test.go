@@ -271,11 +271,58 @@ func TestOrchestrator_Status_ReportsMissing(t *testing.T) {
 	require.Equal(t, []string{filepath.Join(".alpha", "skill-a.md")}, reports[0].Missing)
 }
 
-func TestOrchestrator_Import_UnimplementedReturnsError(t *testing.T) {
+func TestOrchestrator_Import_EmptyAdapterReturnsNoSkills(t *testing.T) {
 	p := newProj(t)
 	orch := newOrch(t, perSkillAdapter("alpha", nil))
-	err := orch.Import(context.Background(), p, "alpha")
-	require.Error(t, err)
+	report, err := orch.Import(context.Background(), p, ImportOptions{HarnessIDs: []string{"alpha"}})
+	require.NoError(t, err)
+	require.Empty(t, report.Imported)
+	require.Len(t, report.Skipped, 1)
+	require.Equal(t, "alpha", report.Skipped[0].Harness)
+}
+
+func TestOrchestrator_Import_FirstWinsOnConflict(t *testing.T) {
+	p := newProj(t)
+	contribution := func(id, body string) func(context.Context, string) ([]adept.ImportedSkill, error) {
+		return func(context.Context, string) ([]adept.ImportedSkill, error) {
+			return []adept.ImportedSkill{{
+				Skill:      &adept.Skill{ID: id, Version: 1, Description: "x", Activation: adept.ActivationAgent, Body: body},
+				SourcePath: "/fake/" + id,
+			}}, nil
+		}
+	}
+	a1 := perSkillAdapter("alpha", nil)
+	a1.imports = contribution("collide", "from-alpha")
+	a2 := perSkillAdapter("beta", nil)
+	a2.imports = contribution("collide", "from-beta")
+	orch := newOrch(t, a1, a2)
+	report, err := orch.Import(context.Background(), p, ImportOptions{Strategy: ImportStrategyFirst})
+	require.NoError(t, err)
+	require.Len(t, report.Imported, 1)
+	require.Equal(t, "alpha", report.Imported[0].Harness)
+	require.Len(t, report.Conflicts, 1)
+	require.ElementsMatch(t, []string{"alpha", "beta"}, report.Conflicts[0].From)
+}
+
+func TestOrchestrator_Import_PreferStrategy(t *testing.T) {
+	p := newProj(t)
+	contribution := func(id, body string) func(context.Context, string) ([]adept.ImportedSkill, error) {
+		return func(context.Context, string) ([]adept.ImportedSkill, error) {
+			return []adept.ImportedSkill{{
+				Skill:      &adept.Skill{ID: id, Version: 1, Description: "x", Activation: adept.ActivationAgent, Body: body},
+				SourcePath: "/fake/" + id,
+			}}, nil
+		}
+	}
+	a1 := perSkillAdapter("alpha", nil)
+	a1.imports = contribution("collide", "from-alpha")
+	a2 := perSkillAdapter("beta", nil)
+	a2.imports = contribution("collide", "from-beta")
+	orch := newOrch(t, a1, a2)
+	report, err := orch.Import(context.Background(), p, ImportOptions{Strategy: ImportStrategyPrefer, PreferHarness: "beta"})
+	require.NoError(t, err)
+	require.Len(t, report.Imported, 1)
+	require.Equal(t, "beta", report.Imported[0].Harness)
 }
 
 func TestOrchestrator_Sync_FiltersByTargets(t *testing.T) {
