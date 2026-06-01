@@ -64,7 +64,9 @@ func orgRemoteScheme(remote string) string {
 }
 
 func newOrgSyncCmd(d *Deps) *cobra.Command {
+	var force bool
 	c := &cobra.Command{Use: "sync", Short: "Sync required + optional org skills into the project"}
+	c.Flags().BoolVar(&force, "force", false, "overwrite project even when ahead or diverged (data-loss risk)")
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
 		p, err := d.Project()
 		if err != nil {
@@ -94,33 +96,91 @@ func newOrgSyncCmd(d *Deps) *cobra.Command {
 			return err
 		}
 		installed := []string{}
+		alreadySynced := []string{}
+		blocked := []orgBlockedRow{}
 		for _, ref := range manifest.Required {
 			s, err := l.GetSkill(ref.ID)
 			if err != nil {
 				return fmt.Errorf("required skill %s: %w", ref.ID, err)
+			}
+			// Use the same status resolver as pull/push so org sync respects
+			// the project's local state and never silently clobbers ahead or
+			// diverged edits. --force bypasses the gate.
+			st, statErr := computeSkillStatus(d, ref.ID)
+			if statErr != nil {
+				return fmt.Errorf("status %s: %w", ref.ID, statErr)
+			}
+			if !force {
+				switch st {
+				case adept.StatusSynced:
+					alreadySynced = append(alreadySynced, ref.ID)
+					continue
+				case adept.StatusAhead:
+					blocked = append(blocked, orgBlockedRow{ID: ref.ID, Reason: "project is ahead — push or pass --force"})
+					continue
+				case adept.StatusDiverged:
+					blocked = append(blocked, orgBlockedRow{ID: ref.ID, Reason: "project and library diverged — resolve or pass --force"})
+					continue
+				case adept.StatusBehind, adept.StatusLibraryOnly, adept.StatusLocalOnly:
+					// fall through to install
+				}
 			}
 			if err := p.InstallSkill(s, s.Files); err != nil {
 				return err
 			}
 			installed = append(installed, ref.ID)
 		}
-		return d.Print(cmd.OutOrStdout(), &orgSyncRenderable{Required: installed})
+		if err := d.Print(cmd.OutOrStdout(), &orgSyncRenderable{
+			Required:      installed,
+			AlreadySynced: alreadySynced,
+			Blocked:       blocked,
+		}); err != nil {
+			return err
+		}
+		if len(blocked) > 0 {
+			return ErrDirty
+		}
+		return nil
 	}
 	return c
 }
 
+type orgBlockedRow struct {
+	ID     string `json:"id"`
+	Reason string `json:"reason"`
+}
+
 type orgSyncRenderable struct {
-	Required []string
-	Skipped  []string
+	Required      []string
+	AlreadySynced []string
+	Blocked       []orgBlockedRow
+	Skipped       []string
 }
 
 func (r *orgSyncRenderable) JSON() any {
-	return map[string]any{"required": r.Required, "skipped": r.Skipped}
+	return map[string]any{
+		"required":      r.Required,
+		"alreadySynced": r.AlreadySynced,
+		"blocked":       r.Blocked,
+		"skipped":       r.Skipped,
+	}
 }
 func (r *orgSyncRenderable) Plain(w io.Writer) error {
 	fmt.Fprintf(w, "installed %d required skill(s)\n", len(r.Required))
 	for _, id := range r.Required {
 		fmt.Fprintf(w, "  + %s\n", id)
+	}
+	if len(r.AlreadySynced) > 0 {
+		fmt.Fprintf(w, "already synced: %d\n", len(r.AlreadySynced))
+		for _, id := range r.AlreadySynced {
+			fmt.Fprintf(w, "  = %s\n", id)
+		}
+	}
+	if len(r.Blocked) > 0 {
+		fmt.Fprintf(w, "blocked: %d\n", len(r.Blocked))
+		for _, row := range r.Blocked {
+			fmt.Fprintf(w, "  ! %s — %s\n", row.ID, row.Reason)
+		}
 	}
 	return nil
 }

@@ -374,6 +374,38 @@ func TestOrchestrator_Import_CollidesWithProjectCanonical(t *testing.T) {
 	require.Empty(t, report.Imported)
 	require.Len(t, report.Conflicts, 1)
 	require.Contains(t, report.Conflicts[0].From, "project-canonical")
+	require.Contains(t, report.Conflicts[0].Resolved, "kept project canonical")
+	require.Contains(t, report.Conflicts[0].Resolved, "alpha")
+}
+
+// Covers the merged-conflict branch: multiple harnesses contribute the same
+// id AND the project already has a canonical copy. We expect a SINGLE
+// conflict row whose Resolved column captures the strategy outcome AND the
+// block — never two rows for the same skill.
+func TestOrchestrator_Import_MultiHarnessAndProjectCanonicalCollapsesToOneRow(t *testing.T) {
+	p := newProj(t)
+	installSkill(t, p, "collide")
+
+	contribution := func(id, body string) func(context.Context, string) ([]adept.ImportedSkill, error) {
+		return func(context.Context, string) ([]adept.ImportedSkill, error) {
+			return []adept.ImportedSkill{{
+				Skill:      &adept.Skill{ID: id, Description: "x", Activation: adept.ActivationAgent, Body: body},
+				SourcePath: "/fake/" + id,
+			}}, nil
+		}
+	}
+	a1 := perSkillAdapter("alpha", nil)
+	a1.imports = contribution("collide", "from-alpha")
+	a2 := perSkillAdapter("beta", nil)
+	a2.imports = contribution("collide", "from-beta")
+	orch := newOrch(t, a1, a2)
+	report, err := orch.Import(context.Background(), p, ImportOptions{Strategy: ImportStrategyFirst})
+	require.NoError(t, err)
+	require.Empty(t, report.Imported)
+	require.Len(t, report.Conflicts, 1, "must collapse harness conflict + project-canonical block into one row")
+	require.ElementsMatch(t, []string{"alpha", "beta"}, report.Conflicts[0].From)
+	require.Contains(t, report.Conflicts[0].Resolved, "kept project canonical")
+	require.Contains(t, report.Conflicts[0].Resolved, "alpha")
 }
 
 func TestOrchestrator_Sync_FiltersByTargets(t *testing.T) {

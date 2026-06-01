@@ -109,9 +109,9 @@ type harnessStatusRenderable struct{ Reports []adept.DriftReport }
 func (r *harnessStatusRenderable) JSON() any { return r.Reports }
 func (r *harnessStatusRenderable) Plain(w io.Writer) error {
 	tw := NewTabWriter(w)
-	fmt.Fprintln(tw, "SYNCED\tDRIFTED\tMISSING\tCONFLICT")
+	fmt.Fprintln(tw, "HARNESS\tSYNCED\tDRIFTED\tMISSING\tCONFLICT")
 	for _, rep := range r.Reports {
-		fmt.Fprintf(tw, "%d\t%d\t%d\t%d\n", len(rep.Synced), len(rep.Drifted), len(rep.Missing), len(rep.Conflict))
+		fmt.Fprintf(tw, "%s\t%d\t%d\t%d\t%d\n", rep.Harness, len(rep.Synced), len(rep.Drifted), len(rep.Missing), len(rep.Conflict))
 	}
 	return tw.Flush()
 }
@@ -411,6 +411,11 @@ func newRenderCmd(d *Deps) *cobra.Command {
 		})
 		if err != nil {
 			return err
+		}
+		if len(out.Bytes) == 0 {
+			fmt.Fprintf(cmd.ErrOrStderr(),
+				"render: harness %q produced no output for skill %q (skill may not match this harness's targeting, e.g. missing globs for an aggregator-per-glob harness)\n",
+				harnessID, skillID)
 		}
 		if outFile == "-" {
 			_, err := cmd.OutOrStdout().Write(out.Bytes)

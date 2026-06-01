@@ -26,11 +26,15 @@ type HarnessSpec struct {
 }
 
 // DriftReport summarizes what a Detect/Validate pass found on disk.
+// Harness is the harness id the report belongs to; it is populated by the
+// orchestrator so callers can render per-harness rows without needing to keep
+// their own ordered list alongside the slice of reports.
 type DriftReport struct {
-	Synced   []string
-	Drifted  []string
-	Missing  []string
-	Conflict []string
+	Harness  string   `json:"harness"`
+	Synced   []string `json:"synced"`
+	Drifted  []string `json:"drifted"`
+	Missing  []string `json:"missing"`
+	Conflict []string `json:"conflict"`
 }
 
 // ImportedSkill is one canonical skill recovered from a harness's on-disk

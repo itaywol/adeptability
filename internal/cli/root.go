@@ -59,6 +59,11 @@ func NewRoot(b BuildInfo) *cobra.Command {
 			}
 			gf.ProjectDir = cwd
 		}
+		switch gf.LogLevel {
+		case "debug", "info", "warn", "error":
+		default:
+			return fmt.Errorf("invalid --log-level %q (want debug|info|warn|error)", gf.LogLevel)
+		}
 		return nil
 	}
 

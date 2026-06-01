@@ -2,9 +2,10 @@ package cli
 
 import (
 	"encoding/base64"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -80,6 +81,11 @@ func newListCmd(d *Deps) *cobra.Command {
 	c := &cobra.Command{
 		Use:   "list",
 		Short: "List skills in library or project",
+		// list takes no positional args. Reject typos like `adept list library`
+		// — they look like they should work but used to silently fall through
+		// to the (library) default and confuse users into thinking the flag
+		// was honored.
+		Args: cobra.NoArgs,
 	}
 	c.Flags().BoolVar(&fromProject, "project-only", false, "list only project skills")
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
@@ -167,7 +173,9 @@ func newShowCmd(d *Deps) *cobra.Command {
 		Short: "Show resolved skill metadata",
 		Args:  cobra.ExactArgs(1),
 	}
-	c.Flags().BoolVar(&fromLibrary, "library", false, "look up in library (default: project)")
+	// Renamed from --library to --from-library so we never shadow the global
+	// persistent --library string flag.
+	c.Flags().BoolVar(&fromLibrary, "from-library", false, "look up in library instead of project")
 	c.RunE = func(cmd *cobra.Command, args []string) error {
 		id := args[0]
 		var s *adept.Skill
@@ -198,9 +206,34 @@ type skillShowRenderable struct{ Skill *adept.Skill }
 func (r *skillShowRenderable) JSON() any { return r.Skill }
 
 func (r *skillShowRenderable) Plain(w io.Writer) error {
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
-	return enc.Encode(r.Skill)
+	s := r.Skill
+	tw := NewTabWriter(w)
+	fmt.Fprintf(tw, "ID\t%s\n", s.ID)
+	fmt.Fprintf(tw, "DESCRIPTION\t%s\n", s.Description)
+	fmt.Fprintf(tw, "ACTIVATION\t%s\n", s.Activation)
+	if len(s.Globs) > 0 {
+		fmt.Fprintf(tw, "GLOBS\t%s\n", strings.Join(s.Globs, ", "))
+	}
+	if len(s.AllowedTools) > 0 {
+		fmt.Fprintf(tw, "ALLOWED-TOOLS\t%s\n", strings.Join(s.AllowedTools, ", "))
+	}
+	if len(s.Targets) > 0 {
+		fmt.Fprintf(tw, "TARGETS\t%s\n", strings.Join(s.Targets, ", "))
+	}
+	if len(s.Tags) > 0 {
+		fmt.Fprintf(tw, "TAGS\t%s\n", strings.Join(s.Tags, ", "))
+	}
+	if len(s.Metadata) > 0 {
+		keys := make([]string, 0, len(s.Metadata))
+		for k := range s.Metadata {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			fmt.Fprintf(tw, "META[%s]\t%s\n", k, s.Metadata[k])
+		}
+	}
+	return tw.Flush()
 }
 
 // ---------- install ----------
@@ -262,27 +295,107 @@ func newUninstallCmd(d *Deps) *cobra.Command {
 // ---------- pull / push / resolve / status / diff ----------
 
 func newPullCmd(d *Deps) *cobra.Command {
+	var force bool
 	c := &cobra.Command{
 		Use:   "pull <id>",
 		Short: "Pull library updates into the project (when behind)",
 		Args:  cobra.ExactArgs(1),
 	}
+	c.Flags().BoolVar(&force, "force", false, "overwrite project even when not behind (data-loss risk)")
 	c.RunE = func(cmd *cobra.Command, args []string) error {
-		return syncSkill(d, cmd.OutOrStdout(), args[0], pullDir)
+		id := args[0]
+		st, err := computeSkillStatus(d, id)
+		if err != nil {
+			return err
+		}
+		// LocalOnly = library has no source to pull from. --force cannot
+		// materialize content out of nothing, so reject before any write.
+		if st == adept.StatusLocalOnly {
+			return fmt.Errorf("pull %s: skill not present in library", id)
+		}
+		if !force {
+			switch st {
+			case adept.StatusSynced:
+				fmt.Fprintf(cmd.OutOrStdout(), "pull %s: already synced, nothing to do\n", id)
+				return nil
+			case adept.StatusAhead:
+				return fmt.Errorf("pull %s: project is ahead of library — run `adept push %s` or pass --force to overwrite project edits", id, id)
+			case adept.StatusDiverged:
+				return fmt.Errorf("pull %s: project and library diverged — run `adept resolve %s --strategy merge` or pass --force to overwrite project edits", id, id)
+			case adept.StatusBehind, adept.StatusLibraryOnly:
+				// expected pull targets
+			}
+		}
+		return syncSkill(d, cmd.OutOrStdout(), id, pullDir)
 	}
 	return c
 }
 
 func newPushCmd(d *Deps) *cobra.Command {
+	var force bool
 	c := &cobra.Command{
 		Use:   "push <id>",
 		Short: "Push project edits into the library (when ahead)",
 		Args:  cobra.ExactArgs(1),
 	}
+	c.Flags().BoolVar(&force, "force", false, "overwrite library even when not ahead (data-loss risk)")
 	c.RunE = func(cmd *cobra.Command, args []string) error {
-		return syncSkill(d, cmd.OutOrStdout(), args[0], pushDir)
+		id := args[0]
+		st, err := computeSkillStatus(d, id)
+		if err != nil {
+			return err
+		}
+		// LibraryOnly = project has no source to push from. --force cannot
+		// materialize content out of nothing, so reject before any write.
+		if st == adept.StatusLibraryOnly {
+			return fmt.Errorf("push %s: skill not present in project", id)
+		}
+		if !force {
+			switch st {
+			case adept.StatusSynced:
+				fmt.Fprintf(cmd.OutOrStdout(), "push %s: already synced, nothing to do\n", id)
+				return nil
+			case adept.StatusBehind:
+				return fmt.Errorf("push %s: library is ahead of project — run `adept pull %s` or pass --force to overwrite library edits", id, id)
+			case adept.StatusDiverged:
+				return fmt.Errorf("push %s: project and library diverged — run `adept resolve %s --strategy merge` or pass --force to overwrite library edits", id, id)
+			case adept.StatusAhead, adept.StatusLocalOnly:
+				// expected push sources
+			}
+		}
+		return syncSkill(d, cmd.OutOrStdout(), id, pushDir)
 	}
 	return c
+}
+
+// computeSkillStatus hashes project, base, and library for one skill and
+// returns the resolved status. Used by pull/push to gate destructive writes.
+func computeSkillStatus(d *Deps, id string) (adept.Status, error) {
+	l, err := d.Library()
+	if err != nil {
+		return "", err
+	}
+	p, err := d.Project()
+	if err != nil {
+		return "", err
+	}
+	projHash, err := p.HashSkill(id)
+	if err != nil {
+		return "", fmt.Errorf("hash project %s: %w", id, err)
+	}
+	baseHash, err := p.HashBase(id)
+	if err != nil {
+		return "", fmt.Errorf("hash base %s: %w", id, err)
+	}
+	libHash, err := l.HashSkill(id)
+	if err != nil {
+		return "", fmt.Errorf("hash library %s: %w", id, err)
+	}
+	return d.Status.Resolve(status.Input{
+		ProjectHash: projHash,
+		BaseHash:    baseHash,
+		LibraryHash: libHash,
+	}), nil
 }
 
 func newResolveCmd(d *Deps) *cobra.Command {
@@ -544,39 +657,95 @@ func newDiffCmd(d *Deps) *cobra.Command {
 
 // ---------- doctor ----------
 
+// doctorHarness is the per-harness summary surfaced by doctor.
+type doctorHarness struct {
+	ID   string `json:"id"`
+	Kind string `json:"kind"`
+}
+
+// doctorReport is the structured output of `adept doctor`.
+type doctorReport struct {
+	Library    doctorPath      `json:"library"`
+	Project    doctorPath      `json:"project"`
+	Harnesses  []doctorHarness `json:"harnesses"`
+	HasIssues  bool            `json:"hasIssues"`
+	IssueCount int             `json:"issueCount"`
+}
+
+type doctorPath struct {
+	Path   string `json:"path"`
+	Status string `json:"status"` // "ok" | "missing"
+	Hint   string `json:"hint,omitempty"`
+}
+
+type doctorRenderable struct{ Report doctorReport }
+
+func (r *doctorRenderable) JSON() any { return r.Report }
+func (r *doctorRenderable) Plain(w io.Writer) error {
+	rep := r.Report
+	if rep.Library.Status == "ok" {
+		fmt.Fprintf(w, "library: ok (%s)\n", rep.Library.Path)
+	} else {
+		fmt.Fprintf(w, "library: MISSING at %s — %s\n", rep.Library.Path, rep.Library.Hint)
+	}
+	if rep.Project.Status == "ok" {
+		fmt.Fprintf(w, "project: ok (%s)\n", rep.Project.Path)
+	} else {
+		fmt.Fprintf(w, "project: MISSING %s in %s\n", rep.Project.Hint, rep.Project.Path)
+	}
+	fmt.Fprintf(w, "harnesses registered: %d\n", len(rep.Harnesses))
+	for _, h := range rep.Harnesses {
+		fmt.Fprintf(w, "  - %s (%s)\n", h.ID, h.Kind)
+	}
+	return nil
+}
+
 func newDoctorCmd(d *Deps) *cobra.Command {
 	c := &cobra.Command{
 		Use:   "doctor",
 		Short: "Validate library + project setup",
 	}
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
-		w := cmd.OutOrStdout()
-		warnings := 0
+		rep := doctorReport{}
 		libRoot, err := d.ResolveLibraryRoot()
 		if err != nil {
 			return err
 		}
-		if _, err := os.Stat(libRoot); os.IsNotExist(err) {
-			fmt.Fprintf(w, "library: MISSING at %s — run `adept init library`\n", libRoot)
-			warnings++
-		} else {
-			fmt.Fprintf(w, "library: ok (%s)\n", libRoot)
+		rep.Library.Path = libRoot
+		switch _, statErr := os.Stat(libRoot); {
+		case statErr == nil:
+			rep.Library.Status = "ok"
+		case errors.Is(statErr, fs.ErrNotExist):
+			rep.Library.Status = "missing"
+			rep.Library.Hint = "run `adept init library`"
+			rep.IssueCount++
+		default:
+			return fmt.Errorf("stat library %s: %w", libRoot, statErr)
 		}
 		projRoot, err := d.ResolveProjectRoot()
 		if err != nil {
 			return err
 		}
-		if _, err := os.Stat(filepath.Join(projRoot, adept.BaseDirName)); os.IsNotExist(err) {
-			fmt.Fprintf(w, "project: MISSING %s in %s\n", adept.BaseDirName, projRoot)
-			warnings++
-		} else {
-			fmt.Fprintf(w, "project: ok (%s)\n", projRoot)
+		rep.Project.Path = projRoot
+		basePath := filepath.Join(projRoot, adept.BaseDirName)
+		switch _, statErr := os.Stat(basePath); {
+		case statErr == nil:
+			rep.Project.Status = "ok"
+		case errors.Is(statErr, fs.ErrNotExist):
+			rep.Project.Status = "missing"
+			rep.Project.Hint = adept.BaseDirName
+			rep.IssueCount++
+		default:
+			return fmt.Errorf("stat project %s: %w", basePath, statErr)
 		}
-		fmt.Fprintf(w, "harnesses registered: %d\n", len(d.Registry.List()))
 		for _, a := range d.Registry.List() {
-			fmt.Fprintf(w, "  - %s (%s)\n", a.Spec().ID, a.Spec().Kind)
+			rep.Harnesses = append(rep.Harnesses, doctorHarness{ID: a.Spec().ID, Kind: string(a.Spec().Kind)})
 		}
-		if warnings > 0 {
+		rep.HasIssues = rep.IssueCount > 0
+		if err := d.Print(cmd.OutOrStdout(), &doctorRenderable{Report: rep}); err != nil {
+			return err
+		}
+		if rep.HasIssues {
 			return ErrDirty
 		}
 		return nil

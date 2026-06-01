@@ -357,6 +357,7 @@ func (o *orchestrator) Status(ctx context.Context, p project.Project, harnessIDs
 		if err != nil {
 			return reports, fmt.Errorf("status %q: validate: %w", hid, err)
 		}
+		report.Harness = hid
 		reports = append(reports, report)
 	}
 	return reports, nil
@@ -445,7 +446,8 @@ func (o *orchestrator) Import(ctx context.Context, p project.Project, opts Impor
 	for _, id := range ids {
 		entries := contributions[id]
 		chosen, conflict := resolveImport(entries, opts)
-		if conflict != nil {
+		hadHarnessConflict := conflict != nil
+		if hadHarnessConflict {
 			report.Conflicts = append(report.Conflicts, *conflict)
 			if opts.Strategy == ImportStrategyError {
 				return report, fmt.Errorf("import: %w: skill %q reported by %v", adept.ErrSkillInvalid, id, conflict.From)
@@ -455,14 +457,25 @@ func (o *orchestrator) Import(ctx context.Context, p project.Project, opts Impor
 			continue
 		}
 		// Detect collision with existing project canonical content (hash-based).
-		if !opts.Force {
-			if p.HasSkill(id) {
+		// When this fires we did not write anything: clarify the prior
+		// "resolved" column (or emit a fresh one) so the user sees the
+		// project canonical was kept and which harness would have applied.
+		// chosen is non-nil here (guarded above), but build the message
+		// without dereferencing fields more than once for clarity.
+		if !opts.Force && p.HasSkill(id) {
+			chosenHarness := chosen.harness
+			blocked := fmt.Sprintf("kept project canonical (would have applied %s; pass --force to overwrite)", chosenHarness)
+			if hadHarnessConflict {
+				last := &report.Conflicts[len(report.Conflicts)-1]
+				last.Resolved = blocked
+			} else {
 				report.Conflicts = append(report.Conflicts, ConflictRow{
-					SkillID: id,
-					From:    []string{"project-canonical"},
+					SkillID:  id,
+					From:     []string{"project-canonical"},
+					Resolved: blocked,
 				})
-				continue
 			}
+			continue
 		}
 		if !opts.DryRun {
 			if err := p.InstallSkill(chosen.imported.Skill, chosen.imported.Files); err != nil {
