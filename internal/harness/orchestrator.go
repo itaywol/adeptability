@@ -176,21 +176,35 @@ func (o *orchestrator) syncHarness(
 				res.Written = append(res.Written, out.Path)
 			}
 		}
-		// Sidecars are always written as bytes; symlinking does not apply.
+		// Sidecars land next to the rendered main file. The same materialization
+		// contract applies: in symlink mode bytes live in
+		// .adeptability/staging/<harness-path>/<rel>, with the harness path
+		// pointing back via a relative symlink — so any tool that reads
+		// SKILL.md via the harness path resolves "references/X.md" against the
+		// harness directory and finds the sidecar (real symlink or real file).
+		// In copy mode the bytes simply go straight to the harness path.
 		for _, side := range out.Sidecars {
-			sideAbs := filepath.Join(p.Root(), side.RelPath)
+			sideOutRel := filepath.Join(filepath.Dir(out.Path), side.RelPath)
+			sideAbs := filepath.Join(p.Root(), sideOutRel)
 			if opts.DryRun {
-				res.Written = append(res.Written, side.RelPath)
+				res.Written = append(res.Written, sideOutRel)
 				continue
 			}
 			mode := side.Mode
 			if mode == 0 {
 				mode = 0o644
 			}
-			if err := o.writer.AtomicWrite(sideAbs, side.Bytes, mode); err != nil {
-				return res, resolvedMode, fmt.Errorf("write sidecar %q: %w", side.RelPath, err)
+			sideOut := adept.RenderOutput{Path: sideOutRel, Bytes: side.Bytes, Mode: mode}
+			written, flipped, err := o.write(p.Root(), sideAbs, sideOut, resolvedMode)
+			if err != nil {
+				return res, resolvedMode, fmt.Errorf("write sidecar %q: %w", sideOutRel, err)
 			}
-			res.Written = append(res.Written, side.RelPath)
+			if flipped {
+				resolvedMode = adept.ModeCopy
+			}
+			if written {
+				res.Written = append(res.Written, sideOutRel)
+			}
 		}
 	}
 	// Validate drift after writing (or for dry-run: against the desired set).
