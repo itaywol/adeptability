@@ -1,0 +1,17 @@
+id: claude-clone
+name: Claude clone (test)
+kind: per-skill
+output: .clone/skills/{id}/SKILL.md
+base-dir: .clone
+needs-directory: true
+frontmatter:
+  include:
+    - description
+    - globs
+  rename:
+    description: summary
+body:
+  prefix: ""
+  suffix: ""
+detect:
+  - .clone

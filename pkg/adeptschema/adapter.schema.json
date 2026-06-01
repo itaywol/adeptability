@@ -45,6 +45,18 @@
     "detect": {
       "type": "array",
       "items": { "type": "string" }
+    },
+    "import": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional reverse-rendering hints. Most fields auto-derive from forward config; specify these only when the forward transform is non-bijective.",
+      "properties": {
+        "rename": {
+          "type": "object",
+          "description": "Inverse of frontmatter.rename. Keys are harness-side frontmatter keys; values are canonical skill field names. Auto-derived from frontmatter.rename when omitted.",
+          "additionalProperties": { "type": "string" }
+        }
+      }
     }
   }
 }

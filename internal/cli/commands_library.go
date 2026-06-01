@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,6 +14,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/itaywol/adeptability/internal/lockfile"
+	"github.com/itaywol/adeptability/internal/merge"
+	"github.com/itaywol/adeptability/internal/sign"
 	"github.com/itaywol/adeptability/internal/status"
 	"github.com/itaywol/adeptability/pkg/adept"
 )
@@ -301,18 +304,114 @@ func newResolveCmd(d *Deps) *cobra.Command {
 		Short: "Resolve a diverged skill",
 		Args:  cobra.ExactArgs(1),
 	}
-	c.Flags().StringVar(&strategy, "strategy", "library", "library|project")
+	c.Flags().StringVar(&strategy, "strategy", "library", "library|project|merge")
 	c.RunE = func(cmd *cobra.Command, args []string) error {
 		switch strategy {
 		case "library":
 			return syncSkill(d, cmd.OutOrStdout(), args[0], pullDir)
 		case "project":
 			return syncSkill(d, cmd.OutOrStdout(), args[0], pushDir)
+		case "merge":
+			return resolveMerge(d, cmd.OutOrStdout(), args[0], merge.NewMerger())
 		default:
-			return fmt.Errorf("unknown strategy %q (use library or project)", strategy)
+			return fmt.Errorf("unknown strategy %q (use library, project, or merge)", strategy)
 		}
 	}
 	return c
+}
+
+// resolveMerge runs a 3-way merge between the base snapshot, the
+// project canonical state ("ours"), and the library canonical state
+// ("theirs"). Outputs are written through fsutil.AtomicWrite. When the
+// merger reports conflicts we surface their paths, return ErrDirty, and
+// leave the lockfile untouched — the caller resolves markers and then
+// `push`es. A clean merge updates the project lockfile and re-snapshots
+// the new base.
+func resolveMerge(d *Deps, w io.Writer, id string, mrg merge.Merger) error {
+	l, err := d.Library()
+	if err != nil {
+		return err
+	}
+	p, err := d.Project()
+	if err != nil {
+		return err
+	}
+	libLock, err := d.Store.Read(l.LockfilePath())
+	if err != nil {
+		return fmt.Errorf("read library lock: %w", err)
+	}
+	libEntry, ok := libLock.Skills[id]
+	if !ok {
+		return fmt.Errorf("library missing lock entry for %s", id)
+	}
+	if !p.HasSkill(id) {
+		return fmt.Errorf("project missing skill %s: %w", id, adept.ErrSkillNotFound)
+	}
+	if !p.HasBaseSnapshot(id) {
+		return fmt.Errorf("resolve merge %s: %w (re-run `adept install %s` or `adept pull %s` to seed)", id, adept.ErrMergeBaseMissing, id, id)
+	}
+
+	baseDir := p.BaseDirForSkill(id)
+	oursDir := filepath.Join(p.SkillsDir(), id)
+	theirsDir := filepath.Join(l.SkillsDir(), id)
+
+	res, err := mrg.Merge(baseDir, oursDir, theirsDir)
+	if err != nil {
+		return fmt.Errorf("merge %s: %w", id, err)
+	}
+
+	// Apply outcomes to the project's canonical tree.
+	for _, f := range res.Files {
+		dst := filepath.Join(oursDir, filepath.FromSlash(f.RelPath))
+		if f.Deleted {
+			if err := d.Writer.RemoveAll(dst); err != nil {
+				return fmt.Errorf("merge %s: remove %s: %w", id, f.RelPath, err)
+			}
+			continue
+		}
+		mode := f.Mode
+		if mode == 0 {
+			mode = 0o644
+		}
+		if err := d.Writer.AtomicWrite(dst, f.Bytes, mode); err != nil {
+			return fmt.Errorf("merge %s: write %s: %w", id, f.RelPath, err)
+		}
+	}
+
+	if len(res.Conflicts) > 0 {
+		fmt.Fprintf(w, "merge %s: %d conflict(s) — resolve markers and run `adept push %s`:\n", id, len(res.Conflicts), id)
+		for _, cf := range res.Conflicts {
+			fmt.Fprintf(w, "  CONFLICT %s\n", cf.Path)
+		}
+		return fmt.Errorf("%w: %d file(s)", adept.ErrMergeConflict, len(res.Conflicts))
+	}
+
+	// Clean merge — bring the project lockfile to the library version,
+	// rehash the project tree, and re-snapshot the base.
+	newHash, err := d.Hasher.HashSkillDir(oursDir)
+	if err != nil {
+		return fmt.Errorf("merge %s: rehash: %w", id, err)
+	}
+	projLock, err := d.Store.Read(p.LockfilePath())
+	if err != nil {
+		return fmt.Errorf("read project lock: %w", err)
+	}
+	updated := adept.LockEntry{
+		Version:   libEntry.Version,
+		Hash:      newHash,
+		Targets:   libEntry.Targets,
+		Signature: libEntry.Signature,
+		UpdatedAt: time.Now().UTC().Format(time.RFC3339),
+	}
+	projLock = d.Store.SetEntry(projLock, id, updated)
+	if err := d.Store.Write(p.LockfilePath(), projLock); err != nil {
+		return fmt.Errorf("save project lock: %w", err)
+	}
+	if err := p.SnapshotBase(id); err != nil {
+		return fmt.Errorf("snapshot base: %w", err)
+	}
+	fmt.Fprintf(w, "merged %s with library v%d (no conflicts)\n", id, libEntry.Version)
+	return nil
 }
 
 type direction int
@@ -387,6 +486,11 @@ func syncSkill(d *Deps, w io.Writer, id string, dir direction) error {
 		projLock = d.Store.SetEntry(projLock, id, newEntry)
 		if err := d.Store.Write(p.LockfilePath(), projLock); err != nil {
 			return err
+		}
+		// Refresh the merge-base snapshot so the next diverged
+		// resolve has the just-pushed state as its common ancestor.
+		if err := p.SnapshotBase(id); err != nil {
+			return fmt.Errorf("snapshot base: %w", err)
 		}
 		fmt.Fprintf(w, "pushed %s v%d to library\n", id, newVersion)
 	}
@@ -610,17 +714,145 @@ func newDoctorCmd(d *Deps) *cobra.Command {
 
 // ---------- verify ----------
 
+// verifyRow captures the verification outcome for a single skill in the
+// project lockfile.
+type verifyRow struct {
+	ID      string `json:"id"`
+	Result  string `json:"result"` // "ok" | "failed" | "unsigned" | "unsupported"
+	Message string `json:"message,omitempty"`
+}
+
+type verifyRenderable struct {
+	Backend string      `json:"backend"`
+	Rows    []verifyRow `json:"rows"`
+}
+
+func (r *verifyRenderable) JSON() any { return r }
+
+func (r *verifyRenderable) Plain(w io.Writer) error {
+	tw := NewTabWriter(w)
+	fmt.Fprintf(tw, "ID\tRESULT\tDETAIL\n")
+	for _, row := range r.Rows {
+		detail := row.Message
+		if detail == "" {
+			detail = "-"
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\n", row.ID, row.Result, detail)
+	}
+	if err := tw.Flush(); err != nil {
+		return err
+	}
+	fmt.Fprintf(w, "backend=%s\n", r.Backend)
+	return nil
+}
+
 func newVerifyCmd(d *Deps) *cobra.Command {
 	c := &cobra.Command{
 		Use:   "verify",
-		Short: "Verify project signatures",
+		Short: "Verify cosign signatures on every signed project skill",
 	}
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
-		// v0.1: Noop verifier — every signature passes. Real cosign keyless impl is v0.2.
-		fmt.Fprintf(cmd.OutOrStdout(), "verifier=noop; no signatures verified (v0.2 brings cosign)\n")
+		ctx := cmd.Context()
+		p, err := d.Project()
+		if err != nil {
+			return err
+		}
+		lf, err := p.Lock()
+		if err != nil {
+			return err
+		}
+		ids := make([]string, 0, len(lf.Skills))
+		for id := range lf.Skills {
+			ids = append(ids, id)
+		}
+		sort.Strings(ids)
+
+		rows := make([]verifyRow, 0, len(ids))
+		anyFailed := false
+		for _, id := range ids {
+			entry := lf.Skills[id]
+			if entry.Signature == "" {
+				rows = append(rows, verifyRow{ID: id, Result: "unsigned"})
+				continue
+			}
+			blob, herr := readSkillBlob(p.SkillsDir(), id)
+			if herr != nil {
+				rows = append(rows, verifyRow{ID: id, Result: "failed", Message: herr.Error()})
+				anyFailed = true
+				continue
+			}
+			sigBytes, certBytes, perr := parseCosignSignature(entry.Signature)
+			if perr != nil {
+				rows = append(rows, verifyRow{ID: id, Result: "unsupported", Message: perr.Error()})
+				continue
+			}
+			if err := d.Verifier.Verify(ctx, blob, sigBytes, certBytes); err != nil {
+				rows = append(rows, verifyRow{ID: id, Result: "failed", Message: err.Error()})
+				anyFailed = true
+				continue
+			}
+			rows = append(rows, verifyRow{ID: id, Result: "ok"})
+		}
+
+		backend := string(d.SignBackend)
+		if backend == "" {
+			backend = string(sign.BackendNoop)
+		}
+		if err := d.Print(cmd.OutOrStdout(), &verifyRenderable{Backend: backend, Rows: rows}); err != nil {
+			return err
+		}
+		if anyFailed {
+			return ErrDirty
+		}
 		return nil
 	}
 	return c
+}
+
+// readSkillBlob loads the canonical SKILL.md content used as the signing
+// subject. We deliberately sign only SKILL.md (the authoritative payload);
+// sidecars are content-addressed by the lockfile hash.
+func readSkillBlob(skillsDir, id string) ([]byte, error) {
+	path := filepath.Join(skillsDir, id, adept.SkillFileName)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", path, err)
+	}
+	return data, nil
+}
+
+// parseCosignSignature splits a "cosign:<b64-sig>:<b64-cert>" lockfile
+// signature value into raw byte buffers. Returns a descriptive error when
+// the format is anything else; callers surface this as "unsupported".
+func parseCosignSignature(s string) (sig, cert []byte, err error) {
+	const prefix = "cosign:"
+	if !strings.HasPrefix(s, prefix) {
+		return nil, nil, fmt.Errorf("signature scheme not cosign (got %q)", schemePrefix(s))
+	}
+	body := s[len(prefix):]
+	parts := strings.SplitN(body, ":", 2)
+	if len(parts) != 2 {
+		return nil, nil, fmt.Errorf("malformed cosign signature: want <b64-sig>:<b64-cert>")
+	}
+	sig, err = base64.StdEncoding.DecodeString(parts[0])
+	if err != nil {
+		return nil, nil, fmt.Errorf("decode sig: %w", err)
+	}
+	cert, err = base64.StdEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil, nil, fmt.Errorf("decode cert: %w", err)
+	}
+	return sig, cert, nil
+}
+
+func schemePrefix(s string) string {
+	if i := strings.Index(s, ":"); i >= 0 {
+		return s[:i]
+	}
+	if len(s) > 16 {
+		return s[:16] + "…"
+	}
+	return s
 }
 
 // ---------- upgrade ----------

@@ -34,6 +34,16 @@ type Spec struct {
 	Frontmatter Frontmatter      `yaml:"frontmatter"`
 	Body        Body             `yaml:"body"`
 	Detect      []string         `yaml:"detect"`
+	Import      Import           `yaml:"import"`
+}
+
+// Import carries optional reverse-rendering hints. Auto-derived from forward
+// config when fields are empty.
+type Import struct {
+	// Rename inverts Frontmatter.Rename. Keys are harness-side frontmatter
+	// keys; values are canonical skill field names ("description", "globs",
+	// ...). When non-empty, takes precedence over the auto-derived inverse.
+	Rename map[string]string `yaml:"rename"`
 }
 
 // Frontmatter rules: include/rename/constants drive how a Skill's metadata is

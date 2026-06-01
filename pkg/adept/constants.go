@@ -4,6 +4,7 @@ package adept
 const (
 	BaseDirName    = ".adeptability"
 	SkillsDirName  = "skills"
+	BaseSnapDir    = "base"
 	SkillFileName  = "SKILL.md"
 	SkillYAMLName  = "skill.yaml"
 	LockFileName   = "adeptability.lock.json"

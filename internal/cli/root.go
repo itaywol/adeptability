@@ -97,14 +97,18 @@ func NewRoot(b BuildInfo) *cobra.Command {
 }
 
 // ExitFromError maps an error to an exit code.
-//   - nil           -> 0
-//   - ErrDirty      -> 2 (drift / dirty state, used by doctor/status)
-//   - any other err -> 1
+//   - nil                  -> 0
+//   - ErrDirty             -> 2 (drift / dirty state, used by doctor/status)
+//   - ErrMergeConflict     -> 2 (resolve --strategy merge surfaced conflicts)
+//   - any other err        -> 1
 func ExitFromError(err error) int {
 	if err == nil {
 		return 0
 	}
 	if errors.Is(err, ErrDirty) {
+		return 2
+	}
+	if errors.Is(err, adept.ErrMergeConflict) {
 		return 2
 	}
 	return 1
@@ -127,4 +131,6 @@ var (
 	ErrBudgetOverflow     = adept.ErrBudgetOverflow
 	ErrAdapterInvalid     = adept.ErrAdapterInvalid
 	ErrHarnessUnknown     = adept.ErrHarnessUnknown
+	ErrMergeConflict      = adept.ErrMergeConflict
+	ErrMergeBaseMissing   = adept.ErrMergeBaseMissing
 )

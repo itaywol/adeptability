@@ -1,0 +1,13 @@
+id: copilot-clone
+name: Copilot clone (test)
+kind: aggregator-per-glob
+output: .github/instructions/{glob}.instructions.md
+needs-directory: false
+frontmatter:
+  include:
+    - description
+body:
+  prefix: ""
+  suffix: ""
+detect:
+  - .github/instructions

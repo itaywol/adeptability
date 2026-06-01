@@ -1,0 +1,13 @@
+id: agents-single
+name: Aggregator single (test)
+kind: aggregator-single
+output: AGENTS.md
+needs-directory: false
+frontmatter:
+  include:
+    - description
+body:
+  prefix: ""
+  suffix: ""
+detect:
+  - AGENTS.md

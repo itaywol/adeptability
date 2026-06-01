@@ -36,10 +36,13 @@ type DriftReport struct {
 // ImportedSkill is one canonical skill recovered from a harness's on-disk
 // representation. SourcePath is the harness file (or aggregator bucket) the
 // content came from; the orchestrator records it for conflict reporting.
+// Warnings carries non-fatal recovery notes (e.g. lossy transforms that
+// could not be reversed); empty/nil is the common case.
 type ImportedSkill struct {
 	Skill      *Skill
 	Files      []SkillFile
 	SourcePath string
+	Warnings   []string
 }
 
 // HarnessAdapter is the contract every built-in or config-driven harness implements.

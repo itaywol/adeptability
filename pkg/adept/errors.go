@@ -11,4 +11,6 @@ var (
 	ErrAdapterInvalid     = errors.New("adapter invalid")
 	ErrHarnessUnknown     = errors.New("harness unknown")
 	ErrSymlinkUnsupported = errors.New("symlink unsupported on this filesystem")
+	ErrMergeConflict      = errors.New("merge conflict")
+	ErrMergeBaseMissing   = errors.New("merge base snapshot missing")
 )

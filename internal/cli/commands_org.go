@@ -3,7 +3,9 @@ package cli
 import (
 	"fmt"
 	"io"
+	"net/http"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -19,11 +21,17 @@ func newOrgCmd(d *Deps) *cobra.Command {
 
 func newOrgInitCmd(d *Deps) *cobra.Command {
 	var remote, ref string
-	c := &cobra.Command{Use: "init", Short: "Wire project to an org skill registry"}
-	c.Flags().StringVar(&remote, "remote", "", "git remote URL pointing at the org library (required)")
-	c.Flags().StringVar(&ref, "ref", "main", "branch or tag in the org library")
+	c := &cobra.Command{
+		Use:   "init",
+		Short: "Wire project to an org skill registry (git or HTTPS URL)",
+	}
+	c.Flags().StringVar(&remote, "remote", "", "git remote (git@host:org/repo.git) or HTTPS URL pointing at the org library (required)")
+	c.Flags().StringVar(&ref, "ref", "main", "branch or tag in the org library (ignored for HTTP)")
 	_ = c.MarkFlagRequired("remote")
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
+		if remote == "" {
+			return fmt.Errorf("--remote is required")
+		}
 		p, err := d.Project()
 		if err != nil {
 			return err
@@ -36,10 +44,24 @@ func newOrgInitCmd(d *Deps) *cobra.Command {
 		if err := p.SaveLock(lf); err != nil {
 			return err
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "wired project to %s (ref %s)\n", remote, ref)
+		scheme := orgRemoteScheme(remote)
+		fmt.Fprintf(cmd.OutOrStdout(), "wired project to %s (scheme=%s, ref=%s)\n", remote, scheme, ref)
 		return nil
 	}
 	return c
+}
+
+// orgRemoteScheme classifies a remote URL string into the high-level scheme
+// adept understands. The classification is what newOrgSyncCmd uses to pick
+// between FileClient and HTTPClient.
+func orgRemoteScheme(remote string) string {
+	switch {
+	case strings.HasPrefix(remote, "http://"), strings.HasPrefix(remote, "https://"):
+		return "http"
+	default:
+		// Git URLs (git@…:repo.git), bare paths, file:// — all read locally.
+		return "file"
+	}
 }
 
 func newOrgSyncCmd(d *Deps) *cobra.Command {
@@ -56,13 +78,14 @@ func newOrgSyncCmd(d *Deps) *cobra.Command {
 		if lf.Org == nil {
 			return fmt.Errorf("project has no org configured; run `adept org init`")
 		}
-		// v0.1: read org.yaml from the library root. v0.2 will fetch from remote git.
 		libRoot, err := d.ResolveLibraryRoot()
 		if err != nil {
 			return err
 		}
-		manifestPath := filepath.Join(libRoot, adept.OrgFileName)
-		client := org.NewFileClient(manifestPath, d.OrgParser)
+		client, err := chooseOrgClient(d, lf.Org.Remote, libRoot)
+		if err != nil {
+			return fmt.Errorf("select org client: %w", err)
+		}
 		manifest, err := client.Fetch(cmd.Context())
 		if err != nil {
 			return fmt.Errorf("fetch org manifest: %w", err)
@@ -113,4 +136,19 @@ func (r *orgSyncRenderable) Plain(w io.Writer) error {
 		fmt.Fprintf(w, "  + %s\n", id)
 	}
 	return nil
+}
+
+// chooseOrgClient resolves the manifest client based on the remote URL
+// scheme. HTTP/HTTPS uses the network-backed client with an on-disk ETag
+// cache under <library>/.org-cache/; anything else falls back to the local
+// FileClient reading <library>/org.yaml.
+func chooseOrgClient(d *Deps, remote, libRoot string) (org.Client, error) {
+	switch orgRemoteScheme(remote) {
+	case "http":
+		cache := org.NewFileETagCache(filepath.Join(libRoot, ".org-cache"))
+		return org.NewHTTPClient(strings.TrimRight(remote, "/"), d.OrgParser, http.DefaultClient, cache), nil
+	default:
+		manifestPath := filepath.Join(libRoot, adept.OrgFileName)
+		return org.NewFileClient(manifestPath, d.OrgParser), nil
+	}
 }

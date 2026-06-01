@@ -55,9 +55,10 @@ type Deps struct {
 	AdapterLoader adapter.Loader
 
 	// Org + signing
-	OrgParser org.Parser
-	Verifier  sign.Verifier
-	Signer    sign.Signer
+	OrgParser   org.Parser
+	Verifier    sign.Verifier
+	Signer      sign.Signer
+	SignBackend sign.Backend
 }
 
 // NewDeps wires concrete implementations. This is the only place where
@@ -90,7 +91,18 @@ func NewDeps(gf *GlobalFlags, b BuildInfo) (*Deps, error) {
 		return nil, fmt.Errorf("build org parser: %w", err)
 	}
 
-	verifier, signer := sign.NewNoop()
+	signResult, err := sign.Detect(sign.DetectOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("detect sign backend: %w", err)
+	}
+	if signResult.Notice != "" {
+		logger.Info("sign", "backend", string(signResult.Backend), "notice", signResult.Notice)
+	} else {
+		logger.Debug("sign", "backend", string(signResult.Backend))
+	}
+	verifier := signResult.Verifier
+	signer := signResult.Signer
+	signBackend := signResult.Backend
 
 	return &Deps{
 		Flags:         gf,
@@ -111,6 +123,7 @@ func NewDeps(gf *GlobalFlags, b BuildInfo) (*Deps, error) {
 		OrgParser:     orgParser,
 		Verifier:      verifier,
 		Signer:        signer,
+		SignBackend:   signBackend,
 	}, nil
 }
 

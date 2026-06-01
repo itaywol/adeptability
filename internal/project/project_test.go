@@ -140,3 +140,83 @@ func TestProject_InstallSkill_RejectsSidecarEscape(t *testing.T) {
 	err := p.InstallSkill(sampleSkill("skill-a"), []adept.SkillFile{{RelPath: "../bad.txt"}}, adept.LockEntry{})
 	require.Error(t, err)
 }
+
+func TestProject_BaseDirForSkill_ReturnsCorrectPath(t *testing.T) {
+	p, root := newProject(t)
+	got := p.BaseDirForSkill("skill-a")
+	require.Equal(t, filepath.Join(root, adept.BaseDirName, adept.BaseSnapDir, "skill-a"), got)
+	require.False(t, p.HasBaseSnapshot("skill-a"))
+}
+
+func TestProject_BaseSnapshotDir_ReturnsRootOfStore(t *testing.T) {
+	p, root := newProject(t)
+	require.Equal(t, filepath.Join(root, adept.BaseDirName, adept.BaseSnapDir), p.BaseSnapshotDir())
+}
+
+func TestProject_InstallSkill_WritesBaseSnapshot(t *testing.T) {
+	p, root := newProject(t)
+	require.NoError(t, p.InstallSkill(sampleSkill("skill-a"), nil, adept.LockEntry{Version: 2, Hash: "sha256:x"}))
+	require.True(t, p.HasBaseSnapshot("skill-a"))
+	want := filepath.Join(root, adept.BaseDirName, adept.BaseSnapDir, "skill-a", adept.SkillFileName)
+	require.FileExists(t, want)
+	// Snapshot content must match the canonical SKILL.md byte-for-byte.
+	canonical, err := os.ReadFile(filepath.Join(root, adept.BaseDirName, adept.SkillsDirName, "skill-a", adept.SkillFileName))
+	require.NoError(t, err)
+	snap, err := os.ReadFile(want)
+	require.NoError(t, err)
+	require.Equal(t, canonical, snap)
+}
+
+func TestProject_InstallSkill_WritesBaseSnapshotWithSidecars(t *testing.T) {
+	p, root := newProject(t)
+	files := []adept.SkillFile{
+		{RelPath: "scripts/run.sh", Mode: 0o644, Bytes: []byte("echo hi\n")},
+		{RelPath: "references/notes.md", Mode: 0o644, Bytes: []byte("notes\n")},
+	}
+	require.NoError(t, p.InstallSkill(sampleSkill("skill-a"), files, adept.LockEntry{Version: 1, Hash: "h"}))
+	require.True(t, p.HasBaseSnapshot("skill-a"))
+	baseRoot := filepath.Join(root, adept.BaseDirName, adept.BaseSnapDir, "skill-a")
+	require.FileExists(t, filepath.Join(baseRoot, "SKILL.md"))
+	require.FileExists(t, filepath.Join(baseRoot, "scripts", "run.sh"))
+	require.FileExists(t, filepath.Join(baseRoot, "references", "notes.md"))
+	body, err := os.ReadFile(filepath.Join(baseRoot, "scripts", "run.sh"))
+	require.NoError(t, err)
+	require.Equal(t, "echo hi\n", string(body))
+}
+
+func TestProject_SnapshotBase_OverwritesPriorSnapshot(t *testing.T) {
+	p, root := newProject(t)
+	skill := sampleSkill("skill-a")
+	require.NoError(t, p.InstallSkill(skill, []adept.SkillFile{{RelPath: "old.md", Bytes: []byte("v1\n")}}, adept.LockEntry{Version: 1, Hash: "h"}))
+	require.FileExists(t, filepath.Join(root, adept.BaseDirName, adept.BaseSnapDir, "skill-a", "old.md"))
+
+	// Re-install with a different sidecar list. The base snapshot must
+	// mirror the new on-disk tree, with old.md gone.
+	require.NoError(t, os.Remove(filepath.Join(root, adept.BaseDirName, adept.SkillsDirName, "skill-a", "old.md")))
+	require.NoError(t, p.InstallSkill(skill, []adept.SkillFile{{RelPath: "new.md", Bytes: []byte("v2\n")}}, adept.LockEntry{Version: 1, Hash: "h"}))
+	require.FileExists(t, filepath.Join(root, adept.BaseDirName, adept.BaseSnapDir, "skill-a", "new.md"))
+	_, err := os.Stat(filepath.Join(root, adept.BaseDirName, adept.BaseSnapDir, "skill-a", "old.md"))
+	require.True(t, os.IsNotExist(err))
+}
+
+func TestProject_SnapshotBase_RejectsEmptyID(t *testing.T) {
+	p, _ := newProject(t)
+	err := p.SnapshotBase("")
+	require.ErrorIs(t, err, adept.ErrSkillInvalid)
+}
+
+func TestProject_SnapshotBase_RejectsMissingSkill(t *testing.T) {
+	p, _ := newProject(t)
+	err := p.SnapshotBase("nope")
+	require.ErrorIs(t, err, adept.ErrSkillNotFound)
+}
+
+func TestProject_UninstallSkill_RemovesBaseSnapshot(t *testing.T) {
+	p, root := newProject(t)
+	require.NoError(t, p.InstallSkill(sampleSkill("skill-a"), nil, adept.LockEntry{Version: 1, Hash: "h"}))
+	require.True(t, p.HasBaseSnapshot("skill-a"))
+	require.NoError(t, p.UninstallSkill("skill-a"))
+	require.False(t, p.HasBaseSnapshot("skill-a"))
+	_, err := os.Stat(filepath.Join(root, adept.BaseDirName, adept.BaseSnapDir, "skill-a"))
+	require.True(t, os.IsNotExist(err))
+}

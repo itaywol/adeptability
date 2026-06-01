@@ -27,3 +27,17 @@ body:
 detect:
   - ".junie/"
   - ".junie/guidelines/"
+
+# Optional reverse-rendering hints. The default `adept harness import` flow
+# auto-derives the inverse rename from `frontmatter.rename` above, so this
+# block is only needed when the forward rename is non-bijective (e.g. two
+# canonical keys both projected to the same harness key) or when the harness
+# writes additional aliases we want to canonicalize on import.
+#
+# Keys here are harness-side frontmatter keys; values are canonical skill
+# fields (`description`, `globs`, `tags`, ...).
+#
+# import:
+#   rename:
+#     headline: description
+

@@ -28,6 +28,22 @@ type Project interface {
 	Root() string
 	BaseDir() string
 	SkillsDir() string
+	// BaseSnapshotDir returns the root of the merge-base snapshot store:
+	// <root>/.adeptability/base/. Per-skill snapshots live under that
+	// directory, one subdirectory per skill id.
+	BaseSnapshotDir() string
+	// BaseDirForSkill returns the absolute path of the per-skill base
+	// snapshot for id. The directory may not yet exist; callers should
+	// use HasBaseSnapshot for a presence check.
+	BaseDirForSkill(id string) string
+	// HasBaseSnapshot reports whether a base snapshot exists for id.
+	HasBaseSnapshot(id string) bool
+	// SnapshotBase copies the project's current canonical state for id
+	// into BaseDirForSkill(id), overwriting any prior snapshot. It is
+	// idempotent and intended to be called immediately after a successful
+	// pull / install / clean resolve so that future diverged resolves have
+	// a real common ancestor to merge against.
+	SnapshotBase(id string) error
 	LockfilePath() string
 	Lock() (*adept.LockFile, error)
 	SaveLock(lf *adept.LockFile) error
@@ -58,10 +74,49 @@ type project struct {
 	writer fsutil.Writer
 }
 
-func (p *project) Root() string         { return p.root }
-func (p *project) BaseDir() string      { return filepath.Join(p.root, adept.BaseDirName) }
-func (p *project) SkillsDir() string    { return filepath.Join(p.BaseDir(), adept.SkillsDirName) }
+func (p *project) Root() string             { return p.root }
+func (p *project) BaseDir() string          { return filepath.Join(p.root, adept.BaseDirName) }
+func (p *project) SkillsDir() string        { return filepath.Join(p.BaseDir(), adept.SkillsDirName) }
+func (p *project) BaseSnapshotDir() string  { return filepath.Join(p.BaseDir(), adept.BaseSnapDir) }
+func (p *project) BaseDirForSkill(id string) string {
+	return filepath.Join(p.BaseSnapshotDir(), id)
+}
 func (p *project) LockfilePath() string { return filepath.Join(p.root, adept.LockFileName) }
+
+func (p *project) HasBaseSnapshot(id string) bool {
+	if id == "" {
+		return false
+	}
+	_, err := os.Stat(filepath.Join(p.BaseDirForSkill(id), adept.SkillFileName))
+	return err == nil
+}
+
+// SnapshotBase mirrors <skillsDir>/<id>/ into <baseDir>/<id>/. The destination
+// is wiped first so removed sidecars don't survive across snapshots. The copy
+// uses the injected fsutil.Writer to keep IO behavior consistent (no globals).
+func (p *project) SnapshotBase(id string) error {
+	if id == "" {
+		return fmt.Errorf("project snapshot base: %w: empty id", adept.ErrSkillInvalid)
+	}
+	src := filepath.Join(p.SkillsDir(), id)
+	if _, err := os.Stat(filepath.Join(src, adept.SkillFileName)); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("project snapshot base %q: %w", id, adept.ErrSkillNotFound)
+		}
+		return fmt.Errorf("project snapshot base %q: stat: %w", id, err)
+	}
+	dst := p.BaseDirForSkill(id)
+	if err := p.writer.RemoveAll(dst); err != nil {
+		return fmt.Errorf("project snapshot base %q: clear: %w", id, err)
+	}
+	if err := p.writer.EnsureDir(filepath.Dir(dst)); err != nil {
+		return fmt.Errorf("project snapshot base %q: ensure: %w", id, err)
+	}
+	if err := p.writer.CopyDir(src, dst); err != nil {
+		return fmt.Errorf("project snapshot base %q: copy: %w", id, err)
+	}
+	return nil
+}
 
 func (p *project) Lock() (*adept.LockFile, error) {
 	lf, err := p.store.Read(p.LockfilePath())
@@ -212,6 +267,12 @@ func (p *project) InstallSkill(s *adept.Skill, files []adept.SkillFile, libEntry
 	if err := p.SaveLock(lf); err != nil {
 		return fmt.Errorf("project install %q: %w", s.ID, err)
 	}
+	// Snapshot the just-installed canonical state as the new merge base.
+	// Failure here is fatal: without a base the next diverged resolve has
+	// no common ancestor to consult.
+	if err := p.SnapshotBase(s.ID); err != nil {
+		return fmt.Errorf("project install %q: %w", s.ID, err)
+	}
 	return nil
 }
 
@@ -222,6 +283,10 @@ func (p *project) UninstallSkill(id string) error {
 	dir := filepath.Join(p.SkillsDir(), id)
 	if err := os.RemoveAll(dir); err != nil {
 		return fmt.Errorf("project uninstall %q: %w", id, err)
+	}
+	// Drop the merge-base snapshot too so a future re-install starts clean.
+	if err := os.RemoveAll(p.BaseDirForSkill(id)); err != nil {
+		return fmt.Errorf("project uninstall %q: clear base: %w", id, err)
 	}
 	lf, err := p.Lock()
 	if err != nil {
