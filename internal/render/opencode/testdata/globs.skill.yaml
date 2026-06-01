@@ -1,0 +1,9 @@
+id: schema-checks
+version: 1
+description: Validate JSON schema files for backwards compatibility.
+activation: globs
+globs:
+  - "schemas/**/*.json"
+body: |
+  Run the schema linter on the file. If a breaking change is detected,
+  surface it before committing.

@@ -1,0 +1,11 @@
+version: 1
+name: acme
+skills:
+  required:
+    - id: skill-a
+      min-version: 1
+    - id: skill-b
+      min-version: 2
+  optional:
+    - id: skill-c
+      min-version: 1

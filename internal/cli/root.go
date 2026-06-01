@@ -1,0 +1,129 @@
+// Package cli is the cobra-based command surface for adept.
+//
+// Composition root pattern: NewRoot wires every concrete implementation
+// behind interfaces into a *Deps container, then attaches each subcommand
+// constructed from that container. No package-level state. No init() side
+// effects. Every command receives its dependencies explicitly so it can be
+// tested with mocks.
+package cli
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+
+	"github.com/spf13/cobra"
+
+	"github.com/itaywol/adeptability/pkg/adept"
+)
+
+// BuildInfo is populated by main from -ldflags.
+type BuildInfo struct {
+	Version string
+	Commit  string
+	Date    string
+}
+
+// GlobalFlags hold flags shared by every subcommand.
+type GlobalFlags struct {
+	JSON       bool
+	LogLevel   string
+	ProjectDir string
+	LibraryDir string
+}
+
+// NewRoot builds the cobra root command with all subcommands attached.
+func NewRoot(b BuildInfo) *cobra.Command {
+	gf := &GlobalFlags{}
+	root := &cobra.Command{
+		Use:           "adept",
+		Short:         "Cross-harness AI skill portability",
+		Long:          "adept manages canonical AI assistant skills and renders them accurately into every harness in your project.",
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		Version:       fmt.Sprintf("%s (commit %s, built %s)", b.Version, b.Commit, b.Date),
+	}
+
+	root.PersistentFlags().BoolVar(&gf.JSON, "json", false, "emit machine-readable JSON output")
+	root.PersistentFlags().StringVar(&gf.LogLevel, "log-level", "info", "log level: debug|info|warn|error")
+	root.PersistentFlags().StringVar(&gf.ProjectDir, "project", "", "project root (default: current directory)")
+	root.PersistentFlags().StringVar(&gf.LibraryDir, "library", "", "library root (default: $ADEPT_LIBRARY or $HOME/.adeptability)")
+
+	root.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
+		// Resolve defaults at the latest possible moment so tests can override.
+		if gf.ProjectDir == "" {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("resolve project dir: %w", err)
+			}
+			gf.ProjectDir = cwd
+		}
+		return nil
+	}
+
+	deps, err := NewDeps(gf, b)
+	if err != nil {
+		// Surface dependency-wiring errors at command construction time;
+		// cobra will print them on the first invocation.
+		root.RunE = func(*cobra.Command, []string) error { return err }
+		return root
+	}
+
+	root.AddCommand(
+		newInitCmd(deps),
+		newListCmd(deps),
+		newAddCmd(deps),
+		newShowCmd(deps),
+		newInstallCmd(deps),
+		newUninstallCmd(deps),
+		newPullCmd(deps),
+		newPushCmd(deps),
+		newStatusCmd(deps),
+		newDiffCmd(deps),
+		newResolveCmd(deps),
+		newHarnessCmd(deps),
+		newRenderCmd(deps),
+		newApplyAllCmd(deps),
+		newOrgCmd(deps),
+		newMigrateCmd(deps),
+		newDoctorCmd(deps),
+		newVerifyCmd(deps),
+		newScanCmd(deps),
+		newUpgradeCmd(deps),
+	)
+	return root
+}
+
+// ExitFromError maps an error to an exit code.
+//   - nil           -> 0
+//   - ErrDirty      -> 2 (drift / dirty state, used by doctor/status)
+//   - any other err -> 1
+func ExitFromError(err error) int {
+	if err == nil {
+		return 0
+	}
+	if errors.Is(err, ErrDirty) {
+		return 2
+	}
+	return 1
+}
+
+// ErrDirty is the sentinel returned by commands that report drift but did not fail.
+var ErrDirty = errors.New("dirty state detected")
+
+// Context returns a request context for the duration of one command run.
+// Centralizing this lets future versions wire signal handling or tracing.
+func Context() context.Context { return context.Background() }
+
+// Surface for testing: re-export adept sentinels under the CLI package so
+// command tests can `require.ErrorIs(err, cli.ErrSkillNotFound)` without an
+// extra import.
+var (
+	ErrSkillNotFound      = adept.ErrSkillNotFound
+	ErrSkillInvalid       = adept.ErrSkillInvalid
+	ErrLockSchemaMismatch = adept.ErrLockSchemaMismatch
+	ErrBudgetOverflow     = adept.ErrBudgetOverflow
+	ErrAdapterInvalid     = adept.ErrAdapterInvalid
+	ErrHarnessUnknown     = adept.ErrHarnessUnknown
+)

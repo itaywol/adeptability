@@ -1,0 +1,9 @@
+---
+applyTo: "**/*.ts"
+---
+
+<!-- adeptability:begin id=ts-rules version=3 -->
+## TS rules
+
+Strict mode.
+<!-- adeptability:end id=ts-rules -->

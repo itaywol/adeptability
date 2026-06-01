@@ -1,0 +1,6 @@
+---
+description: Walk the agent through a thorough PR review.
+---
+
+Read the diff, check the linked issue, then write feedback grouped by
+severity (P0/P1/P2).

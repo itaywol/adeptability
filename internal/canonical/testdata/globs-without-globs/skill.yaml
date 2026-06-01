@@ -1,0 +1,4 @@
+id: globs_no_globs
+version: 1
+description: Activation globs but no globs array provided
+activation: globs

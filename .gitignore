@@ -1,0 +1,9 @@
+dist/
+/adept
+/adept.exe
+*.test
+*.out
+coverage.txt
+.DS_Store
+.idea/
+.vscode/

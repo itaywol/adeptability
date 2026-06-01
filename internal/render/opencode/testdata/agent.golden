@@ -1,0 +1,6 @@
+# doc-writer
+
+Draft developer documentation with examples.
+
+Produce concise developer documentation. Each public API should have a
+one-paragraph description and a runnable example.

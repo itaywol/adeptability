@@ -1,0 +1,7 @@
+id: rotate-secrets
+version: 1
+description: Rotate API credentials in the deployment manifest.
+activation: manual
+body: |
+  Walk through each environment, generate new credentials, and update the
+  manifest. Stop and confirm before applying.

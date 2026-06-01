@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://itaywol.github.io/adeptability/schemas/adapter.schema.json",
+  "title": "Adeptability Harness Adapter",
+  "type": "object",
+  "required": ["id", "kind", "output"],
+  "additionalProperties": false,
+  "properties": {
+    "id":   { "type": "string", "pattern": "^[a-z0-9_][a-z0-9_-]{0,49}$" },
+    "name": { "type": "string" },
+    "kind": { "type": "string", "enum": ["per-skill", "aggregator-single", "aggregator-per-glob"] },
+    "output": { "type": "string", "minLength": 1 },
+    "base-dir": { "type": "string" },
+    "needs-directory": { "type": "boolean", "default": false },
+    "size-budget-bytes": { "type": "integer", "minimum": 0, "default": 0 },
+    "frontmatter": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "include": { "type": "array", "items": { "type": "string" } },
+        "rename":  { "type": "object", "additionalProperties": { "type": "string" } },
+        "constants": { "type": "object", "additionalProperties": true }
+      }
+    },
+    "body": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "prefix": { "type": "string" },
+        "suffix": { "type": "string" },
+        "replace": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["regex", "with"],
+            "additionalProperties": false,
+            "properties": {
+              "regex": { "type": "string" },
+              "with":  { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "detect": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

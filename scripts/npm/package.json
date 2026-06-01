@@ -1,0 +1,28 @@
+{
+  "name": "@itaywol/adeptability",
+  "version": "0.0.0",
+  "description": "Cross-harness AI skill portability CLI",
+  "bin": {
+    "adept": "./bin/adept"
+  },
+  "scripts": {
+    "postinstall": "node ./install.js"
+  },
+  "files": [
+    "install.js",
+    "bin/.gitkeep",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "os": ["darwin", "linux", "win32"],
+  "cpu": ["x64", "arm64"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/itaywol/adeptability.git"
+  },
+  "homepage": "https://github.com/itaywol/adeptability",
+  "license": "MIT"
+}

@@ -1,0 +1,12 @@
+id: review-style
+version: 3
+description: Review code style and flag deviations from project conventions.
+activation: always
+allowed-tools:
+  - Read
+  - Grep
+body: |
+  # Review Style
+
+  When asked to review code, walk through the diff and call out any
+  deviation from the conventions documented in CONTRIBUTING.md.

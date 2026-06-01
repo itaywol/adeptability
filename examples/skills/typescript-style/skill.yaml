@@ -1,0 +1,8 @@
+id: typescript-style
+version: 1
+description: Project TypeScript conventions. Use when editing .ts or .tsx files.
+activation: globs
+globs:
+  - "**/*.ts"
+  - "**/*.tsx"
+tags: [style, typescript]

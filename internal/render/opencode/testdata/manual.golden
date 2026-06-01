@@ -1,0 +1,6 @@
+# backup-state
+
+Snapshot terraform state before destructive actions.
+
+Before applying destructive plans, snapshot the state file to the
+backups bucket and verify the upload.

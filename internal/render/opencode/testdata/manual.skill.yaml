@@ -1,0 +1,7 @@
+id: backup-state
+version: 1
+description: Snapshot terraform state before destructive actions.
+activation: manual
+body: |
+  Before applying destructive plans, snapshot the state file to the
+  backups bucket and verify the upload.

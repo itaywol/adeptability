@@ -1,0 +1,7 @@
+id: pr-reviewer
+version: 1
+description: Walk the agent through a thorough PR review.
+activation: agent
+body: |
+  Read the diff, check the linked issue, then write feedback grouped by
+  severity (P0/P1/P2).

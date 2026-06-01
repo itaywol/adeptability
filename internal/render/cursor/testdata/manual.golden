@@ -1,0 +1,8 @@
+---
+description: Rotate API credentials in the deployment manifest.
+---
+
+Invoke this rule manually with `@rotate-secrets`.
+
+Walk through each environment, generate new credentials, and update the
+manifest. Stop and confirm before applying.

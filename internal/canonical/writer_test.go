@@ -1,0 +1,60 @@
+package canonical
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/itaywol/adeptability/pkg/adept"
+)
+
+func TestRenderCanonical_RoundTripsThroughParser(t *testing.T) {
+	t.Parallel()
+	in := &adept.Skill{
+		ID:           "typescript-style",
+		Version:      1,
+		Description:  "Project TypeScript conventions. Use when editing .ts or .tsx files.",
+		Activation:   adept.ActivationGlobs,
+		Globs:        []string{"**/*.ts", "**/*.tsx"},
+		AllowedTools: []string{"Read", "Grep"},
+		Tags:         []string{"style", "typescript"},
+		Metadata:     map[string]string{"owner": "platform-eng"},
+		Body:         "# Body\n",
+	}
+	got, err := RenderCanonical(in)
+	require.NoError(t, err)
+	// Globs must be quoted so YAML doesn't treat `**` as an alias.
+	require.Contains(t, string(got), `- "**/*.ts"`)
+	require.Contains(t, string(got), `- "**/*.tsx"`)
+
+	// Round-trip: parsing the rendered bytes yields a Skill equal to the input.
+	p := NewParser()
+	parsed, _, err := p.ParseFrontmatter(got)
+	require.NoError(t, err)
+	require.Equal(t, in.ID, parsed.ID)
+	require.Equal(t, in.Version, parsed.Version)
+	require.Equal(t, in.Description, parsed.Description)
+	require.Equal(t, in.Globs, parsed.Globs)
+	require.Equal(t, in.Tags, parsed.Tags)
+}
+
+func TestRenderCanonical_EscapesQuotes(t *testing.T) {
+	t.Parallel()
+	in := &adept.Skill{
+		ID:          "esc",
+		Version:     1,
+		Description: `Use "quotes" here`,
+		Activation:  adept.ActivationAgent,
+	}
+	got, err := RenderCanonical(in)
+	require.NoError(t, err)
+	require.Contains(t, string(got), `description: "Use \"quotes\" here"`)
+}
+
+func TestRenderCanonical_EmptyIDFails(t *testing.T) {
+	t.Parallel()
+	_, err := RenderCanonical(&adept.Skill{})
+	require.Error(t, err)
+	require.True(t, strings.Contains(err.Error(), "empty id"))
+}

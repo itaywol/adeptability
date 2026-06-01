@@ -1,0 +1,7 @@
+id: doc-writer
+version: 3
+description: Draft developer documentation with examples.
+activation: agent
+body: |
+  Produce concise developer documentation. Each public API should have a
+  one-paragraph description and a runnable example.

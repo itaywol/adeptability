@@ -1,0 +1,6 @@
+---
+name: lint-ts
+description: 'Enforce strict TypeScript rules (matches: **/*.ts, **/*.tsx)'
+---
+
+Run the TypeScript linter on changed files and report any violations.

@@ -1,0 +1,7 @@
+---
+description: Project-wide TypeScript style guide.
+alwaysApply: true
+---
+
+Prefer `unknown` over `any`. Always provide explicit return types on
+exported functions.

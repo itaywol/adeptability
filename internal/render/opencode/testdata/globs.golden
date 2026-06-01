@@ -1,0 +1,6 @@
+# schema-checks
+
+Validate JSON schema files for backwards compatibility.
+
+Run the schema linter on the file. If a breaking change is detected,
+surface it before committing.

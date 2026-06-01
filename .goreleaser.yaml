@@ -1,0 +1,141 @@
+version: 2
+
+project_name: adeptability
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: adept
+    main: ./cmd/adept
+    binary: adept
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{ .Version }}
+      - -X main.commit={{ .Commit }}
+      - -X main.date={{ .CommitDate }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: adept-archive
+    formats: [tar.gz]
+    name_template: >-
+      {{- .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- .Arch }}
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot"
+
+changelog:
+  use: github
+  sort: asc
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: Bug fixes
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: Performance
+      regexp: '^.*?perf(\([[:word:]]+\))??!?:.+$'
+      order: 2
+    - title: Other
+      order: 999
+
+release:
+  github:
+    owner: itaywol
+    name: adeptability
+  draft: false
+  prerelease: auto
+  mode: replace
+
+signs:
+  - id: cosign-keyless
+    cmd: cosign
+    args:
+      - sign-blob
+      - --yes
+      - --output-signature=${signature}
+      - --output-certificate=${certificate}
+      - ${artifact}
+    artifacts: all
+    output: true
+    certificate: '${artifact}.pem'
+    signature: '${artifact}.sig'
+
+dockers:
+  - id: docker-amd64
+    image_templates:
+      - "ghcr.io/itaywol/adeptability:{{ .Version }}-amd64"
+      - "ghcr.io/itaywol/adeptability:latest-amd64"
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--label=org.opencontainers.image.source=https://github.com/itaywol/adeptability"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.revision={{ .Commit }}"
+    goarch: amd64
+  - id: docker-arm64
+    image_templates:
+      - "ghcr.io/itaywol/adeptability:{{ .Version }}-arm64"
+      - "ghcr.io/itaywol/adeptability:latest-arm64"
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--label=org.opencontainers.image.source=https://github.com/itaywol/adeptability"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.revision={{ .Commit }}"
+    goarch: arm64
+
+docker_manifests:
+  - name_template: "ghcr.io/itaywol/adeptability:{{ .Version }}"
+    image_templates:
+      - "ghcr.io/itaywol/adeptability:{{ .Version }}-amd64"
+      - "ghcr.io/itaywol/adeptability:{{ .Version }}-arm64"
+  - name_template: "ghcr.io/itaywol/adeptability:latest"
+    image_templates:
+      - "ghcr.io/itaywol/adeptability:latest-amd64"
+      - "ghcr.io/itaywol/adeptability:latest-arm64"
+
+brews:
+  - name: adeptability
+    repository:
+      owner: itaywol
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: "https://github.com/itaywol/adeptability"
+    description: "Cross-harness AI skill portability CLI"
+    license: MIT
+    install: |
+      bin.install "adept"
+    test: |
+      system "#{bin}/adept", "--version"

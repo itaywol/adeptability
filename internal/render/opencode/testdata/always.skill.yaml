@@ -1,0 +1,7 @@
+id: read-first
+version: 2
+description: Always read related files before editing.
+activation: always
+body: |
+  When the user asks to change a file, first read at least one neighboring
+  file in the same package to confirm conventions.

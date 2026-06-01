@@ -1,0 +1,335 @@
+package harness
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sync"
+	"sync/atomic"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/itaywol/adeptability/internal/canonical"
+	"github.com/itaywol/adeptability/internal/fsutil"
+	"github.com/itaywol/adeptability/internal/hash"
+	"github.com/itaywol/adeptability/internal/lockfile"
+	"github.com/itaywol/adeptability/internal/log"
+	"github.com/itaywol/adeptability/internal/project"
+	"github.com/itaywol/adeptability/pkg/adept"
+)
+
+// rendererFunc is a tiny adept.Renderer adapter so tests can supply behaviour
+// inline.
+type rendererFunc func(ctx context.Context, in adept.RenderInput) (adept.RenderOutput, error)
+
+func (f rendererFunc) Render(ctx context.Context, in adept.RenderInput) (adept.RenderOutput, error) {
+	return f(ctx, in)
+}
+
+func newProj(t *testing.T) project.Project {
+	t.Helper()
+	root := t.TempDir()
+	return project.New(root, canonical.NewParser(), hash.NewHasher(), lockfile.NewStore(nil), fsutil.NewWriter())
+}
+
+func installSkill(t *testing.T, p project.Project, id string) {
+	t.Helper()
+	s := &adept.Skill{
+		ID:          id,
+		Version:     1,
+		Description: "d " + id,
+		Activation:  adept.ActivationAgent,
+		Body:        "# " + id + "\n",
+	}
+	require.NoError(t, p.InstallSkill(s, nil, adept.LockEntry{Version: 1, Hash: "h-" + id}))
+}
+
+func setHarnesses(t *testing.T, p project.Project, ids ...string) {
+	t.Helper()
+	lf, err := p.Lock()
+	require.NoError(t, err)
+	lf.Harnesses = ids
+	require.NoError(t, p.SaveLock(lf))
+}
+
+func perSkillAdapter(id string, counter *atomic.Int32) *mockAdapter {
+	return &mockAdapter{
+		spec: adept.HarnessSpec{ID: id, Kind: adept.KindPerSkill, OutputPath: "." + id + "/{id}.md"},
+		render: rendererFunc(func(_ context.Context, in adept.RenderInput) (adept.RenderOutput, error) {
+			if counter != nil {
+				counter.Add(1)
+			}
+			path := filepath.Join("."+id, in.Skill.ID+".md")
+			return adept.RenderOutput{
+				Path:         path,
+				Bytes:        []byte("body for " + in.Skill.ID),
+				Mode:         0o644,
+				SkillID:      in.Skill.ID,
+				SkillVersion: in.Skill.Version,
+			}, nil
+		}),
+	}
+}
+
+func aggregatorAdapter(id, outPath string) *mockAdapter {
+	return &mockAdapter{
+		spec: adept.HarnessSpec{ID: id, Kind: adept.KindAggregatorSingle, OutputPath: outPath},
+		render: rendererFunc(func(_ context.Context, in adept.RenderInput) (adept.RenderOutput, error) {
+			return adept.RenderOutput{
+				Path:         "tmp/" + in.Skill.ID + ".part",
+				Bytes:        []byte("part:" + in.Skill.ID + "\n"),
+				SkillID:      in.Skill.ID,
+				SkillVersion: in.Skill.Version,
+			}, nil
+		}),
+		agg: func(_ context.Context, parts []adept.RenderOutput, _ int) ([]adept.RenderOutput, error) {
+			merged := []byte{}
+			for _, p := range parts {
+				merged = append(merged, p.Bytes...)
+			}
+			return []adept.RenderOutput{{Path: outPath, Bytes: merged, Mode: 0o644}}, nil
+		},
+	}
+}
+
+func newOrch(t *testing.T, adapters ...adept.HarnessAdapter) Orchestrator {
+	t.Helper()
+	reg := NewRegistry()
+	for _, a := range adapters {
+		require.NoError(t, reg.Register(a))
+	}
+	w := fsutil.NewWriter()
+	l := fsutil.NewLinker(w)
+	return NewOrchestrator(reg, canonical.NewParser(), w, l, log.Nop())
+}
+
+func TestOrchestrator_Sync_PerSkillWritesFiles(t *testing.T) {
+	p := newProj(t)
+	installSkill(t, p, "skill-a")
+	installSkill(t, p, "skill-b")
+	setHarnesses(t, p, "alpha")
+
+	counter := &atomic.Int32{}
+	a := perSkillAdapter("alpha", counter)
+	orch := newOrch(t, a)
+
+	// Force copy mode so we don't depend on symlink support in the temp FS.
+	lf, err := p.Lock()
+	require.NoError(t, err)
+	lf.HarnessModes = map[string]adept.HarnessMode{"alpha": adept.ModeCopy}
+	require.NoError(t, p.SaveLock(lf))
+
+	results, err := orch.Sync(context.Background(), p, SyncOptions{})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.Equal(t, "alpha", results[0].Harness)
+	require.Len(t, results[0].Written, 2)
+	require.Equal(t, int32(2), counter.Load())
+
+	root := p.Root()
+	for _, id := range []string{"skill-a", "skill-b"} {
+		path := filepath.Join(root, ".alpha", id+".md")
+		require.FileExists(t, path)
+	}
+}
+
+func TestOrchestrator_Sync_DryRunWritesNothing(t *testing.T) {
+	p := newProj(t)
+	installSkill(t, p, "skill-a")
+	setHarnesses(t, p, "alpha")
+
+	orch := newOrch(t, perSkillAdapter("alpha", nil))
+	results, err := orch.Sync(context.Background(), p, SyncOptions{DryRun: true})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.NotEmpty(t, results[0].Written)
+	_, err = os.Stat(filepath.Join(p.Root(), ".alpha"))
+	require.True(t, os.IsNotExist(err))
+}
+
+func TestOrchestrator_Sync_SkipsUnchangedOutputs(t *testing.T) {
+	p := newProj(t)
+	installSkill(t, p, "skill-a")
+	setHarnesses(t, p, "alpha")
+	lf, err := p.Lock()
+	require.NoError(t, err)
+	lf.HarnessModes = map[string]adept.HarnessMode{"alpha": adept.ModeCopy}
+	require.NoError(t, p.SaveLock(lf))
+	orch := newOrch(t, perSkillAdapter("alpha", nil))
+
+	first, err := orch.Sync(context.Background(), p, SyncOptions{})
+	require.NoError(t, err)
+	require.Len(t, first[0].Written, 1)
+
+	second, err := orch.Sync(context.Background(), p, SyncOptions{})
+	require.NoError(t, err)
+	require.Empty(t, second[0].Written)
+	require.Len(t, second[0].Skipped, 1)
+}
+
+func TestOrchestrator_Sync_ForceRewrites(t *testing.T) {
+	p := newProj(t)
+	installSkill(t, p, "skill-a")
+	setHarnesses(t, p, "alpha")
+	lf, err := p.Lock()
+	require.NoError(t, err)
+	lf.HarnessModes = map[string]adept.HarnessMode{"alpha": adept.ModeCopy}
+	require.NoError(t, p.SaveLock(lf))
+	orch := newOrch(t, perSkillAdapter("alpha", nil))
+
+	_, err = orch.Sync(context.Background(), p, SyncOptions{})
+	require.NoError(t, err)
+	second, err := orch.Sync(context.Background(), p, SyncOptions{Force: true})
+	require.NoError(t, err)
+	require.Len(t, second[0].Written, 1)
+	require.Empty(t, second[0].Skipped)
+}
+
+func TestOrchestrator_Sync_AggregatorPath(t *testing.T) {
+	p := newProj(t)
+	installSkill(t, p, "skill-a")
+	installSkill(t, p, "skill-b")
+	setHarnesses(t, p, "agents")
+	lf, err := p.Lock()
+	require.NoError(t, err)
+	lf.HarnessModes = map[string]adept.HarnessMode{"agents": adept.ModeCopy}
+	require.NoError(t, p.SaveLock(lf))
+
+	orch := newOrch(t, aggregatorAdapter("agents", "AGENTS.md"))
+	results, err := orch.Sync(context.Background(), p, SyncOptions{})
+	require.NoError(t, err)
+	require.Len(t, results[0].Written, 1)
+	require.Equal(t, "AGENTS.md", results[0].Written[0])
+	data, err := os.ReadFile(filepath.Join(p.Root(), "AGENTS.md"))
+	require.NoError(t, err)
+	require.Contains(t, string(data), "part:skill-a")
+	require.Contains(t, string(data), "part:skill-b")
+}
+
+func TestOrchestrator_Sync_HarnessIDsOverrideLockfile(t *testing.T) {
+	p := newProj(t)
+	installSkill(t, p, "skill-a")
+	setHarnesses(t, p, "alpha", "beta")
+	lf, err := p.Lock()
+	require.NoError(t, err)
+	lf.HarnessModes = map[string]adept.HarnessMode{
+		"alpha": adept.ModeCopy,
+		"beta":  adept.ModeCopy,
+	}
+	require.NoError(t, p.SaveLock(lf))
+
+	orch := newOrch(t, perSkillAdapter("alpha", nil), perSkillAdapter("beta", nil))
+	results, err := orch.Sync(context.Background(), p, SyncOptions{HarnessIDs: []string{"beta"}})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.Equal(t, "beta", results[0].Harness)
+}
+
+func TestOrchestrator_Sync_UnknownHarnessFails(t *testing.T) {
+	p := newProj(t)
+	installSkill(t, p, "skill-a")
+	setHarnesses(t, p, "ghost")
+	orch := newOrch(t)
+	_, err := orch.Sync(context.Background(), p, SyncOptions{})
+	require.Error(t, err)
+}
+
+func TestOrchestrator_Status_NoHarnessesReturnsNil(t *testing.T) {
+	p := newProj(t)
+	installSkill(t, p, "skill-a")
+	orch := newOrch(t)
+	reports, err := orch.Status(context.Background(), p, nil)
+	require.NoError(t, err)
+	require.Empty(t, reports)
+}
+
+func TestOrchestrator_Status_ReportsMissing(t *testing.T) {
+	p := newProj(t)
+	installSkill(t, p, "skill-a")
+	setHarnesses(t, p, "alpha")
+
+	a := perSkillAdapter("alpha", nil)
+	// Override Validate to check actual file content.
+	a.valid = func(root string, expected []adept.RenderOutput) (adept.DriftReport, error) {
+		dr := adept.DriftReport{}
+		for _, e := range expected {
+			abs := filepath.Join(root, e.Path)
+			if _, err := os.Stat(abs); err != nil {
+				dr.Missing = append(dr.Missing, e.Path)
+			} else {
+				dr.Synced = append(dr.Synced, e.Path)
+			}
+		}
+		return dr, nil
+	}
+	orch := newOrch(t, a)
+	reports, err := orch.Status(context.Background(), p, nil)
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+	require.Equal(t, []string{filepath.Join(".alpha", "skill-a.md")}, reports[0].Missing)
+}
+
+func TestOrchestrator_Import_UnimplementedReturnsError(t *testing.T) {
+	p := newProj(t)
+	orch := newOrch(t, perSkillAdapter("alpha", nil))
+	err := orch.Import(context.Background(), p, "alpha")
+	require.Error(t, err)
+}
+
+func TestOrchestrator_Sync_FiltersByTargets(t *testing.T) {
+	p := newProj(t)
+	// skill-a targets only beta; skill-b targets none (universal).
+	s := &adept.Skill{
+		ID: "skill-a", Version: 1, Description: "d", Activation: adept.ActivationAgent,
+		Body: "x\n", Targets: []string{"beta"},
+	}
+	require.NoError(t, p.InstallSkill(s, nil, adept.LockEntry{Version: 1, Hash: "h"}))
+	installSkill(t, p, "skill-b")
+	setHarnesses(t, p, "alpha")
+	lf, err := p.Lock()
+	require.NoError(t, err)
+	lf.HarnessModes = map[string]adept.HarnessMode{"alpha": adept.ModeCopy}
+	require.NoError(t, p.SaveLock(lf))
+
+	orch := newOrch(t, perSkillAdapter("alpha", nil))
+	results, err := orch.Sync(context.Background(), p, SyncOptions{})
+	require.NoError(t, err)
+	// Only skill-b is universal; skill-a is filtered out.
+	require.Len(t, results[0].Written, 1)
+	require.Contains(t, results[0].Written[0], "skill-b")
+}
+
+func TestOrchestrator_Sync_ConcurrentRenderIsRaceClean(t *testing.T) {
+	p := newProj(t)
+	for i := 0; i < 16; i++ {
+		installSkill(t, p, fmt.Sprintf("s%02d", i))
+	}
+	setHarnesses(t, p, "alpha")
+	lf, err := p.Lock()
+	require.NoError(t, err)
+	lf.HarnessModes = map[string]adept.HarnessMode{"alpha": adept.ModeCopy}
+	require.NoError(t, p.SaveLock(lf))
+
+	// Renderer touches a shared map under a lock; the race detector catches
+	// any orchestrator bug that bypasses the per-skill isolation.
+	var mu sync.Mutex
+	seen := map[string]int{}
+	a := &mockAdapter{
+		spec: adept.HarnessSpec{ID: "alpha", Kind: adept.KindPerSkill, OutputPath: ".alpha/{id}.md"},
+		render: rendererFunc(func(_ context.Context, in adept.RenderInput) (adept.RenderOutput, error) {
+			mu.Lock()
+			seen[in.Skill.ID]++
+			mu.Unlock()
+			return adept.RenderOutput{
+				Path: filepath.Join(".alpha", in.Skill.ID+".md"), Bytes: []byte(in.Skill.ID), Mode: 0o644,
+			}, nil
+		}),
+	}
+	orch := newOrch(t, a)
+	results, err := orch.Sync(context.Background(), p, SyncOptions{})
+	require.NoError(t, err)
+	require.Len(t, results[0].Written, 16)
+	require.Len(t, seen, 16)
+}

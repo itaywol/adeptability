@@ -1,0 +1,7 @@
+id: deploy-helper
+version: 2
+description: Guide the agent through a safe production deploy.
+activation: agent
+body: |
+  Confirm the release notes are accurate, then walk the agent through the
+  staged rollout checklist.

@@ -1,0 +1,18 @@
+<!-- adeptability:begin id=api-design version=3 -->
+## API design rules
+
+REST first.
+<!-- adeptability:end id=api-design -->
+
+<!-- adeptability:begin id=git-flow version=1 -->
+## Git workflow
+
+Commit small.
+<!-- adeptability:end id=git-flow -->
+
+<!-- adeptability:begin id=go-style version=2 -->
+## Go style guide
+
+Use gofmt.
+Prefer explicit errors.
+<!-- adeptability:end id=go-style -->

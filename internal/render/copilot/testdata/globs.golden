@@ -1,0 +1,5 @@
+<!-- adeptability:begin id=ts-rules version=1 -->
+## TypeScript rules
+
+Strict mode only.
+<!-- adeptability:end id=ts-rules -->

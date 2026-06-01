@@ -1,0 +1,7 @@
+---
+description: Go lint guardrails for files under cmd/ and internal/.
+globs: [cmd/**/*.go, internal/**/*.go]
+alwaysApply: false
+---
+
+Run `go vet` and `golangci-lint run` on changed files. Report violations.

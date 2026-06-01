@@ -1,0 +1,8 @@
+id: cleanup
+version: 1
+description: Remove stale artifacts from the workspace.
+activation: manual
+allowed-tools:
+  - Bash
+body: |
+  Only run when the user explicitly asks. Sweep node_modules, .cache, dist.

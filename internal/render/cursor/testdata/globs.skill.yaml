@@ -1,0 +1,9 @@
+id: lint-go
+version: 2
+description: Go lint guardrails for files under cmd/ and internal/.
+activation: globs
+globs:
+  - "cmd/**/*.go"
+  - "internal/**/*.go"
+body: |
+  Run `go vet` and `golangci-lint run` on changed files. Report violations.

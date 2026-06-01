@@ -1,0 +1,23 @@
+id: cursor-test
+name: Cursor (test)
+kind: per-skill
+output: .cursor/rules/{id}.mdc
+base-dir: .cursor
+needs-directory: true
+size-budget-bytes: 0
+frontmatter:
+  include:
+    - description
+    - globs
+  rename:
+    description: desc
+  constants:
+    autoAttach: "true"
+body:
+  prefix: "# Cursor rule for {id}\n\n"
+  suffix: "\n<!-- end -->"
+  replace:
+    - regex: "TODO\\b"
+      with: "DONE"
+detect:
+  - .cursor

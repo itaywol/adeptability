@@ -1,0 +1,15 @@
+---
+applyTo: "**"
+---
+
+<!-- adeptability:begin id=api-design version=1 -->
+## API design
+
+REST first.
+<!-- adeptability:end id=api-design -->
+
+<!-- adeptability:begin id=go-style version=2 -->
+## Go style
+
+Use gofmt.
+<!-- adeptability:end id=go-style -->

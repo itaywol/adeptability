@@ -1,0 +1,6 @@
+# read-first
+
+Always read related files before editing.
+
+When the user asks to change a file, first read at least one neighboring
+file in the same package to confirm conventions.

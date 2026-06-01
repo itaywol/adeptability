@@ -1,0 +1,10 @@
+---
+name: review-style
+description: Review code style and flag deviations from project conventions.
+allowed-tools: [Read, Grep]
+---
+
+# Review Style
+
+When asked to review code, walk through the diff and call out any
+deviation from the conventions documented in CONTRIBUTING.md.

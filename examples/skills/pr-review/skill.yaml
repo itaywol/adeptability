@@ -1,0 +1,9 @@
+id: pr-review
+version: 1
+description: Apply before opening a PR. Tests, security, performance.
+activation: agent
+allowed-tools: [Read, Grep, Bash]
+tags: [review, quality]
+size-hint-kib: 2
+metadata:
+  owner: platform-eng

@@ -1,0 +1,7 @@
+---
+name: deploy-helper
+description: Guide the agent through a safe production deploy.
+---
+
+Confirm the release notes are accurate, then walk the agent through the
+staged rollout checklist.

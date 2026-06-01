@@ -1,0 +1,8 @@
+---
+name: cleanup
+description: Remove stale artifacts from the workspace.
+allowed-tools: [Bash]
+disable-model-invocation: true
+---
+
+Only run when the user explicitly asks. Sweep node_modules, .cache, dist.

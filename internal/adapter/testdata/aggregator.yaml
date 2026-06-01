@@ -1,0 +1,15 @@
+id: agents-test
+name: Codex AGENTS (test)
+kind: aggregator-single
+output: AGENTS.md
+base-dir: ""
+needs-directory: false
+size-budget-bytes: 4096
+frontmatter:
+  include:
+    - description
+body:
+  prefix: ""
+  suffix: ""
+detect:
+  - AGENTS.md
