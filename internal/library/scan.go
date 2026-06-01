@@ -43,6 +43,11 @@ type scanner struct {
 	hasher hash.Hasher
 }
 
+// ErrScanRootMissing is returned when a scan root does not exist on disk.
+// The CLI surfaces this as exit 1 instead of silently printing an empty
+// table (FRICTION BUG 6).
+var ErrScanRootMissing = errors.New("scan root missing")
+
 func (s *scanner) Scan(roots []string) ([]ScanResult, error) {
 	if len(roots) == 0 {
 		return nil, nil
@@ -54,12 +59,12 @@ func (s *scanner) Scan(roots []string) ([]ScanResult, error) {
 		info, err := os.Stat(root)
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
-				continue
+				return nil, fmt.Errorf("%w: %s", ErrScanRootMissing, root)
 			}
 			return nil, fmt.Errorf("scan: stat %q: %w", root, err)
 		}
 		if !info.IsDir() {
-			continue
+			return nil, fmt.Errorf("%w: %s is not a directory", ErrScanRootMissing, root)
 		}
 		err = filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
 			if walkErr != nil {
@@ -70,7 +75,6 @@ func (s *scanner) Scan(roots []string) ([]ScanResult, error) {
 				return nil
 			}
 			if d.IsDir() {
-				// Skip common noise.
 				if shouldSkipDir(d.Name()) {
 					return fs.SkipDir
 				}
@@ -89,9 +93,6 @@ func (s *scanner) Scan(roots []string) ([]ScanResult, error) {
 			seen[abs] = struct{}{}
 			res, parseErr := s.classify(abs)
 			if parseErr != nil {
-				// A malformed SKILL.md should not abort an entire scan; record
-				// it with empty id and diverged status so the caller can show
-				// the file to the user.
 				results = append(results, ScanResult{SourcePath: abs, Status: adept.StatusDiverged})
 				return nil
 			}
@@ -144,14 +145,9 @@ func (s *scanner) classify(path string) (ScanResult, error) {
 		return res, nil
 	}
 	res.LibraryHash = libHash
-	switch {
-	case digest == libHash:
+	if digest == libHash {
 		res.Status = adept.StatusSynced
-	case skill.Version > libSkill.Version:
-		res.Status = adept.StatusAhead
-	case skill.Version < libSkill.Version:
-		res.Status = adept.StatusBehind
-	default:
+	} else {
 		res.Status = adept.StatusDiverged
 	}
 	return res, nil
@@ -201,8 +197,6 @@ func shouldSkipDir(name string) bool {
 	case ".git", "node_modules", "vendor", "dist", "build", ".venv", "__pycache__", ".cache":
 		return true
 	}
-	// Skip hidden dirs except the adeptability dir itself, which can hold
-	// canonical skills the user may want to surface.
 	if strings.HasPrefix(name, ".") && name != adept.BaseDirName {
 		return true
 	}

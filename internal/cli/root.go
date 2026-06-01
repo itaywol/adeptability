@@ -87,7 +87,6 @@ func NewRoot(b BuildInfo) *cobra.Command {
 		newRenderCmd(deps),
 		newApplyAllCmd(deps),
 		newOrgCmd(deps),
-		newMigrateCmd(deps),
 		newDoctorCmd(deps),
 		newVerifyCmd(deps),
 		newScanCmd(deps),

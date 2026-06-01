@@ -16,10 +16,10 @@ func newTestValidator(t *testing.T) Validator {
 }
 
 func TestValidator_Valid(t *testing.T) {
+	t.Parallel()
 	v := newTestValidator(t)
 	s := &adept.Skill{
 		ID:          "ok_skill",
-		Version:     1,
 		Description: "fine",
 		Activation:  adept.ActivationAgent,
 	}
@@ -27,6 +27,7 @@ func TestValidator_Valid(t *testing.T) {
 }
 
 func TestValidator_NilSkill(t *testing.T) {
+	t.Parallel()
 	v := newTestValidator(t)
 	err := v.Validate(nil)
 	require.Error(t, err)
@@ -34,10 +35,10 @@ func TestValidator_NilSkill(t *testing.T) {
 }
 
 func TestValidator_InvalidID(t *testing.T) {
+	t.Parallel()
 	v := newTestValidator(t)
 	s := &adept.Skill{
 		ID:          "Bad-ID",
-		Version:     1,
 		Description: "x",
 	}
 	err := v.Validate(s)
@@ -46,22 +47,10 @@ func TestValidator_InvalidID(t *testing.T) {
 }
 
 func TestValidator_MissingDescription(t *testing.T) {
+	t.Parallel()
 	v := newTestValidator(t)
 	s := &adept.Skill{
-		ID:      "good_id",
-		Version: 1,
-	}
-	err := v.Validate(s)
-	require.Error(t, err)
-	require.ErrorIs(t, err, adept.ErrSkillInvalid)
-}
-
-func TestValidator_VersionZeroRejected(t *testing.T) {
-	v := newTestValidator(t)
-	s := &adept.Skill{
-		ID:          "ok_skill",
-		Version:     0,
-		Description: "x",
+		ID: "good_id",
 	}
 	err := v.Validate(s)
 	require.Error(t, err)
@@ -69,10 +58,10 @@ func TestValidator_VersionZeroRejected(t *testing.T) {
 }
 
 func TestValidator_GlobsActivationRequiresGlobs(t *testing.T) {
+	t.Parallel()
 	v := newTestValidator(t)
 	s := &adept.Skill{
 		ID:          "ok_skill",
-		Version:     1,
 		Description: "x",
 		Activation:  adept.ActivationGlobs,
 	}
@@ -85,10 +74,10 @@ func TestValidator_GlobsActivationRequiresGlobs(t *testing.T) {
 }
 
 func TestValidator_DescriptionTooLong(t *testing.T) {
+	t.Parallel()
 	v := newTestValidator(t)
 	s := &adept.Skill{
 		ID:          "ok_skill",
-		Version:     1,
 		Description: strings.Repeat("x", 281),
 	}
 	err := v.Validate(s)

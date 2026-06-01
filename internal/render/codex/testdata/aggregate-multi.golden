@@ -1,16 +1,16 @@
-<!-- adeptability:begin id=api-design version=3 -->
+<!-- adeptability:begin id=api-design hash=cef829c1 -->
 ## API design rules
 
 REST first.
 <!-- adeptability:end id=api-design -->
 
-<!-- adeptability:begin id=git-flow version=1 -->
+<!-- adeptability:begin id=git-flow hash=d934e78b -->
 ## Git workflow
 
 Commit small.
 <!-- adeptability:end id=git-flow -->
 
-<!-- adeptability:begin id=go-style version=2 -->
+<!-- adeptability:begin id=go-style hash=2568456e -->
 ## Go style guide
 
 Use gofmt.

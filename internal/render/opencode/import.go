@@ -45,7 +45,6 @@ func (a *Adapter) Import(_ context.Context, projectRoot string) ([]adept.Importe
 		out = append(out, adept.ImportedSkill{
 			Skill: &adept.Skill{
 				ID:          id,
-				Version:     1,
 				Description: desc,
 				Activation:  adept.ActivationAgent,
 				Body:        body,

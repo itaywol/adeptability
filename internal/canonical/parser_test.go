@@ -10,33 +10,30 @@ import (
 )
 
 func TestParser_ParseSkillYAML_Valid(t *testing.T) {
+	t.Parallel()
 	p := NewParser()
 	in := []byte(`id: example_skill
-version: 3
 description: parses cleanly
 activation: agent
 tags: [a, b]
 allowed-tools: [Read]
-size-hint-kib: 8
 metadata:
   owner: x
 `)
 	got, err := p.ParseSkillYAML(in)
 	require.NoError(t, err)
 	require.Equal(t, "example_skill", got.ID)
-	require.Equal(t, 3, got.Version)
 	require.Equal(t, "parses cleanly", got.Description)
 	require.Equal(t, adept.ActivationAgent, got.Activation)
 	require.Equal(t, []string{"a", "b"}, got.Tags)
 	require.Equal(t, []string{"Read"}, got.AllowedTools)
-	require.Equal(t, 8, got.SizeHintKiB)
 	require.Equal(t, map[string]string{"owner": "x"}, got.Metadata)
 }
 
 func TestParser_ParseSkillYAML_DefaultActivation(t *testing.T) {
+	t.Parallel()
 	p := NewParser()
 	in := []byte(`id: defaults
-version: 1
 description: defaults applied
 `)
 	got, err := p.ParseSkillYAML(in)
@@ -45,6 +42,7 @@ description: defaults applied
 }
 
 func TestParser_ParseSkillYAML_Empty(t *testing.T) {
+	t.Parallel()
 	p := NewParser()
 	_, err := p.ParseSkillYAML([]byte(""))
 	require.Error(t, err)
@@ -52,15 +50,32 @@ func TestParser_ParseSkillYAML_Empty(t *testing.T) {
 }
 
 func TestParser_ParseSkillYAML_InvalidYAML(t *testing.T) {
+	t.Parallel()
 	p := NewParser()
 	_, err := p.ParseSkillYAML([]byte("id: [oops\n"))
 	require.Error(t, err)
 	require.ErrorIs(t, err, adept.ErrSkillInvalid)
 }
 
-func TestParser_ParseFrontmatter_Valid(t *testing.T) {
+func TestParser_ParseSkillYAML_UnknownFieldsIgnored(t *testing.T) {
+	t.Parallel()
+	// yaml.v3 with KnownFields disabled silently drops unknown keys. The
+	// validator (schema) is what rejects them. Here we only assert that
+	// parse itself does not error on unknown keys.
 	p := NewParser()
-	md := []byte("---\nid: fm_skill\nversion: 1\ndescription: body follows\n---\n# Heading\n\nBody text.\n")
+	in := []byte(`id: ok
+description: extra fields silently ignored at parse stage
+some_unknown_field: 42
+`)
+	got, err := p.ParseSkillYAML(in)
+	require.NoError(t, err)
+	require.Equal(t, "ok", got.ID)
+}
+
+func TestParser_ParseFrontmatter_Valid(t *testing.T) {
+	t.Parallel()
+	p := NewParser()
+	md := []byte("---\nid: fm_skill\ndescription: body follows\n---\n# Heading\n\nBody text.\n")
 	got, body, err := p.ParseFrontmatter(md)
 	require.NoError(t, err)
 	require.Equal(t, "fm_skill", got.ID)
@@ -68,8 +83,9 @@ func TestParser_ParseFrontmatter_Valid(t *testing.T) {
 }
 
 func TestParser_ParseFrontmatter_CRLF(t *testing.T) {
+	t.Parallel()
 	p := NewParser()
-	md := []byte("---\r\nid: crlf_skill\r\nversion: 1\r\ndescription: ok\r\n---\r\nBody\r\n")
+	md := []byte("---\r\nid: crlf_skill\r\ndescription: ok\r\n---\r\nBody\r\n")
 	got, body, err := p.ParseFrontmatter(md)
 	require.NoError(t, err)
 	require.Equal(t, "crlf_skill", got.ID)
@@ -77,6 +93,7 @@ func TestParser_ParseFrontmatter_CRLF(t *testing.T) {
 }
 
 func TestParser_ParseFrontmatter_MissingOpener(t *testing.T) {
+	t.Parallel()
 	p := NewParser()
 	_, _, err := p.ParseFrontmatter([]byte("no frontmatter here\n"))
 	require.Error(t, err)
@@ -84,13 +101,15 @@ func TestParser_ParseFrontmatter_MissingOpener(t *testing.T) {
 }
 
 func TestParser_ParseFrontmatter_MissingCloser(t *testing.T) {
+	t.Parallel()
 	p := NewParser()
-	_, _, err := p.ParseFrontmatter([]byte("---\nid: nope\nversion: 1\ndescription: x\n"))
+	_, _, err := p.ParseFrontmatter([]byte("---\nid: nope\ndescription: x\n"))
 	require.Error(t, err)
 	require.ErrorIs(t, err, adept.ErrSkillInvalid)
 }
 
 func TestParser_ParseFrontmatter_Empty(t *testing.T) {
+	t.Parallel()
 	p := NewParser()
 	_, _, err := p.ParseFrontmatter(nil)
 	require.Error(t, err)

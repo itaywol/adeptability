@@ -7,9 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func ptr(e adept.LockEntry) *adept.LockEntry { return &e }
-
 func TestResolver_Table(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		in   Input
@@ -17,98 +16,74 @@ func TestResolver_Table(t *testing.T) {
 	}{
 		{
 			name: "nothing anywhere",
-			in:   Input{ProjectHash: "", ProjectEntry: nil, LibraryEntry: nil},
+			in:   Input{ProjectHash: "", BaseHash: "", LibraryHash: ""},
 			want: adept.StatusLocalOnly,
 		},
 		{
-			name: "not on disk but library has it",
-			in:   Input{ProjectHash: "", LibraryEntry: ptr(adept.LockEntry{Version: 1, Hash: "h"})},
+			name: "library only, project absent, no base",
+			in:   Input{ProjectHash: "", BaseHash: "", LibraryHash: "h"},
 			want: adept.StatusLibraryOnly,
 		},
 		{
-			name: "on disk no project entry no library",
-			in:   Input{ProjectHash: "h"},
+			name: "library only, project absent, with base",
+			in:   Input{ProjectHash: "", BaseHash: "h", LibraryHash: "h"},
+			want: adept.StatusLibraryOnly,
+		},
+		{
+			name: "project only, library absent, no base",
+			in:   Input{ProjectHash: "h", BaseHash: "", LibraryHash: ""},
 			want: adept.StatusLocalOnly,
 		},
 		{
-			name: "on disk project entry no library",
-			in: Input{
-				ProjectHash:  "h",
-				ProjectEntry: ptr(adept.LockEntry{Version: 1, Hash: "h"}),
-			},
+			name: "project only, library absent, with base",
+			in:   Input{ProjectHash: "h", BaseHash: "h", LibraryHash: ""},
 			want: adept.StatusLocalOnly,
 		},
 		{
-			name: "on disk library only, no project entry",
-			in: Input{
-				ProjectHash:  "h",
-				LibraryEntry: ptr(adept.LockEntry{Version: 1, Hash: "h"}),
-			},
+			name: "project and library, no base",
+			in:   Input{ProjectHash: "h", BaseHash: "", LibraryHash: "h"},
 			want: adept.StatusLocalOnly,
 		},
 		{
 			name: "synced",
-			in: Input{
-				ProjectHash:  "h",
-				ProjectEntry: ptr(adept.LockEntry{Version: 1, Hash: "h"}),
-				LibraryEntry: ptr(adept.LockEntry{Version: 1, Hash: "h"}),
-			},
+			in:   Input{ProjectHash: "h", BaseHash: "h", LibraryHash: "h"},
 			want: adept.StatusSynced,
 		},
 		{
-			name: "ahead - hash changed on disk only",
-			in: Input{
-				ProjectHash:  "h2",
-				ProjectEntry: ptr(adept.LockEntry{Version: 1, Hash: "h1"}),
-				LibraryEntry: ptr(adept.LockEntry{Version: 1, Hash: "h1"}),
-			},
+			name: "ahead - project changed",
+			in:   Input{ProjectHash: "h2", BaseHash: "h1", LibraryHash: "h1"},
 			want: adept.StatusAhead,
 		},
 		{
-			name: "behind - library bumped version",
-			in: Input{
-				ProjectHash:  "h1",
-				ProjectEntry: ptr(adept.LockEntry{Version: 1, Hash: "h1"}),
-				LibraryEntry: ptr(adept.LockEntry{Version: 2, Hash: "h2"}),
-			},
-			want: adept.StatusBehind,
-		},
-		{
-			name: "behind - library hash changed same version",
-			in: Input{
-				ProjectHash:  "h1",
-				ProjectEntry: ptr(adept.LockEntry{Version: 1, Hash: "h1"}),
-				LibraryEntry: ptr(adept.LockEntry{Version: 1, Hash: "h2"}),
-			},
+			name: "behind - library changed",
+			in:   Input{ProjectHash: "h1", BaseHash: "h1", LibraryHash: "h2"},
 			want: adept.StatusBehind,
 		},
 		{
 			name: "diverged - both changed",
-			in: Input{
-				ProjectHash:  "hX",
-				ProjectEntry: ptr(adept.LockEntry{Version: 1, Hash: "h1"}),
-				LibraryEntry: ptr(adept.LockEntry{Version: 2, Hash: "h2"}),
-			},
+			in:   Input{ProjectHash: "hX", BaseHash: "h0", LibraryHash: "hY"},
+			want: adept.StatusDiverged,
+		},
+		{
+			name: "diverged - both changed to same new hash still diverged because each side moved",
+			in:   Input{ProjectHash: "hZ", BaseHash: "h0", LibraryHash: "hZ"},
 			want: adept.StatusDiverged,
 		},
 	}
 	r := NewResolver()
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			require.Equal(t, tc.want, r.Resolve(tc.in))
 		})
 	}
 }
 
 func TestResolver_StatelessReusable(t *testing.T) {
+	t.Parallel()
 	r := NewResolver()
-	a := r.Resolve(Input{ProjectHash: "h",
-		ProjectEntry: ptr(adept.LockEntry{Version: 1, Hash: "h"}),
-		LibraryEntry: ptr(adept.LockEntry{Version: 1, Hash: "h"}),
-	})
-	b := r.Resolve(Input{ProjectHash: "h",
-		ProjectEntry: ptr(adept.LockEntry{Version: 1, Hash: "h"}),
-		LibraryEntry: ptr(adept.LockEntry{Version: 1, Hash: "h"}),
-	})
+	in := Input{ProjectHash: "h", BaseHash: "h", LibraryHash: "h"}
+	a := r.Resolve(in)
+	b := r.Resolve(in)
 	require.Equal(t, a, b)
 }

@@ -21,7 +21,7 @@ import (
 // SyncOptions configures a single Sync invocation.
 type SyncOptions struct {
 	// HarnessIDs selects which adapters to run. Empty means "every harness
-	// enabled in the project lockfile".
+	// enabled in the project config".
 	HarnessIDs []string
 	// Force ignores existing on-disk files: outputs are rewritten even when
 	// the current bytes match.
@@ -36,8 +36,15 @@ type SyncResult struct {
 	Harness string
 	Written []string
 	Skipped []string
+	// Dropped lists skill IDs that produced no render output (e.g. not
+	// applicable to this harness). Used for diagnostics only.
 	Dropped []string
-	Drift   adept.DriftReport
+	// DroppedSkillIDs lists skill IDs the aggregator dropped due to budget
+	// pressure (FRICTION BUG 7). Distinct from Dropped which covers
+	// pre-aggregation render misses; this surfaces post-aggregation losses
+	// so users can see exactly what didn't fit.
+	DroppedSkillIDs []string
+	Drift           adept.DriftReport
 }
 
 // Orchestrator drives the harness adapters. It is the only component that
@@ -50,9 +57,7 @@ type Orchestrator interface {
 }
 
 // NewOrchestrator wires the orchestrator. The canonical.Parser is used by
-// Import to ingest harness files back into project canonical form (TODO:
-// per-harness reverse rendering lives in the adapter; for v0.1 we leave a
-// scaffold).
+// Import to ingest harness files back into project canonical form.
 func NewOrchestrator(reg Registry, parser canonical.Parser, w fsutil.Writer, l fsutil.Linker, lg log.Logger) Orchestrator {
 	if lg == nil {
 		lg = log.Nop()
@@ -75,13 +80,13 @@ type orchestrator struct {
 }
 
 func (o *orchestrator) Sync(ctx context.Context, p project.Project, opts SyncOptions) ([]SyncResult, error) {
-	lf, err := p.Lock()
+	cfg, err := p.Config()
 	if err != nil {
-		return nil, fmt.Errorf("sync: load lock: %w", err)
+		return nil, fmt.Errorf("sync: load config: %w", err)
 	}
 	harnessIDs := opts.HarnessIDs
 	if len(harnessIDs) == 0 {
-		harnessIDs = append([]string{}, lf.Harnesses...)
+		harnessIDs = append([]string{}, cfg.Harnesses...)
 	}
 	if len(harnessIDs) == 0 {
 		return nil, nil
@@ -92,8 +97,8 @@ func (o *orchestrator) Sync(ctx context.Context, p project.Project, opts SyncOpt
 	}
 	results := make([]SyncResult, 0, len(harnessIDs))
 	// Per-harness mode bookkeeping: if any symlink falls back to a copy, we
-	// persist the mode flip into the lockfile.
-	modes := cloneModes(lf.HarnessModes)
+	// persist the mode flip into the project config.
+	modes := cloneModes(cfg.HarnessModes)
 	modeChanged := false
 	for _, hid := range harnessIDs {
 		adapter, err := o.reg.Get(hid)
@@ -112,8 +117,8 @@ func (o *orchestrator) Sync(ctx context.Context, p project.Project, opts SyncOpt
 		}
 	}
 	if !opts.DryRun && modeChanged {
-		lf.HarnessModes = modes
-		if err := p.SaveLock(lf); err != nil {
+		cfg.HarnessModes = modes
+		if err := p.SaveConfig(cfg); err != nil {
 			return results, fmt.Errorf("sync: persist mode flip: %w", err)
 		}
 	}
@@ -148,13 +153,15 @@ func (o *orchestrator) syncHarness(
 		if err != nil {
 			return res, mode, fmt.Errorf("aggregate: %w", err)
 		}
+		// FRICTION BUG 7: track which skills the aggregator dropped due to
+		// budget pressure by diffing the input vs surfaced-output skill ids.
+		res.DroppedSkillIDs = aggregatorDrops(parts, aggregated)
 		outputs = aggregated
 	}
 	// Materialize on disk.
 	resolvedMode := mode
 	for _, out := range outputs {
 		absPath := filepath.Join(p.Root(), out.Path)
-		// Skip writes that match existing content unless Force is set.
 		if !opts.Force && !opts.DryRun {
 			same, _ := o.bytesAlreadyOnDisk(absPath, out.Bytes)
 			if same {
@@ -176,13 +183,6 @@ func (o *orchestrator) syncHarness(
 				res.Written = append(res.Written, out.Path)
 			}
 		}
-		// Sidecars land next to the rendered main file. The same materialization
-		// contract applies: in symlink mode bytes live in
-		// .adeptability/staging/<harness-path>/<rel>, with the harness path
-		// pointing back via a relative symlink — so any tool that reads
-		// SKILL.md via the harness path resolves "references/X.md" against the
-		// harness directory and finds the sidecar (real symlink or real file).
-		// In copy mode the bytes simply go straight to the harness path.
 		for _, side := range out.Sidecars {
 			sideOutRel := filepath.Join(filepath.Dir(out.Path), side.RelPath)
 			sideAbs := filepath.Join(p.Root(), sideOutRel)
@@ -214,6 +214,7 @@ func (o *orchestrator) syncHarness(
 	sort.Strings(res.Written)
 	sort.Strings(res.Skipped)
 	sort.Strings(res.Dropped)
+	sort.Strings(res.DroppedSkillIDs)
 	return res, resolvedMode, nil
 }
 
@@ -248,9 +249,6 @@ func (o *orchestrator) renderAll(
 			if out.SkillID == "" {
 				out.SkillID = skill.ID
 			}
-			if out.SkillVersion == 0 {
-				out.SkillVersion = skill.Version
-			}
 			outputs[i] = out
 			return nil
 		})
@@ -283,12 +281,12 @@ func (o *orchestrator) write(projectRoot, absPath string, out adept.RenderOutput
 		}
 		return true, false, nil
 	}
-	// Symlink path: the renderer's bytes are the desired link target's
-	// contents. Materialize the bytes to a staging file inside the
-	// project's .adeptability dir and link to it.
 	staging := stagingPathFor(projectRoot, out)
 	if err := o.writer.AtomicWrite(staging, out.Bytes, fileMode); err != nil {
 		return false, false, fmt.Errorf("stage %q: %w", staging, err)
+	}
+	if err := o.writer.RemoveAll(absPath); err != nil {
+		return false, false, fmt.Errorf("clear target %q: %w", absPath, err)
 	}
 	used, err := o.linker.SymlinkOrCopy(staging, absPath, false)
 	if err != nil {
@@ -321,13 +319,13 @@ func (o *orchestrator) bytesAlreadyOnDisk(absPath string, want []byte) (bool, er
 
 func (o *orchestrator) Status(ctx context.Context, p project.Project, harnessIDs []string) ([]adept.DriftReport, error) {
 	_ = ctx
-	lf, err := p.Lock()
+	cfg, err := p.Config()
 	if err != nil {
-		return nil, fmt.Errorf("status: load lock: %w", err)
+		return nil, fmt.Errorf("status: load config: %w", err)
 	}
 	ids := harnessIDs
 	if len(ids) == 0 {
-		ids = append([]string{}, lf.Harnesses...)
+		ids = append([]string{}, cfg.Harnesses...)
 	}
 	if len(ids) == 0 {
 		return nil, nil
@@ -369,30 +367,18 @@ func (o *orchestrator) Status(ctx context.Context, p project.Project, harnessIDs
 type ImportStrategy string
 
 const (
-	// ImportStrategyFirst keeps the first occurrence (harness IDs walked in
-	// registry order). Conflicts surface in the report.
-	ImportStrategyFirst ImportStrategy = "first"
-	// ImportStrategyError fails the import on any conflict.
-	ImportStrategyError ImportStrategy = "error"
-	// ImportStrategyPrefer keeps the entry from the harness named in
-	// ImportOptions.PreferHarness.
+	ImportStrategyFirst  ImportStrategy = "first"
+	ImportStrategyError  ImportStrategy = "error"
 	ImportStrategyPrefer ImportStrategy = "prefer"
 )
 
 // ImportOptions controls a single Import invocation.
 type ImportOptions struct {
-	// HarnessIDs limits the import to specific harnesses. Empty = all
-	// registered harnesses (skipping those that don't support Import).
-	HarnessIDs []string
-	// Strategy decides conflict resolution. Default: ImportStrategyFirst.
-	Strategy ImportStrategy
-	// PreferHarness is read only when Strategy == ImportStrategyPrefer.
+	HarnessIDs    []string
+	Strategy      ImportStrategy
 	PreferHarness string
-	// DryRun reports what would be written without touching the project.
-	DryRun bool
-	// Force allows overwriting project canonical skills that already exist.
-	// Without Force, existing project skills are reported as conflicts.
-	Force bool
+	DryRun        bool
+	Force         bool
 }
 
 // ImportReport summarizes one import run.
@@ -402,8 +388,7 @@ type ImportReport struct {
 	Skipped   []SkipRow     `json:"skipped,omitempty"`
 }
 
-// ImportedRow is one canonical skill written (or that would be written under
-// --dry-run) into the project.
+// ImportedRow is one canonical skill written into the project.
 type ImportedRow struct {
 	SkillID    string `json:"skillId"`
 	Harness    string `json:"harness"`
@@ -451,12 +436,6 @@ func (o *orchestrator) Import(ctx context.Context, p project.Project, opts Impor
 		}
 	}
 
-	existingLock, err := p.Lock()
-	if err != nil {
-		return report, fmt.Errorf("import: read project lock: %w", err)
-	}
-
-	// Walk in stable id order so output is deterministic.
 	ids := make([]string, 0, len(contributions))
 	for id := range contributions {
 		ids = append(ids, id)
@@ -475,9 +454,9 @@ func (o *orchestrator) Import(ctx context.Context, p project.Project, opts Impor
 		if chosen == nil {
 			continue
 		}
-		// Detect collision with existing project canonical content.
+		// Detect collision with existing project canonical content (hash-based).
 		if !opts.Force {
-			if existing, ok := existingLock.Skills[id]; ok && existing.Hash != "" {
+			if p.HasSkill(id) {
 				report.Conflicts = append(report.Conflicts, ConflictRow{
 					SkillID: id,
 					From:    []string{"project-canonical"},
@@ -486,8 +465,7 @@ func (o *orchestrator) Import(ctx context.Context, p project.Project, opts Impor
 			}
 		}
 		if !opts.DryRun {
-			libEntry := adept.LockEntry{Version: chosen.imported.Skill.Version}
-			if err := p.InstallSkill(chosen.imported.Skill, chosen.imported.Files, libEntry); err != nil {
+			if err := p.InstallSkill(chosen.imported.Skill, chosen.imported.Files); err != nil {
 				return report, fmt.Errorf("import: install %s: %w", id, err)
 			}
 		}
@@ -540,7 +518,6 @@ func resolveImport(entries []importContribution, opts ImportOptions) (*importCon
 				return &entries[i], row
 			}
 		}
-		// Fall back to first when preferred harness not present.
 		row.Resolved = entries[0].harness
 		return &entries[0], row
 	case ImportStrategyError:
@@ -583,10 +560,41 @@ func defaultMode(modes map[string]adept.HarnessMode, hid string) adept.HarnessMo
 	return adept.ModeSymlink
 }
 
-// stagingPathFor derives the absolute path inside <projectRoot>/.adeptability
-// where rendered bytes are materialized when running in symlink mode. The
-// renderer's output Path is relative to the project root; we mirror it under
-// .adeptability/staging/.
 func stagingPathFor(projectRoot string, out adept.RenderOutput) string {
 	return filepath.Join(projectRoot, adept.BaseDirName, "staging", out.Path)
+}
+
+// aggregatorDrops returns the SkillIDs that appear in inputs but not in
+// outputs. The packer-based aggregators (codex, copilot) drop entire skills
+// when the budget overflows, so a pre/post diff on SkillID is sufficient.
+// Per-glob aggregators may legitimately split one input into several outputs
+// — the diff still reports zero drops because every input id is preserved.
+func aggregatorDrops(inputs, outputs []adept.RenderOutput) []string {
+	if len(inputs) == 0 {
+		return nil
+	}
+	keep := map[string]bool{}
+	for _, o := range outputs {
+		if o.SkillID != "" {
+			keep[o.SkillID] = true
+			continue
+		}
+		// Aggregators usually emit single combined outputs without a
+		// SkillID; surfacing the manifest list is the adapter's job.
+		// Without per-output SkillIDs we cannot diff reliably — bail out.
+		return nil
+	}
+	seenInput := map[string]bool{}
+	dropped := []string{}
+	for _, in := range inputs {
+		if in.SkillID == "" || seenInput[in.SkillID] {
+			continue
+		}
+		seenInput[in.SkillID] = true
+		if !keep[in.SkillID] {
+			dropped = append(dropped, in.SkillID)
+		}
+	}
+	sort.Strings(dropped)
+	return dropped
 }

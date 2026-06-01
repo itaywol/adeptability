@@ -17,7 +17,6 @@ var update = flag.Bool("update", false, "update golden files")
 
 type skillFixture struct {
 	ID          string               `yaml:"id"`
-	Version     int                  `yaml:"version"`
 	Description string               `yaml:"description"`
 	Activation  adept.ActivationMode `yaml:"activation"`
 	Globs       []string             `yaml:"globs,omitempty"`
@@ -32,7 +31,6 @@ func loadFixture(t *testing.T, name string) *adept.Skill {
 	require.NoError(t, yaml.Unmarshal(raw, &f))
 	return &adept.Skill{
 		ID:          f.ID,
-		Version:     f.Version,
 		Description: f.Description,
 		Activation:  f.Activation,
 		Globs:       f.Globs,

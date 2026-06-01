@@ -139,11 +139,11 @@ func TestImport_PerSkill_Sidecars(t *testing.T) {
 func TestImport_AggregatorSingle_WithMarkers(t *testing.T) {
 	a := loadFixtureAdapter(t, "import-aggregator-single")
 	root := t.TempDir()
-	content := "<!-- adeptability:begin id=alpha version=1 -->\n" +
+	content := "<!-- adeptability:begin id=alpha hash=deadbeef -->\n" +
 		"## alpha description\n" +
 		"alpha body\n" +
 		"<!-- adeptability:end id=alpha -->\n" +
-		"<!-- adeptability:begin id=beta version=2 -->\n" +
+		"<!-- adeptability:begin id=beta hash=cafebabe -->\n" +
 		"## beta description\n" +
 		"beta body\n" +
 		"<!-- adeptability:end id=beta -->\n"
@@ -190,7 +190,7 @@ func TestImport_AggregatorPerGlob_FrontmatterActivation(t *testing.T) {
 	// Two bucket files; one explicit applyTo + markers, one no markers.
 	writeFile(t, filepath.Join(root, ".github", "instructions", "src-ts.instructions.md"),
 		"---\napplyTo: 'src/**/*.ts'\n---\n"+
-			"<!-- adeptability:begin id=alpha version=1 -->\n"+
+			"<!-- adeptability:begin id=alpha hash=deadbeef -->\n"+
 			"## alpha desc\nalpha body\n"+
 			"<!-- adeptability:end id=alpha -->\n")
 	writeFile(t, filepath.Join(root, ".github", "instructions", "default.instructions.md"),
@@ -234,7 +234,6 @@ func TestImport_RoundTrip_PerSkill(t *testing.T) {
 	root := t.TempDir()
 	skill := &adept.Skill{
 		ID:          "round",
-		Version:     7,
 		Description: "trip back",
 		Activation:  adept.ActivationGlobs,
 		Globs:       []string{"docs/**/*.md"},
@@ -295,7 +294,7 @@ func TestImport_UnterminatedSectionMarkerFails(t *testing.T) {
 	a := loadFixtureAdapter(t, "import-aggregator-single")
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, "AGENTS.md"),
-		"<!-- adeptability:begin id=alpha version=1 -->\n## alpha\nbody\n")
+		"<!-- adeptability:begin id=alpha hash=deadbeef -->\n## alpha\nbody\n")
 	_, err := a.Import(context.Background(), root)
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "unterminated"), err.Error())

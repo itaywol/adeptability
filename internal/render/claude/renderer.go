@@ -86,11 +86,11 @@ func (r *Renderer) Render(ctx context.Context, in adept.RenderInput) (adept.Rend
 
 	path := r.tp.Resolve(Spec().OutputPath, s.ID)
 	out := adept.RenderOutput{
-		Path:         path,
-		Bytes:        []byte(sb.String()),
-		Mode:         0o644,
-		SkillID:      s.ID,
-		SkillVersion: s.Version,
+		Path:      path,
+		Bytes:     []byte(sb.String()),
+		Mode:      0o644,
+		SkillID:   s.ID,
+		SkillHash: common.ShortSkillHash(s),
 	}
 	for _, f := range s.Files {
 		out.Sidecars = append(out.Sidecars, adept.SideFile{

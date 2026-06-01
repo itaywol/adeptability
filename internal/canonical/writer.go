@@ -12,7 +12,18 @@ import (
 // a Skill. Single source of truth used by both the library and the project
 // stores so a parser round-trips through whatever we write.
 //
-// String list items are always double-quoted to avoid YAML parser ambiguity
+// Field order in the emitted frontmatter:
+//
+//	id
+//	description
+//	activation
+//	globs
+//	allowed-tools
+//	targets
+//	tags
+//	metadata
+//
+// String values are always double-quoted to avoid YAML parser ambiguity
 // around leading `*` (alias), `&` (anchor), `:` and `#`.
 func RenderCanonical(s *adept.Skill) ([]byte, error) {
 	if s.ID == "" {
@@ -21,7 +32,6 @@ func RenderCanonical(s *adept.Skill) ([]byte, error) {
 	var b strings.Builder
 	b.WriteString("---\n")
 	b.WriteString(fmt.Sprintf("id: %s\n", s.ID))
-	b.WriteString(fmt.Sprintf("version: %d\n", s.Version))
 	b.WriteString(fmt.Sprintf("description: %s\n", yamlQuote(s.Description)))
 	if s.Activation != "" {
 		b.WriteString(fmt.Sprintf("activation: %s\n", s.Activation))
@@ -30,9 +40,6 @@ func RenderCanonical(s *adept.Skill) ([]byte, error) {
 	writeStringList(&b, "allowed-tools", s.AllowedTools)
 	writeStringList(&b, "targets", s.Targets)
 	writeStringList(&b, "tags", s.Tags)
-	if s.SizeHintKiB > 0 {
-		b.WriteString(fmt.Sprintf("size-hint-kib: %d\n", s.SizeHintKiB))
-	}
 	if len(s.Metadata) > 0 {
 		b.WriteString("metadata:\n")
 		keys := make([]string, 0, len(s.Metadata))

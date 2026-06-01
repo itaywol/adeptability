@@ -9,7 +9,7 @@ import (
 
 func TestBucketer_AlwaysSkill(t *testing.T) {
 	b := NewBucketer()
-	s := &adept.Skill{ID: "x", Version: 1, Activation: adept.ActivationAlways}
+	s := &adept.Skill{ID: "x", Activation: adept.ActivationAlways}
 	spec, ok := b.KeyFor(s)
 	if !ok {
 		t.Fatalf("expected eligible")
@@ -28,7 +28,7 @@ func TestBucketer_AlwaysSkill(t *testing.T) {
 func TestBucketer_GlobsSkill(t *testing.T) {
 	b := NewBucketer()
 	s := &adept.Skill{
-		ID: "y", Version: 1,
+		ID:         "y",
 		Activation: adept.ActivationGlobs,
 		Globs:      []string{"**/*.ts", "src/**"},
 	}

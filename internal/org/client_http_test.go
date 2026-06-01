@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const validManifest = "version: 1\nname: acme\nskills:\n  required:\n    - id: skill-a\n      min-version: 1\n"
+const validManifest = "version: 1\nname: acme\nskills:\n  required:\n    - id: skill-a\n"
 
 // recordingDoer captures every request and serves canned responses from a
 // queue. If the queue is empty it returns the fallback response.

@@ -15,7 +15,6 @@ import (
 func sampleSkill() *adept.Skill {
 	return &adept.Skill{
 		ID:          "skill-a",
-		Version:     3,
 		Description: "describe me",
 		Activation:  adept.ActivationGlobs,
 		Globs:       []string{"src/**/*.ts"},
@@ -60,16 +59,16 @@ func TestSynthetic_RenderAppliesFrontmatterAndBody(t *testing.T) {
 func TestSynthetic_AggregatorJoinsParts(t *testing.T) {
 	a := loadAdapter(t, "aggregator.yaml")
 	parts := []adept.RenderOutput{
-		{Path: "tmp/a", Bytes: []byte("alpha\n"), SkillID: "alpha", SkillVersion: 1},
-		{Path: "tmp/b", Bytes: []byte("beta\n"), SkillID: "beta", SkillVersion: 2},
+		{Path: "tmp/a", Bytes: []byte("alpha\n"), SkillID: "alpha"},
+		{Path: "tmp/b", Bytes: []byte("beta\n"), SkillID: "beta"},
 	}
 	out, err := a.Aggregate(context.Background(), parts, 0)
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 	require.Equal(t, "AGENTS.md", out[0].Path)
 	s := string(out[0].Bytes)
-	// Newer version wins ordering: beta (v2) before alpha (v1).
-	require.Less(t, strings.Index(s, "beta"), strings.Index(s, "alpha"))
+	// Deterministic alphabetical id ordering: alpha before beta.
+	require.Less(t, strings.Index(s, "alpha"), strings.Index(s, "beta"))
 }
 
 func TestSynthetic_AggregatorBudgetOverflow(t *testing.T) {

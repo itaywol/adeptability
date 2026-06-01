@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -17,9 +18,9 @@ import (
 // status. It is gated on the binary being built first; when run via
 // `go test ./...` it rebuilds the binary into a temp file.
 //
-// This is the regression net for the goal: "accurate transfer across
-// every harness." If anything breaks the canonical -> per-harness pipeline
-// for any of the five built-in harnesses, this test fails.
+// This is the regression net for the goal: "accurate transfer across every
+// harness." If anything breaks the canonical -> per-harness pipeline for any
+// of the five built-in harnesses, this test fails.
 func TestE2E(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping e2e under -short")
@@ -57,10 +58,14 @@ func TestE2E(t *testing.T) {
 	t.Run("init library and project", func(t *testing.T) {
 		out, code := run(t, "init", "library")
 		require.Equal(t, 0, code, out)
-		require.FileExists(t, filepath.Join(lib, "adeptability.lock.json"))
+		// New model: library is just a directory tree — no lockfile.
+		_, err := os.Stat(filepath.Join(lib, "adeptability.lock.json"))
+		require.True(t, os.IsNotExist(err), "library must not write a lockfile")
 		out, code = run(t, "--project", proj, "init", "project")
 		require.Equal(t, 0, code, out)
-		require.FileExists(t, filepath.Join(proj, "adeptability.lock.json"))
+		require.FileExists(t, filepath.Join(proj, ".adeptability", "config.json"))
+		_, err = os.Stat(filepath.Join(proj, "adeptability.lock.json"))
+		require.True(t, os.IsNotExist(err), "project must not write a lockfile")
 	})
 
 	exampleDir := filepath.Join(repoRoot, "examples", "skills")
@@ -123,9 +128,11 @@ func TestE2E(t *testing.T) {
 		require.NoError(t, err)
 		require.LessOrEqual(t, len(b), 32768, "AGENTS.md must fit 32 KiB")
 		s := string(b)
-		// Both skills present, both with section markers.
-		require.Contains(t, s, "adeptability:begin id=pr-review")
-		require.Contains(t, s, "adeptability:begin id=typescript-style")
+		// Both skills present, both with section markers carrying the new
+		// hash form (id=<id> hash=<8hex>) instead of the old version=N.
+		require.Regexp(t, regexp.MustCompile(`adeptability:begin id=pr-review hash=[0-9a-f]{8}`), s)
+		require.Regexp(t, regexp.MustCompile(`adeptability:begin id=typescript-style hash=[0-9a-f]{8}`), s)
+		require.NotContains(t, s, "version=", "section markers must use hash, not version")
 	})
 
 	t.Run("copilot bucket has applyTo glob", func(t *testing.T) {
@@ -154,9 +161,16 @@ func TestE2E(t *testing.T) {
 			} `json:"skills"`
 		}
 		require.NoError(t, json.Unmarshal([]byte(out), &payload))
+		require.NotEmpty(t, payload.Skills)
 		for _, s := range payload.Skills {
 			require.Equal(t, "synced", s.Status, "skill %s should be synced", s.ID)
 		}
+	})
+
+	t.Run("status JSON contains no version field", func(t *testing.T) {
+		out, code := run(t, "--project", proj, "status", "--json")
+		require.Equal(t, 0, code, out)
+		require.NotContains(t, out, `"version"`, "v0.2 status output must not surface a version field")
 	})
 
 	t.Run("diff equal", func(t *testing.T) {
@@ -175,10 +189,49 @@ func TestE2E(t *testing.T) {
 		out, code := run(t, "harness", "add", "--from", filepath.Join(repoRoot, "examples/adapters/jetbrains-junie.yaml"))
 		require.Equal(t, 0, code, out)
 		require.FileExists(t, filepath.Join(lib, "adapters", "jetbrains-junie.yaml"))
-		// Subsequent list invocation must reflect the new adapter.
 		out, code = run(t, "harness", "list", "--json")
 		require.Equal(t, 0, code, out)
 		require.Contains(t, out, "jetbrains-junie")
+	})
+
+	// FRICTION BUG 2: uninstalling a missing skill must exit non-zero with
+	// a clear message rather than silently succeeding.
+	t.Run("uninstall missing skill exits non-zero", func(t *testing.T) {
+		out, code := run(t, "--project", proj, "uninstall", "definitely-not-installed")
+		require.Equal(t, 1, code, out)
+		require.Contains(t, strings.ToLower(out), "skill not found")
+	})
+
+	// FRICTION BUG 4: harness enable with unknown id must exit non-zero
+	// instead of writing a bogus harness id into the config.
+	t.Run("harness enable with unknown id rejected", func(t *testing.T) {
+		out, code := run(t, "--project", proj, "harness", "enable", "--id", "totally-fake-harness")
+		require.Equal(t, 1, code, out)
+		require.Contains(t, strings.ToLower(out), "harness")
+	})
+
+	// FRICTION BUG 3: render with unknown harness must surface the harness
+	// in the error, not the (still-missing) skill.
+	t.Run("render with unknown harness names the harness", func(t *testing.T) {
+		out, code := run(t, "--project", proj, "render", "--id", "pr-review", "--harness", "made-up")
+		require.Equal(t, 1, code, out)
+		require.Contains(t, strings.ToLower(out), "harness")
+		require.NotContains(t, strings.ToLower(out), "skill not found")
+	})
+
+	// FRICTION BUG 6: scan of a missing root must exit non-zero, not print
+	// an empty table and succeed.
+	t.Run("scan missing root exits non-zero", func(t *testing.T) {
+		out, code := run(t, "scan", filepath.Join(t.TempDir(), "does-not-exist"))
+		require.Equal(t, 1, code, out)
+	})
+
+	// `migrate` command is intentionally removed in v0.2 — no backward
+	// compatibility, no migrations. The CLI must not advertise it.
+	t.Run("migrate command is gone", func(t *testing.T) {
+		out, code := run(t, "migrate", "--from", "/no/where")
+		require.NotEqual(t, 0, code, out)
+		require.NotContains(t, strings.ToLower(out), "migrated 0 skill")
 	})
 }
 
@@ -209,7 +262,6 @@ func buildBinary(t *testing.T, repoRoot, dst string) {
 	cmd.Env = os.Environ()
 	out, err := cmd.CombinedOutput()
 	require.NoErrorf(t, err, "build failed: %s", out)
-	// Confirm executable is recent enough to be ours.
 	fi, err := os.Stat(dst)
 	require.NoError(t, err)
 	require.WithinDuration(t, time.Now(), fi.ModTime(), 30*time.Second)

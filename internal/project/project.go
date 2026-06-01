@@ -1,7 +1,16 @@
 // Package project implements operations against a single project's
-// <root>/.adeptability/ directory. Layout mirrors the library; the lockfile
-// records which skills are installed and at what version/hash, so the status
-// machine can compare the project against the library.
+// <root>/.adeptability/ directory.
+//
+// Layout:
+//
+//	<root>/.adeptability/
+//	    config.json          — project state (harnesses, modes, org, adapters)
+//	    skills/<id>/         — project canonical skill content ("ours")
+//	    base/<id>/           — last-synced snapshot ("merge base")
+//
+// The library is "theirs". Status, push, pull, and resolve derive their state
+// by hashing those three directories on demand — there is no per-skill
+// lockfile.
 package project
 
 import (
@@ -12,12 +21,11 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/itaywol/adeptability/internal/canonical"
+	"github.com/itaywol/adeptability/internal/config"
 	"github.com/itaywol/adeptability/internal/fsutil"
 	"github.com/itaywol/adeptability/internal/hash"
-	"github.com/itaywol/adeptability/internal/lockfile"
 	"github.com/itaywol/adeptability/pkg/adept"
 )
 
@@ -26,37 +34,46 @@ import (
 // the .adeptability subdir.
 type Project interface {
 	Root() string
-	BaseDir() string
-	SkillsDir() string
-	// BaseSnapshotDir returns the root of the merge-base snapshot store:
-	// <root>/.adeptability/base/. Per-skill snapshots live under that
-	// directory, one subdirectory per skill id.
-	BaseSnapshotDir() string
-	// BaseDirForSkill returns the absolute path of the per-skill base
-	// snapshot for id. The directory may not yet exist; callers should
-	// use HasBaseSnapshot for a presence check.
+	BaseDir() string                 // <root>/.adeptability
+	SkillsDir() string               // <root>/.adeptability/skills
+	BaseSnapshotsDir() string        // <root>/.adeptability/base
+	ConfigPath() string              // <root>/.adeptability/config.json
 	BaseDirForSkill(id string) string
-	// HasBaseSnapshot reports whether a base snapshot exists for id.
-	HasBaseSnapshot(id string) bool
-	// SnapshotBase copies the project's current canonical state for id
-	// into BaseDirForSkill(id), overwriting any prior snapshot. It is
-	// idempotent and intended to be called immediately after a successful
-	// pull / install / clean resolve so that future diverged resolves have
-	// a real common ancestor to merge against.
-	SnapshotBase(id string) error
-	LockfilePath() string
-	Lock() (*adept.LockFile, error)
-	SaveLock(lf *adept.LockFile) error
+
+	// Config loads the project config. Missing file = empty config.
+	Config() (*adept.Config, error)
+	// SaveConfig atomically persists cfg to ConfigPath().
+	SaveConfig(cfg *adept.Config) error
+
 	HasSkill(id string) bool
 	GetSkill(id string) (*adept.Skill, error)
 	ListSkills() ([]*adept.Skill, error)
-	InstallSkill(s *adept.Skill, files []adept.SkillFile, libEntry adept.LockEntry) error
+
+	// HashSkill returns the content hash of the project canonical skill dir
+	// (<skills>/<id>). Empty string + nil when not present.
+	HashSkill(id string) (string, error)
+	// HashBase returns the content hash of the base snapshot for id.
+	// Empty string + nil when not present.
+	HashBase(id string) (string, error)
+
+	HasBaseSnapshot(id string) bool
+	// SnapshotBase mirrors <skills>/<id>/ into <base>/<id>/, overwriting any
+	// prior snapshot. Intended to be called after every successful install,
+	// pull, push, or clean merge so future diverged resolves have an
+	// accurate common ancestor.
+	SnapshotBase(id string) error
+
+	// InstallSkill writes canonical files for s into <skills>/<id>/ and
+	// then snapshots the new state as the merge base.
+	InstallSkill(s *adept.Skill, files []adept.SkillFile) error
+	// UninstallSkill removes the project canonical directory and its base
+	// snapshot. Returns adept.ErrSkillNotFound when id is not installed.
 	UninstallSkill(id string) error
 }
 
 // New constructs a Project rooted at the given absolute project path. The
 // .adeptability subdirectory does not need to exist; InstallSkill creates it.
-func New(root string, parser canonical.Parser, hasher hash.Hasher, store lockfile.Store, w fsutil.Writer) Project {
+func New(root string, parser canonical.Parser, hasher hash.Hasher, store config.Store, w fsutil.Writer) Project {
 	return &project{
 		root:   root,
 		parser: parser,
@@ -70,18 +87,20 @@ type project struct {
 	root   string
 	parser canonical.Parser
 	hasher hash.Hasher
-	store  lockfile.Store
+	store  config.Store
 	writer fsutil.Writer
 }
 
-func (p *project) Root() string            { return p.root }
-func (p *project) BaseDir() string         { return filepath.Join(p.root, adept.BaseDirName) }
-func (p *project) SkillsDir() string       { return filepath.Join(p.BaseDir(), adept.SkillsDirName) }
-func (p *project) BaseSnapshotDir() string { return filepath.Join(p.BaseDir(), adept.BaseSnapDir) }
-func (p *project) BaseDirForSkill(id string) string {
-	return filepath.Join(p.BaseSnapshotDir(), id)
+func (p *project) Root() string             { return p.root }
+func (p *project) BaseDir() string          { return filepath.Join(p.root, adept.BaseDirName) }
+func (p *project) SkillsDir() string        { return filepath.Join(p.BaseDir(), adept.SkillsDirName) }
+func (p *project) BaseSnapshotsDir() string { return filepath.Join(p.BaseDir(), adept.BaseSnapDir) }
+func (p *project) ConfigPath() string {
+	return filepath.Join(p.BaseDir(), adept.ConfigFileName)
 }
-func (p *project) LockfilePath() string { return filepath.Join(p.root, adept.LockFileName) }
+func (p *project) BaseDirForSkill(id string) string {
+	return filepath.Join(p.BaseSnapshotsDir(), id)
+}
 
 func (p *project) HasBaseSnapshot(id string) bool {
 	if id == "" {
@@ -91,9 +110,6 @@ func (p *project) HasBaseSnapshot(id string) bool {
 	return err == nil
 }
 
-// SnapshotBase mirrors <skillsDir>/<id>/ into <baseDir>/<id>/. The destination
-// is wiped first so removed sidecars don't survive across snapshots. The copy
-// uses the injected fsutil.Writer to keep IO behavior consistent (no globals).
 func (p *project) SnapshotBase(id string) error {
 	if id == "" {
 		return fmt.Errorf("project snapshot base: %w: empty id", adept.ErrSkillInvalid)
@@ -118,38 +134,23 @@ func (p *project) SnapshotBase(id string) error {
 	return nil
 }
 
-func (p *project) Lock() (*adept.LockFile, error) {
-	lf, err := p.store.Read(p.LockfilePath())
+func (p *project) Config() (*adept.Config, error) {
+	cfg, err := p.store.Read(p.ConfigPath())
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return p.store.Empty(), nil
-		}
-		return nil, fmt.Errorf("project lock load: %w", err)
+		return nil, fmt.Errorf("project config load: %w", err)
 	}
-	if lf == nil {
-		lf = p.store.Empty()
-	}
-	if lf.Schema == 0 {
-		lf.Schema = adept.LockSchemaVersion
-	}
-	if lf.Skills == nil {
-		lf.Skills = map[string]adept.LockEntry{}
-	}
-	return lf, nil
+	return cfg, nil
 }
 
-func (p *project) SaveLock(lf *adept.LockFile) error {
-	if lf == nil {
-		return fmt.Errorf("project save lock: nil lockfile")
+func (p *project) SaveConfig(cfg *adept.Config) error {
+	if cfg == nil {
+		return fmt.Errorf("project save config: nil config")
 	}
-	if lf.Schema == 0 {
-		lf.Schema = adept.LockSchemaVersion
+	if err := p.writer.EnsureDir(p.BaseDir()); err != nil {
+		return fmt.Errorf("project save config: ensure dir: %w", err)
 	}
-	if lf.Skills == nil {
-		lf.Skills = map[string]adept.LockEntry{}
-	}
-	if err := p.store.Write(p.LockfilePath(), lf); err != nil {
-		return fmt.Errorf("project save lock: %w", err)
+	if err := p.store.Write(p.ConfigPath(), cfg); err != nil {
+		return fmt.Errorf("project save config: %w", err)
 	}
 	return nil
 }
@@ -229,7 +230,35 @@ func (p *project) listSkillIDs() ([]string, error) {
 	return ids, nil
 }
 
-func (p *project) InstallSkill(s *adept.Skill, files []adept.SkillFile, libEntry adept.LockEntry) error {
+func (p *project) HashSkill(id string) (string, error) {
+	if id == "" {
+		return "", nil
+	}
+	dir := filepath.Join(p.SkillsDir(), id)
+	if _, err := os.Stat(dir); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", nil
+		}
+		return "", fmt.Errorf("project hash %q: stat: %w", id, err)
+	}
+	return p.hasher.HashSkillDir(dir)
+}
+
+func (p *project) HashBase(id string) (string, error) {
+	if id == "" {
+		return "", nil
+	}
+	dir := p.BaseDirForSkill(id)
+	if _, err := os.Stat(dir); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", nil
+		}
+		return "", fmt.Errorf("project hash base %q: stat: %w", id, err)
+	}
+	return p.hasher.HashSkillDir(dir)
+}
+
+func (p *project) InstallSkill(s *adept.Skill, files []adept.SkillFile) error {
 	if s == nil {
 		return fmt.Errorf("project install: %w: nil skill", adept.ErrSkillInvalid)
 	}
@@ -237,34 +266,6 @@ func (p *project) InstallSkill(s *adept.Skill, files []adept.SkillFile, libEntry
 		return fmt.Errorf("project install: %w: empty id", adept.ErrSkillInvalid)
 	}
 	if err := p.writeSkillFiles(s, files); err != nil {
-		return fmt.Errorf("project install %q: %w", s.ID, err)
-	}
-	digest := libEntry.Hash
-	if digest == "" {
-		// Inline the sidecars so HashSkill sees the full envelope.
-		s.Files = files
-		h, err := p.hasher.HashSkill(s)
-		if err != nil {
-			return fmt.Errorf("project install %q: hash: %w", s.ID, err)
-		}
-		digest = h
-	}
-	lf, err := p.Lock()
-	if err != nil {
-		return fmt.Errorf("project install %q: %w", s.ID, err)
-	}
-	ver := s.Version
-	if libEntry.Version > 0 {
-		ver = libEntry.Version
-	}
-	lf.Skills[s.ID] = adept.LockEntry{
-		Version:   ver,
-		Hash:      digest,
-		Targets:   libEntry.Targets,
-		UpdatedAt: time.Now().UTC().Format(time.RFC3339),
-		Signature: libEntry.Signature,
-	}
-	if err := p.SaveLock(lf); err != nil {
 		return fmt.Errorf("project install %q: %w", s.ID, err)
 	}
 	// Snapshot the just-installed canonical state as the new merge base.
@@ -280,24 +281,19 @@ func (p *project) UninstallSkill(id string) error {
 	if id == "" {
 		return fmt.Errorf("project uninstall: %w: empty id", adept.ErrSkillInvalid)
 	}
+	if !p.HasSkill(id) {
+		// FRICTION BUG 2: silent success on missing skill hides typos and
+		// makes uninstall feel wrong. Surface a typed error so the CLI can
+		// exit non-zero with a clear message.
+		return fmt.Errorf("project uninstall %q: %w", id, adept.ErrSkillNotFound)
+	}
 	dir := filepath.Join(p.SkillsDir(), id)
 	if err := os.RemoveAll(dir); err != nil {
 		return fmt.Errorf("project uninstall %q: %w", id, err)
 	}
-	// Drop the merge-base snapshot too so a future re-install starts clean.
+	// Drop the merge-base snapshot so a future re-install starts clean.
 	if err := os.RemoveAll(p.BaseDirForSkill(id)); err != nil {
 		return fmt.Errorf("project uninstall %q: clear base: %w", id, err)
-	}
-	lf, err := p.Lock()
-	if err != nil {
-		return fmt.Errorf("project uninstall %q: %w", id, err)
-	}
-	if _, ok := lf.Skills[id]; !ok {
-		return nil
-	}
-	delete(lf.Skills, id)
-	if err := p.SaveLock(lf); err != nil {
-		return fmt.Errorf("project uninstall %q: %w", id, err)
 	}
 	return nil
 }

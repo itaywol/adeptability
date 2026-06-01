@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	beginRE = regexp.MustCompile(`<!--\s*adeptability:begin\s+id=([a-z0-9_][a-z0-9_-]{0,49})\s+version=(\d+)\s*-->`)
+	beginRE = regexp.MustCompile(`<!--\s*adeptability:begin\s+id=([a-z0-9_][a-z0-9_-]{0,49})\s+hash=([a-f0-9]{8})\s*-->`)
 	endRE   = regexp.MustCompile(`<!--\s*adeptability:end\s+id=([a-z0-9_][a-z0-9_-]{0,49})\s*-->`)
 )
 
@@ -38,7 +38,6 @@ func (a *Adapter) Import(_ context.Context, projectRoot string) ([]adept.Importe
 			{
 				Skill: &adept.Skill{
 					ID:          "agents",
-					Version:     1,
 					Description: "Imported from AGENTS.md",
 					Activation:  adept.ActivationAlways,
 					Body:        s,
@@ -50,7 +49,7 @@ func (a *Adapter) Import(_ context.Context, projectRoot string) ([]adept.Importe
 
 	var out []adept.ImportedSkill
 	for _, m := range markers {
-		// m: [fullStart, fullEnd, idStart, idEnd, versionStart, versionEnd]
+		// m: [fullStart, fullEnd, idStart, idEnd, hashStart, hashEnd]
 		bodyStart := m[1]
 		id := s[m[2]:m[3]]
 		// Find the matching end marker for this id.
@@ -77,7 +76,6 @@ func (a *Adapter) Import(_ context.Context, projectRoot string) ([]adept.Importe
 		out = append(out, adept.ImportedSkill{
 			Skill: &adept.Skill{
 				ID:          id,
-				Version:     1,
 				Description: desc,
 				Activation:  adept.ActivationAgent,
 				Body:        body,

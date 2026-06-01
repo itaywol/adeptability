@@ -15,10 +15,9 @@ import (
 	"github.com/itaywol/adeptability/pkg/adeptschema"
 )
 
-// SkillRef pins a single skill at an optional minimum version.
+// SkillRef pins a single skill by id.
 type SkillRef struct {
-	ID         string
-	MinVersion int
+	ID string
 }
 
 // Manifest is the parsed, validated org.yaml document.
@@ -89,10 +88,10 @@ func (p *parser) Parse(data []byte) (*Manifest, error) {
 		Name:    raw2.Name,
 	}
 	for _, r := range raw2.Skills.Required {
-		m.Required = append(m.Required, SkillRef{ID: r.ID, MinVersion: r.MinVersion})
+		m.Required = append(m.Required, SkillRef{ID: r.ID})
 	}
 	for _, r := range raw2.Skills.Optional {
-		m.Optional = append(m.Optional, SkillRef{ID: r.ID, MinVersion: r.MinVersion})
+		m.Optional = append(m.Optional, SkillRef{ID: r.ID})
 	}
 	return m, nil
 }
@@ -109,8 +108,7 @@ type rawSkills struct {
 }
 
 type rawSkillRef struct {
-	ID         string `yaml:"id"`
-	MinVersion int    `yaml:"min-version"`
+	ID string `yaml:"id"`
 }
 
 func normalizeYAMLNode(v any) (any, error) {

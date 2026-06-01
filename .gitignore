@@ -7,3 +7,10 @@ coverage.txt
 .DS_Store
 .idea/
 .vscode/
+
+# adept's own dogfood artifacts: this repo is consumed by adept itself but the
+# project-canonical layout is regenerated from the library on demand.
+/.adeptability/
+/.claude/
+/adeptability.lock.json
+cmd/adept/.adeptability/

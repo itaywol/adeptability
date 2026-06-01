@@ -15,7 +15,7 @@ func TestRootHasAllCommands(t *testing.T) {
 	want := []string{
 		"init", "bootstrap", "list", "add", "show", "install", "uninstall",
 		"pull", "push", "status", "diff", "resolve", "harness",
-		"render", "apply-all", "org", "migrate", "doctor", "verify",
+		"render", "apply-all", "org", "doctor", "verify",
 		"scan", "upgrade",
 	}
 	got := map[string]bool{}

@@ -14,7 +14,7 @@ import (
 	"github.com/itaywol/adeptability/pkg/adept"
 )
 
-var copilotBeginRE = regexp.MustCompile(`<!--\s*adeptability:begin\s+id=([a-z0-9_][a-z0-9_-]{0,49})\s+version=(\d+)\s*-->`)
+var copilotBeginRE = regexp.MustCompile(`<!--\s*adeptability:begin\s+id=([a-z0-9_][a-z0-9_-]{0,49})\s+hash=([a-f0-9]{8})\s*-->`)
 
 // Import walks .github/instructions/*.instructions.md. Each bucket file
 // carries an `applyTo` frontmatter (canonical activation: globs OR always).
@@ -57,7 +57,6 @@ func (a *Adapter) Import(_ context.Context, projectRoot string) ([]adept.Importe
 			// One synthesized skill named after the bucket.
 			skill := &adept.Skill{
 				ID:          sanitizeID(bucket),
-				Version:     1,
 				Description: "Imported from Copilot bucket " + bucket,
 				Body:        strings.TrimSpace(body),
 			}
@@ -92,7 +91,6 @@ func (a *Adapter) Import(_ context.Context, projectRoot string) ([]adept.Importe
 			}
 			skill := &adept.Skill{
 				ID:          id,
-				Version:     1,
 				Description: desc,
 				Body:        section,
 			}

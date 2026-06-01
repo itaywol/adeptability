@@ -46,9 +46,6 @@ func (a *Adapter) Import(_ context.Context, projectRoot string) ([]adept.Importe
 		}
 		// Reverse-map Claude conventions to canonical.
 		skill.ID = id
-		if skill.Version == 0 {
-			skill.Version = 1
-		}
 		if skill.Activation == "" {
 			skill.Activation = adept.ActivationAgent
 		}

@@ -73,7 +73,7 @@ func renderAll(t *testing.T, skills []*adept.Skill) []adept.RenderOutput {
 func TestAggregate_AlwaysBucket(t *testing.T) {
 	a := NewAdapter(New(), budget.NewPacker(), nil)
 	parts := renderAll(t, []*adept.Skill{
-		{ID: "a", Version: 1, Description: "A", Activation: adept.ActivationAlways, Body: "a body\n"},
+		{ID: "a", Description: "A", Activation: adept.ActivationAlways, Body: "a body\n"},
 	})
 	outs, err := a.Aggregate(context.Background(), parts, 0)
 	if err != nil {
@@ -97,8 +97,8 @@ func TestAggregate_AlwaysBucket(t *testing.T) {
 func TestAggregate_SameGlobsSameBucket(t *testing.T) {
 	a := NewAdapter(New(), budget.NewPacker(), nil)
 	parts := renderAll(t, []*adept.Skill{
-		{ID: "a", Version: 1, Description: "A", Activation: adept.ActivationGlobs, Globs: []string{"src/**"}, Body: "a body\n"},
-		{ID: "b", Version: 1, Description: "B", Activation: adept.ActivationGlobs, Globs: []string{"src/**"}, Body: "b body\n"},
+		{ID: "a", Description: "A", Activation: adept.ActivationGlobs, Globs: []string{"src/**"}, Body: "a body\n"},
+		{ID: "b", Description: "B", Activation: adept.ActivationGlobs, Globs: []string{"src/**"}, Body: "b body\n"},
 	})
 	outs, err := a.Aggregate(context.Background(), parts, 0)
 	if err != nil {
@@ -119,8 +119,8 @@ func TestAggregate_SameGlobsSameBucket(t *testing.T) {
 func TestAggregate_DifferentGlobsDifferentBuckets(t *testing.T) {
 	a := NewAdapter(New(), budget.NewPacker(), nil)
 	parts := renderAll(t, []*adept.Skill{
-		{ID: "ts", Version: 1, Description: "TS", Activation: adept.ActivationGlobs, Globs: []string{"**/*.ts"}, Body: "ts\n"},
-		{ID: "go", Version: 1, Description: "Go", Activation: adept.ActivationGlobs, Globs: []string{"**/*.go"}, Body: "go\n"},
+		{ID: "ts", Description: "TS", Activation: adept.ActivationGlobs, Globs: []string{"**/*.ts"}, Body: "ts\n"},
+		{ID: "go", Description: "Go", Activation: adept.ActivationGlobs, Globs: []string{"**/*.go"}, Body: "go\n"},
 	})
 	outs, err := a.Aggregate(context.Background(), parts, 0)
 	if err != nil {
@@ -138,8 +138,8 @@ func TestAggregate_DifferentGlobsDifferentBuckets(t *testing.T) {
 func TestAggregate_AlwaysAndGlobsSeparate(t *testing.T) {
 	a := NewAdapter(New(), budget.NewPacker(), nil)
 	parts := renderAll(t, []*adept.Skill{
-		{ID: "always", Version: 1, Description: "Always", Activation: adept.ActivationAlways, Body: "always body\n"},
-		{ID: "scoped", Version: 1, Description: "Scoped", Activation: adept.ActivationGlobs, Globs: []string{"src/**"}, Body: "scoped body\n"},
+		{ID: "always", Description: "Always", Activation: adept.ActivationAlways, Body: "always body\n"},
+		{ID: "scoped", Description: "Scoped", Activation: adept.ActivationGlobs, Globs: []string{"src/**"}, Body: "scoped body\n"},
 	})
 	outs, err := a.Aggregate(context.Background(), parts, 0)
 	if err != nil {
@@ -153,9 +153,9 @@ func TestAggregate_AlwaysAndGlobsSeparate(t *testing.T) {
 func TestAggregate_AgentAndManualExcluded(t *testing.T) {
 	a := NewAdapter(New(), budget.NewPacker(), nil)
 	parts := renderAll(t, []*adept.Skill{
-		{ID: "always", Version: 1, Description: "Always", Activation: adept.ActivationAlways, Body: "a\n"},
-		{ID: "agent-x", Version: 1, Description: "Agent only", Activation: adept.ActivationAgent, Body: "x\n"},
-		{ID: "manual-x", Version: 1, Description: "Manual only", Activation: adept.ActivationManual, Body: "x\n"},
+		{ID: "always", Description: "Always", Activation: adept.ActivationAlways, Body: "a\n"},
+		{ID: "agent-x", Description: "Agent only", Activation: adept.ActivationAgent, Body: "x\n"},
+		{ID: "manual-x", Description: "Manual only", Activation: adept.ActivationManual, Body: "x\n"},
 	})
 	if len(parts) != 1 {
 		t.Fatalf("expected only 1 eligible part rendered, got %d", len(parts))
@@ -172,8 +172,8 @@ func TestAggregate_AgentAndManualExcluded(t *testing.T) {
 func TestAggregate_Idempotent(t *testing.T) {
 	a := NewAdapter(New(), budget.NewPacker(), nil)
 	parts := renderAll(t, []*adept.Skill{
-		{ID: "z", Version: 1, Description: "Z", Activation: adept.ActivationAlways, Body: "z\n"},
-		{ID: "a", Version: 1, Description: "A", Activation: adept.ActivationAlways, Body: "a\n"},
+		{ID: "z", Description: "Z", Activation: adept.ActivationAlways, Body: "z\n"},
+		{ID: "a", Description: "A", Activation: adept.ActivationAlways, Body: "a\n"},
 	})
 	o1, _ := a.Aggregate(context.Background(), parts, 0)
 	o2, _ := a.Aggregate(context.Background(), parts, 0)
@@ -191,8 +191,8 @@ func TestAggregate_SkillOrderWithinBucket(t *testing.T) {
 	a := NewAdapter(New(), budget.NewPacker(), nil)
 	// Render in reverse-alpha order; bucket body must be alpha.
 	parts := renderAll(t, []*adept.Skill{
-		{ID: "zeta", Version: 1, Description: "Zeta", Activation: adept.ActivationAlways, Body: "z\n"},
-		{ID: "alpha", Version: 1, Description: "Alpha", Activation: adept.ActivationAlways, Body: "a\n"},
+		{ID: "zeta", Description: "Zeta", Activation: adept.ActivationAlways, Body: "z\n"},
+		{ID: "alpha", Description: "Alpha", Activation: adept.ActivationAlways, Body: "a\n"},
 	})
 	outs, _ := a.Aggregate(context.Background(), parts, 0)
 	doc := string(outs[0].Bytes)
@@ -206,7 +206,7 @@ func TestAggregate_SkillOrderWithinBucket(t *testing.T) {
 func TestAggregate_NegativeBudgetErrors(t *testing.T) {
 	a := NewAdapter(New(), budget.NewPacker(), nil)
 	parts := renderAll(t, []*adept.Skill{
-		{ID: "a", Version: 1, Description: "A", Activation: adept.ActivationAlways, Body: "a\n"},
+		{ID: "a", Description: "A", Activation: adept.ActivationAlways, Body: "a\n"},
 	})
 	if _, err := a.Aggregate(context.Background(), parts, -1); err == nil {
 		t.Fatalf("expected error for negative budget")
@@ -216,9 +216,9 @@ func TestAggregate_NegativeBudgetErrors(t *testing.T) {
 func TestAggregate_Golden_Multi(t *testing.T) {
 	a := NewAdapter(New(), budget.NewPacker(), nil)
 	parts := renderAll(t, []*adept.Skill{
-		{ID: "go-style", Version: 2, Description: "Go style", Activation: adept.ActivationAlways, Body: "Use gofmt.\n"},
-		{ID: "api-design", Version: 1, Description: "API design", Activation: adept.ActivationAlways, Body: "REST first.\n"},
-		{ID: "ts-rules", Version: 3, Description: "TS rules", Activation: adept.ActivationGlobs, Globs: []string{"**/*.ts"}, Body: "Strict mode.\n"},
+		{ID: "go-style", Description: "Go style", Activation: adept.ActivationAlways, Body: "Use gofmt.\n"},
+		{ID: "api-design", Description: "API design", Activation: adept.ActivationAlways, Body: "REST first.\n"},
+		{ID: "ts-rules", Description: "TS rules", Activation: adept.ActivationGlobs, Globs: []string{"**/*.ts"}, Body: "Strict mode.\n"},
 	})
 	outs, err := a.Aggregate(context.Background(), parts, 0)
 	if err != nil {
@@ -243,6 +243,45 @@ func TestAggregate_Golden_Multi(t *testing.T) {
 		if string(want) != string(o.Bytes) {
 			t.Fatalf("golden mismatch for %s\nwant:\n%s\ngot:\n%s", goldenPath, string(want), string(o.Bytes))
 		}
+	}
+}
+
+// TestRoundTrip_RenderAggregateImport renders a skill, aggregates the bucket
+// file, writes it to a fake project root, then imports it back. The recovered
+// skill must carry the original id and body. This locks in the new
+// `hash=<8-hex>` marker format end-to-end.
+func TestRoundTrip_RenderAggregateImport(t *testing.T) {
+	a := NewAdapter(New(), budget.NewPacker(), nil)
+	parts := renderAll(t, []*adept.Skill{
+		{ID: "roundtrip", Description: "Round trip", Activation: adept.ActivationAlways, Body: "original markdown body\n"},
+	})
+	outs, err := a.Aggregate(context.Background(), parts, 0)
+	if err != nil {
+		t.Fatalf("Aggregate: %v", err)
+	}
+	if len(outs) != 1 {
+		t.Fatalf("expected 1 bucket, got %d", len(outs))
+	}
+	root := t.TempDir()
+	abs := filepath.Join(root, outs[0].Path)
+	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(abs, outs[0].Bytes, 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	got, err := a.Import(context.Background(), root)
+	if err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("expected 1 imported skill, got %d", len(got))
+	}
+	if got[0].Skill.ID != "roundtrip" {
+		t.Fatalf("recovered id mismatch: got %q", got[0].Skill.ID)
+	}
+	if !strings.Contains(got[0].Skill.Body, "original markdown body") {
+		t.Fatalf("recovered body missing original markdown: %q", got[0].Skill.Body)
 	}
 }
 
@@ -302,7 +341,7 @@ func TestValidate_Synced(t *testing.T) {
 	w := newFakeReader()
 	a := NewAdapterWithDeps(New(), budget.NewPacker(), nil, nil, w)
 	parts := renderAll(t, []*adept.Skill{
-		{ID: "x", Version: 1, Description: "X", Activation: adept.ActivationAlways, Body: "body\n"},
+		{ID: "x", Description: "X", Activation: adept.ActivationAlways, Body: "body\n"},
 	})
 	outs, err := a.Aggregate(context.Background(), parts, 0)
 	if err != nil {
@@ -324,8 +363,8 @@ func TestValidate_DriftedAndMissing(t *testing.T) {
 	w := newFakeReader()
 	a := NewAdapterWithDeps(New(), budget.NewPacker(), nil, nil, w)
 	parts := renderAll(t, []*adept.Skill{
-		{ID: "x", Version: 1, Description: "X", Activation: adept.ActivationAlways, Body: "body\n"},
-		{ID: "y", Version: 1, Description: "Y", Activation: adept.ActivationGlobs, Globs: []string{"src/**"}, Body: "body\n"},
+		{ID: "x", Description: "X", Activation: adept.ActivationAlways, Body: "body\n"},
+		{ID: "y", Description: "Y", Activation: adept.ActivationGlobs, Globs: []string{"src/**"}, Body: "body\n"},
 	})
 	outs, err := a.Aggregate(context.Background(), parts, 0)
 	if err != nil {

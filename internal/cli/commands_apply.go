@@ -15,9 +15,8 @@ import (
 
 // apply-all fans out a sync across many project checkouts matching a glob.
 //
-// This is the multi-project rollout primitive: push v2 of a skill into the
-// library once, then `adept apply-all --skills my-skill --to '~/code/*'` to
-// touch every consumer.
+// Push v2 of a skill into the library once, then
+// `adept apply-all --skills my-skill --to '~/code/*'` to touch every consumer.
 func newApplyAllCmd(d *Deps) *cobra.Command {
 	var skills []string
 	var toGlob string
@@ -98,25 +97,17 @@ func (r *applyAllRenderable) Plain(w io.Writer) error {
 
 func applyToProject(d *Deps, projRoot string, skillIDs []string) (projectApplyResult, error) {
 	res := projectApplyResult{}
-	p := project.New(projRoot, d.Parser, d.Hasher, d.Store, d.Writer)
+	p := project.New(projRoot, d.Parser, d.Hasher, d.Config, d.Writer)
 	l, err := d.Library()
 	if err != nil {
 		return res, err
-	}
-	libLock, err := d.Store.Read(l.LockfilePath())
-	if err != nil {
-		return res, fmt.Errorf("read library lock: %w", err)
 	}
 	for _, id := range skillIDs {
 		s, err := l.GetSkill(id)
 		if err != nil {
 			return res, fmt.Errorf("skill %s: %w", id, err)
 		}
-		entry, ok := libLock.Skills[id]
-		if !ok {
-			return res, fmt.Errorf("library missing lock entry for %s", id)
-		}
-		if err := p.InstallSkill(s, s.Files, entry); err != nil {
+		if err := p.InstallSkill(s, s.Files); err != nil {
 			return res, fmt.Errorf("install %s into %s: %w", id, projRoot, err)
 		}
 		res.Installed = append(res.Installed, id)
@@ -139,5 +130,4 @@ func expandHome(p string) string {
 }
 
 // maxConcurrentProjects caps how many project rollouts run in parallel.
-// Conservative default; over-saturating the disk hurts more than helps.
 func maxConcurrentProjects() int { return 8 }

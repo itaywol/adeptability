@@ -17,7 +17,6 @@ var update = flag.Bool("update", false, "update golden files")
 
 type skillFixture struct {
 	ID           string               `yaml:"id"`
-	Version      int                  `yaml:"version"`
 	Description  string               `yaml:"description"`
 	Activation   adept.ActivationMode `yaml:"activation"`
 	Globs        []string             `yaml:"globs,omitempty"`
@@ -33,7 +32,6 @@ func loadFixture(t *testing.T, name string) *adept.Skill {
 	require.NoError(t, yaml.Unmarshal(raw, &f))
 	return &adept.Skill{
 		ID:           f.ID,
-		Version:      f.Version,
 		Description:  f.Description,
 		Activation:   f.Activation,
 		Globs:        f.Globs,
@@ -60,7 +58,7 @@ func TestRenderer_Golden(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, ".claude/skills/"+skill.ID+"/SKILL.md", out.Path)
 			require.Equal(t, skill.ID, out.SkillID)
-			require.Equal(t, skill.Version, out.SkillVersion)
+			require.Len(t, out.SkillHash, 8)
 
 			goldenPath := filepath.Join("testdata", name+".golden")
 			if *update {

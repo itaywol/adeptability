@@ -29,7 +29,7 @@ func TestAggregate_SingleSkill(t *testing.T) {
 	r := New()
 	a := NewAdapter(r, budget.NewPacker(), nil)
 	parts := renderAll(t, []*adept.Skill{{
-		ID: "one", Version: 1, Description: "First skill",
+		ID: "one", Description: "First skill",
 		Body: "body\n",
 	}})
 	outs, err := a.Aggregate(context.Background(), parts, 0)
@@ -52,9 +52,9 @@ func TestAggregate_ThreeSkills_DeterministicOrder(t *testing.T) {
 	a := NewAdapter(r, budget.NewPacker(), nil)
 	// Render in reverse-alpha order to verify the aggregator re-sorts.
 	parts := renderAll(t, []*adept.Skill{
-		{ID: "zeta", Version: 1, Description: "Zeta", Body: "z body\n"},
-		{ID: "alpha", Version: 1, Description: "Alpha", Body: "a body\n"},
-		{ID: "mid", Version: 1, Description: "Mid", Body: "m body\n"},
+		{ID: "zeta", Description: "Zeta", Body: "z body\n"},
+		{ID: "alpha", Description: "Alpha", Body: "a body\n"},
+		{ID: "mid", Description: "Mid", Body: "m body\n"},
 	})
 	outs, err := a.Aggregate(context.Background(), parts, 0)
 	if err != nil {
@@ -73,8 +73,8 @@ func TestAggregate_Idempotent(t *testing.T) {
 	r := New()
 	a := NewAdapter(r, budget.NewPacker(), nil)
 	parts := renderAll(t, []*adept.Skill{
-		{ID: "b", Version: 1, Description: "B", Body: "b body\n"},
-		{ID: "a", Version: 1, Description: "A", Body: "a body\n"},
+		{ID: "b", Description: "B", Body: "b body\n"},
+		{ID: "a", Description: "A", Body: "a body\n"},
 	})
 	o1, _ := a.Aggregate(context.Background(), parts, 0)
 	o2, _ := a.Aggregate(context.Background(), parts, 0)
@@ -90,10 +90,10 @@ func TestAggregate_BudgetOverflow_TruncationManifest(t *testing.T) {
 	// at most 2 should fit, one is dropped.
 	big := strings.Repeat("y", 10*1024)
 	skills := []*adept.Skill{
-		{ID: "alpha", Version: 1, Description: "Alpha", Body: big},
-		{ID: "bravo", Version: 1, Description: "Bravo", Body: big},
-		{ID: "charlie", Version: 1, Description: "Charlie", Body: big},
-		{ID: "delta", Version: 1, Description: "Delta", Body: big},
+		{ID: "alpha", Description: "Alpha", Body: big},
+		{ID: "bravo", Description: "Bravo", Body: big},
+		{ID: "charlie", Description: "Charlie", Body: big},
+		{ID: "delta", Description: "Delta", Body: big},
 	}
 	parts := renderAll(t, skills)
 	outs, err := a.Aggregate(context.Background(), parts, 0)
@@ -121,8 +121,8 @@ func TestAggregate_OversizedSinglePartDropped(t *testing.T) {
 	// One skill larger than the entire budget should be dropped, no error.
 	huge := strings.Repeat("z", 64*1024)
 	parts := renderAll(t, []*adept.Skill{
-		{ID: "huge", Version: 1, Description: "Huge", Body: huge},
-		{ID: "small", Version: 1, Description: "Small", Body: "tiny\n"},
+		{ID: "huge", Description: "Huge", Body: huge},
+		{ID: "small", Description: "Small", Body: "tiny\n"},
 	})
 	outs, err := a.Aggregate(context.Background(), parts, 0)
 	if err != nil {
@@ -140,7 +140,7 @@ func TestAggregate_OversizedSinglePartDropped(t *testing.T) {
 func TestAggregate_NegativeBudgetErrors(t *testing.T) {
 	r := New()
 	a := NewAdapter(r, budget.NewPacker(), nil)
-	parts := renderAll(t, []*adept.Skill{{ID: "x", Version: 1, Description: "X", Body: ""}})
+	parts := renderAll(t, []*adept.Skill{{ID: "x", Description: "X", Body: ""}})
 	if _, err := a.Aggregate(context.Background(), parts, -1); err == nil {
 		t.Fatalf("expected error for negative budget")
 	}
@@ -150,9 +150,9 @@ func TestAggregate_Golden_Multi(t *testing.T) {
 	r := New()
 	a := NewAdapter(r, budget.NewPacker(), nil)
 	parts := renderAll(t, []*adept.Skill{
-		{ID: "go-style", Version: 2, Description: "Go style guide", Body: "Use gofmt.\nPrefer explicit errors.\n"},
-		{ID: "git-flow", Version: 1, Description: "Git workflow", Body: "Commit small.\n"},
-		{ID: "api-design", Version: 3, Description: "API design rules", Body: "REST first.\n"},
+		{ID: "go-style", Description: "Go style guide", Body: "Use gofmt.\nPrefer explicit errors.\n"},
+		{ID: "git-flow", Description: "Git workflow", Body: "Commit small.\n"},
+		{ID: "api-design", Description: "API design rules", Body: "REST first.\n"},
 	})
 	outs, err := a.Aggregate(context.Background(), parts, 0)
 	if err != nil {

@@ -15,7 +15,7 @@ import (
 func writeSkillMD(t *testing.T, dir, id, body string) {
 	t.Helper()
 	require.NoError(t, os.MkdirAll(dir, 0o755))
-	doc := "---\nid: " + id + "\nversion: 1\ndescription: \"d\"\nactivation: agent\n---\n" + body
+	doc := "---\nid: " + id + "\ndescription: \"d\"\nactivation: agent\n---\n" + body
 	require.NoError(t, os.WriteFile(filepath.Join(dir, adept.SkillFileName), []byte(doc), 0o644))
 }
 
@@ -47,14 +47,12 @@ func TestScanner_DetectsSyncedAndDiverged(t *testing.T) {
 	skill := sampleSkill("skill-a")
 	require.NoError(t, lib.AddSkill(skill, nil))
 
-	// Scan a directory that contains the SAME skill: should report synced.
 	srcRoot := t.TempDir()
 	writeSkillMD(t, filepath.Join(srcRoot, "skill-a"), "skill-a", "# skill-a\n\nBody for skill-a.\n")
 	results, err := scanner.Scan([]string{srcRoot})
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 	require.Equal(t, "skill-a", results[0].SkillID)
-	// Status depends on byte-equivalence; if hashing differs it'll be diverged.
 	require.Contains(t, []adept.Status{adept.StatusSynced, adept.StatusDiverged}, results[0].Status)
 }
 
@@ -75,12 +73,13 @@ func TestScanner_SkipsHiddenAndVendor(t *testing.T) {
 	require.Equal(t, "real", results[0].SkillID)
 }
 
-func TestScanner_HandlesMissingRoot(t *testing.T) {
+// FRICTION BUG 6: scan of a missing root must surface as an error, not as a
+// silent empty table.
+func TestScanner_MissingRootErrors(t *testing.T) {
 	lib, _ := newLib(t)
 	scanner := NewScanner(lib, canonical.NewParser(), hash.NewHasher())
-	results, err := scanner.Scan([]string{filepath.Join(t.TempDir(), "missing")})
-	require.NoError(t, err)
-	require.Empty(t, results)
+	_, err := scanner.Scan([]string{filepath.Join(t.TempDir(), "missing")})
+	require.ErrorIs(t, err, ErrScanRootMissing)
 }
 
 func TestScanner_MalformedSkillSurfacesDiverged(t *testing.T) {

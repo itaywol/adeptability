@@ -25,26 +25,27 @@ func relPaths(files []adept.SkillFile) []string {
 }
 
 func TestLoader_ValidYAML(t *testing.T) {
+	t.Parallel()
 	l := newTestLoader(t)
 	s, err := l.LoadSkillDir("testdata/valid-yaml")
 	require.NoError(t, err)
 	require.Equal(t, "valid_yaml_skill", s.ID)
-	require.Equal(t, 1, s.Version)
 	require.NotEmpty(t, s.Body)
 	require.Empty(t, s.Files)
 }
 
 func TestLoader_ValidFrontmatter(t *testing.T) {
+	t.Parallel()
 	l := newTestLoader(t)
 	s, err := l.LoadSkillDir("testdata/valid-frontmatter")
 	require.NoError(t, err)
 	require.Equal(t, "valid_frontmatter_skill", s.ID)
-	require.Equal(t, 2, s.Version)
 	require.Equal(t, adept.ActivationAlways, s.Activation)
 	require.Contains(t, s.Body, "# Frontmatter Skill")
 }
 
 func TestLoader_MissingBoth(t *testing.T) {
+	t.Parallel()
 	l := newTestLoader(t)
 	_, err := l.LoadSkillDir("testdata/missing-both")
 	require.Error(t, err)
@@ -52,6 +53,7 @@ func TestLoader_MissingBoth(t *testing.T) {
 }
 
 func TestLoader_InvalidID(t *testing.T) {
+	t.Parallel()
 	l := newTestLoader(t)
 	_, err := l.LoadSkillDir("testdata/invalid-id")
 	require.Error(t, err)
@@ -59,6 +61,7 @@ func TestLoader_InvalidID(t *testing.T) {
 }
 
 func TestLoader_MissingDescription(t *testing.T) {
+	t.Parallel()
 	l := newTestLoader(t)
 	_, err := l.LoadSkillDir("testdata/missing-description")
 	require.Error(t, err)
@@ -66,6 +69,7 @@ func TestLoader_MissingDescription(t *testing.T) {
 }
 
 func TestLoader_GlobsWithoutGlobs(t *testing.T) {
+	t.Parallel()
 	l := newTestLoader(t)
 	_, err := l.LoadSkillDir("testdata/globs-without-globs")
 	require.Error(t, err)
@@ -73,6 +77,7 @@ func TestLoader_GlobsWithoutGlobs(t *testing.T) {
 }
 
 func TestLoader_SidecarsDiscovered(t *testing.T) {
+	t.Parallel()
 	l := newTestLoader(t)
 	s, err := l.LoadSkillDir("testdata/with-sidecars")
 	require.NoError(t, err)
@@ -81,6 +86,7 @@ func TestLoader_SidecarsDiscovered(t *testing.T) {
 }
 
 func TestLoader_IgnoreExcludesFiles(t *testing.T) {
+	t.Parallel()
 	l := newTestLoader(t)
 	s, err := l.LoadSkillDir("testdata/with-ignore")
 	require.NoError(t, err)
@@ -91,6 +97,7 @@ func TestLoader_IgnoreExcludesFiles(t *testing.T) {
 }
 
 func TestLoader_NotADirectory(t *testing.T) {
+	t.Parallel()
 	l := newTestLoader(t)
 	tmp := t.TempDir()
 	f := filepath.Join(tmp, "skill")
@@ -101,6 +108,7 @@ func TestLoader_NotADirectory(t *testing.T) {
 }
 
 func TestLoader_NotFound(t *testing.T) {
+	t.Parallel()
 	l := newTestLoader(t)
 	_, err := l.LoadSkillDir(filepath.Join(t.TempDir(), "nope"))
 	require.Error(t, err)
@@ -108,12 +116,13 @@ func TestLoader_NotFound(t *testing.T) {
 }
 
 func TestLoader_StripsRedundantFrontmatterWhenYAMLPresent(t *testing.T) {
+	t.Parallel()
 	l := newTestLoader(t)
 	tmp := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(tmp, adept.SkillYAMLName), []byte(
-		"id: yaml_first\nversion: 1\ndescription: yaml wins\n"), 0o644))
+		"id: yaml_first\ndescription: yaml wins\n"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(tmp, adept.SkillFileName), []byte(
-		"---\nid: other\nversion: 99\ndescription: ignored\n---\n# Real body\n"), 0o644))
+		"---\nid: other\ndescription: ignored\n---\n# Real body\n"), 0o644))
 	s, err := l.LoadSkillDir(tmp)
 	require.NoError(t, err)
 	require.Equal(t, "yaml_first", s.ID)

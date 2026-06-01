@@ -1,5 +1,4 @@
 id: valid_yaml_skill
-version: 1
 description: A valid skill driven by skill.yaml
 activation: agent
 tags:
@@ -8,6 +7,5 @@ tags:
 allowed-tools:
   - Read
   - Bash
-size-hint-kib: 4
 metadata:
   owner: team-a

@@ -5,12 +5,11 @@ import (
 	"testing"
 )
 
-func mkPart(id string, version int, size int, prio int) Part {
+func mkPart(id string, size int, prio int) Part {
 	return Part{
-		SkillID:      id,
-		SkillVersion: version,
-		Bytes:        []byte(strings.Repeat("x", size)),
-		Priority:     prio,
+		SkillID:  id,
+		Bytes:    []byte(strings.Repeat("x", size)),
+		Priority: prio,
 	}
 }
 
@@ -28,9 +27,9 @@ func TestPack_Empty(t *testing.T) {
 func TestPack_UnlimitedBudget(t *testing.T) {
 	p := NewPacker()
 	parts := []Part{
-		mkPart("a", 1, 1024, 0),
-		mkPart("b", 1, 8192, 0),
-		mkPart("c", 1, 16384, 0),
+		mkPart("a", 1024, 0),
+		mkPart("b", 8192, 0),
+		mkPart("c", 16384, 0),
 	}
 	res, err := p.Pack(parts, 0, 0)
 	if err != nil {
@@ -49,7 +48,7 @@ func TestPack_UnlimitedBudget(t *testing.T) {
 
 func TestPack_SinglePartUnderBudget(t *testing.T) {
 	p := NewPacker()
-	parts := []Part{mkPart("a", 1, 500, 0)}
+	parts := []Part{mkPart("a", 500, 0)}
 	res, err := p.Pack(parts, 1024, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -61,7 +60,7 @@ func TestPack_SinglePartUnderBudget(t *testing.T) {
 
 func TestPack_SinglePartOverBudget(t *testing.T) {
 	p := NewPacker()
-	parts := []Part{mkPart("big", 1, 2048, 0)}
+	parts := []Part{mkPart("big", 2048, 0)}
 	res, err := p.Pack(parts, 1024, 0)
 	if err != nil {
 		t.Fatalf("expected no error (caller decides), got %v", err)
@@ -80,10 +79,10 @@ func TestPack_SinglePartOverBudget(t *testing.T) {
 func TestPack_ManyPartsAllFit(t *testing.T) {
 	p := NewPacker()
 	parts := []Part{
-		mkPart("a", 1, 100, 0),
-		mkPart("b", 1, 100, 0),
-		mkPart("c", 1, 100, 0),
-		mkPart("d", 1, 100, 0),
+		mkPart("a", 100, 0),
+		mkPart("b", 100, 0),
+		mkPart("c", 100, 0),
+		mkPart("d", 100, 0),
 	}
 	res, err := p.Pack(parts, 1024, 0)
 	if err != nil {
@@ -101,9 +100,9 @@ func TestPack_PriorityRespected(t *testing.T) {
 	p := NewPacker()
 	// Budget fits exactly 2 parts of 500 bytes each.
 	parts := []Part{
-		mkPart("low1", 1, 500, 0),
-		mkPart("low2", 1, 500, 0),
-		mkPart("high", 1, 500, 100),
+		mkPart("low1", 500, 0),
+		mkPart("low2", 500, 0),
+		mkPart("high", 500, 100),
 	}
 	res, err := p.Pack(parts, 1000, 0)
 	if err != nil {
@@ -124,30 +123,13 @@ func TestPack_PriorityRespected(t *testing.T) {
 	}
 }
 
-func TestPack_VersionTieBreaksAfterPriority(t *testing.T) {
-	p := NewPacker()
-	// Same priority, different version: newer wins.
-	parts := []Part{
-		mkPart("a", 1, 600, 0),
-		mkPart("a-v2", 2, 600, 0),
-	}
-	res, err := p.Pack(parts, 1000, 0)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(res.Kept) != 1 || res.Kept[0].SkillID != "a-v2" {
-		t.Fatalf("expected newer version kept, got kept=%v", ids(res.Kept))
-	}
-}
-
-func TestPack_LenAscTieBreaksAfterVersion(t *testing.T) {
+func TestPack_LenAscTieBreaksAfterPriority(t *testing.T) {
 	p := NewPacker()
 	parts := []Part{
-		mkPart("big", 1, 800, 0),
-		mkPart("small", 1, 100, 0),
+		mkPart("big", 800, 0),
+		mkPart("small", 100, 0),
 	}
-	// Budget allows only small (100) since big (800) + small (100) = 900 fits exactly.
-	// Actually both fit. Use a budget where only smaller fits.
+	// Budget allows only smaller.
 	res, err := p.Pack(parts, 500, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -160,8 +142,8 @@ func TestPack_LenAscTieBreaksAfterVersion(t *testing.T) {
 func TestPack_IDAscTieBreaksLast(t *testing.T) {
 	p := NewPacker()
 	parts := []Part{
-		mkPart("zeta", 1, 400, 0),
-		mkPart("alpha", 1, 400, 0),
+		mkPart("zeta", 400, 0),
+		mkPart("alpha", 400, 0),
 	}
 	// Budget fits one only.
 	res, err := p.Pack(parts, 500, 0)
@@ -176,8 +158,8 @@ func TestPack_IDAscTieBreaksLast(t *testing.T) {
 func TestPack_OverheadReserved(t *testing.T) {
 	p := NewPacker()
 	parts := []Part{
-		mkPart("a", 1, 500, 0),
-		mkPart("b", 1, 500, 0),
+		mkPart("a", 500, 0),
+		mkPart("b", 500, 0),
 	}
 	// Without overhead both fit (1000 = 1000 budget).
 	res, err := p.Pack(parts, 1000, 0)
@@ -200,10 +182,10 @@ func TestPack_OverheadReserved(t *testing.T) {
 func TestPack_DeterministicOrder(t *testing.T) {
 	p := NewPacker()
 	// Different input orderings must produce the same pack result.
-	a := mkPart("a", 1, 200, 0)
-	b := mkPart("b", 1, 200, 0)
-	c := mkPart("c", 1, 200, 0)
-	d := mkPart("d", 1, 200, 0)
+	a := mkPart("a", 200, 0)
+	b := mkPart("b", 200, 0)
+	c := mkPart("c", 200, 0)
+	d := mkPart("d", 200, 0)
 	order1 := []Part{a, b, c, d}
 	order2 := []Part{d, c, b, a}
 	res1, _ := p.Pack(order1, 500, 0) // fits 2
@@ -213,10 +195,31 @@ func TestPack_DeterministicOrder(t *testing.T) {
 	}
 }
 
+func TestPack_DeterministicOrderByIDAndSize(t *testing.T) {
+	p := NewPacker()
+	// Mixed sizes and ids — verify the documented (len asc, id asc) order.
+	parts := []Part{
+		{SkillID: "zeta", Bytes: []byte("xxxx"), Priority: 0},  // 4
+		{SkillID: "alpha", Bytes: []byte("xx"), Priority: 0},   // 2
+		{SkillID: "mid", Bytes: []byte("xxxx"), Priority: 0},   // 4
+		{SkillID: "delta", Bytes: []byte("xxxxx"), Priority: 0}, // 5
+	}
+	res, err := p.Pack(parts, 0, 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Expected sorted by (len asc, id asc): alpha(2), mid(4), zeta(4), delta(5)
+	got := ids(res.Kept)
+	want := "alpha,mid,zeta,delta"
+	if got != want {
+		t.Fatalf("order mismatch: want=%s got=%s", want, got)
+	}
+}
+
 func TestPack_NeverErrors(t *testing.T) {
 	p := NewPacker()
 	// Even with extreme inputs, Pack returns nil error.
-	parts := []Part{mkPart("oversize", 1, 1024*1024, 0)}
+	parts := []Part{mkPart("oversize", 1024*1024, 0)}
 	_, err := p.Pack(parts, 100, 50)
 	if err != nil {
 		t.Fatalf("Pack should never error; got %v", err)
@@ -226,8 +229,8 @@ func TestPack_NeverErrors(t *testing.T) {
 func TestPack_DoesNotMutateInput(t *testing.T) {
 	p := NewPacker()
 	parts := []Part{
-		mkPart("b", 1, 100, 0),
-		mkPart("a", 1, 100, 0),
+		mkPart("b", 100, 0),
+		mkPart("a", 100, 0),
 	}
 	preB := parts[0].SkillID
 	preA := parts[1].SkillID

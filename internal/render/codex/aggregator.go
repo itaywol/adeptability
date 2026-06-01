@@ -27,10 +27,9 @@ func aggregate(p budget.Packer, parts []adept.RenderOutput, budgetB int) (adept.
 			continue
 		}
 		bparts = append(bparts, budget.Part{
-			SkillID:      pt.SkillID,
-			SkillVersion: pt.SkillVersion,
-			Bytes:        pt.Bytes,
-			Priority:     0,
+			SkillID:  pt.SkillID,
+			Bytes:    pt.Bytes,
+			Priority: 0,
 		})
 	}
 

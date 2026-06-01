@@ -63,15 +63,13 @@ func (v *schemaValidator) Validate(s *adept.Skill) error {
 	return nil
 }
 
-// skillToSchemaDoc serializes the Skill using its JSON tags so the JSON
-// Schema (which uses kebab-case keys like "allowed-tools") sees the on-wire
-// representation rather than the Go struct field names.
+// skillToSchemaDoc serializes the Skill using the on-wire kebab-case keys the
+// JSON Schema expects (e.g. "allowed-tools"). The schema is strict
+// (additionalProperties: false) so this builder must not emit fields the
+// schema does not declare.
 func skillToSchemaDoc(s *adept.Skill) (any, error) {
-	// We must emit the YAML keys, not the JSON tag keys, because the schema
-	// uses kebab-case (allowed-tools, size-hint-kib). Build a map directly.
 	doc := map[string]any{
 		"id":          s.ID,
-		"version":     s.Version,
 		"description": s.Description,
 	}
 	if s.Activation != "" {
@@ -88,9 +86,6 @@ func skillToSchemaDoc(s *adept.Skill) (any, error) {
 	}
 	if len(s.Tags) > 0 {
 		doc["tags"] = toAnySlice(s.Tags)
-	}
-	if s.SizeHintKiB > 0 {
-		doc["size-hint-kib"] = s.SizeHintKiB
 	}
 	if len(s.Metadata) > 0 {
 		md := map[string]any{}

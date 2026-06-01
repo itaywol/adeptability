@@ -2,7 +2,7 @@
 applyTo: "**/*.ts"
 ---
 
-<!-- adeptability:begin id=ts-rules version=3 -->
+<!-- adeptability:begin id=ts-rules hash=4d0f4fe4 -->
 ## TS rules
 
 Strict mode.

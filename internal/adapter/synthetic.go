@@ -165,11 +165,11 @@ func (r *syntheticRenderer) Render(_ context.Context, in adept.RenderInput) (ade
 	}
 	bytes := []byte(fm + body)
 	return adept.RenderOutput{
-		Path:         path,
-		Bytes:        bytes,
-		Mode:         0o644,
-		SkillID:      in.Skill.ID,
-		SkillVersion: in.Skill.Version,
+		Path:      path,
+		Bytes:     bytes,
+		Mode:      0o644,
+		SkillID:   in.Skill.ID,
+		SkillHash: common.ShortSkillHash(in.Skill),
 	}, nil
 }
 
@@ -207,8 +207,6 @@ func skillFieldValue(s *adept.Skill, key string) (any, bool) {
 	switch key {
 	case "id":
 		return s.ID, true
-	case "version":
-		return s.Version, true
 	case "description":
 		return s.Description, true
 	case "activation":
@@ -233,11 +231,6 @@ func skillFieldValue(s *adept.Skill, key string) (any, bool) {
 			return nil, false
 		}
 		return s.Tags, true
-	case "size-hint-kib":
-		if s.SizeHintKiB == 0 {
-			return nil, false
-		}
-		return s.SizeHintKiB, true
 	}
 	// Allow access to metadata keys via "metadata.<k>".
 	if strings.HasPrefix(key, "metadata.") {
@@ -259,15 +252,11 @@ func (r *syntheticRenderer) transformBody(body string) string {
 // expandSkillTokens substitutes the same set of tokens used in output paths
 // into the prefix/suffix strings supplied by the adapter spec.
 func expandSkillTokens(in string, s *adept.Skill) string {
-	out := strings.ReplaceAll(in, "{id}", s.ID)
-	out = strings.ReplaceAll(out, "{version}", fmt.Sprintf("%d", s.Version))
-	return out
+	return strings.ReplaceAll(in, "{id}", s.ID)
 }
 
 func resolveOutputPath(tmpl string, s *adept.Skill) (string, error) {
-	out := tmpl
-	out = strings.ReplaceAll(out, "{id}", s.ID)
-	out = strings.ReplaceAll(out, "{version}", fmt.Sprintf("%d", s.Version))
+	out := strings.ReplaceAll(tmpl, "{id}", s.ID)
 	if strings.Contains(out, "{") {
 		// Surface unresolved template tokens; the schema does not enumerate
 		// allowed variables, so any "{...}" remaining is a configuration
@@ -282,8 +271,7 @@ func resolveOutputPath(tmpl string, s *adept.Skill) (string, error) {
 }
 
 // aggregateSingle concatenates all parts into a single output keyed by path.
-// Sorted by SkillID to guarantee determinism. Newer SkillVersion wins under
-// budget pressure.
+// Parts are sorted by SkillID for deterministic output.
 func aggregateSingle(parts []adept.RenderOutput, outPath string, budget int) ([]adept.RenderOutput, error) {
 	if len(parts) == 0 {
 		return nil, nil
@@ -291,9 +279,6 @@ func aggregateSingle(parts []adept.RenderOutput, outPath string, budget int) ([]
 	cp := make([]adept.RenderOutput, len(parts))
 	copy(cp, parts)
 	sort.Slice(cp, func(i, j int) bool {
-		if cp[i].SkillVersion != cp[j].SkillVersion {
-			return cp[i].SkillVersion > cp[j].SkillVersion
-		}
 		return cp[i].SkillID < cp[j].SkillID
 	})
 	var buf strings.Builder

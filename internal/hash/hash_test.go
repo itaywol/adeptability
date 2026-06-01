@@ -106,13 +106,37 @@ func TestHash_DotDirsExcluded(t *testing.T) {
 	require.Equal(t, a, b)
 }
 
-func TestHash_LockfileExcluded(t *testing.T) {
+func TestHash_ConfigExcluded(t *testing.T) {
 	h := NewHasher()
 	d := t.TempDir()
 	writeFile(t, d, "SKILL.md", []byte("body"))
 	a, err := h.HashSkillDir(d)
 	require.NoError(t, err)
-	writeFile(t, d, adept.LockFileName, []byte(`{"schema":2}`))
+	writeFile(t, d, adept.ConfigFileName, []byte(`{"schema":1}`))
+	b, err := h.HashSkillDir(d)
+	require.NoError(t, err)
+	require.Equal(t, a, b)
+}
+
+func TestHash_SignatureExcluded(t *testing.T) {
+	h := NewHasher()
+	d := t.TempDir()
+	writeFile(t, d, "SKILL.md", []byte("body"))
+	a, err := h.HashSkillDir(d)
+	require.NoError(t, err)
+	writeFile(t, d, adept.SignatureName, []byte("sig-bytes"))
+	b, err := h.HashSkillDir(d)
+	require.NoError(t, err)
+	require.Equal(t, a, b)
+}
+
+func TestHash_StagingDirExcluded(t *testing.T) {
+	h := NewHasher()
+	d := t.TempDir()
+	writeFile(t, d, "SKILL.md", []byte("body"))
+	a, err := h.HashSkillDir(d)
+	require.NoError(t, err)
+	writeFile(t, d, filepath.Join(adept.StagingDir, "tmp.txt"), []byte("scratch"))
 	b, err := h.HashSkillDir(d)
 	require.NoError(t, err)
 	require.Equal(t, a, b)
@@ -153,7 +177,6 @@ func TestHashSkill_Deterministic(t *testing.T) {
 	h := NewHasher()
 	s := &adept.Skill{
 		ID:          "ok",
-		Version:     1,
 		Description: "x",
 		Activation:  adept.ActivationAgent,
 		Body:        "body\n",
@@ -167,8 +190,8 @@ func TestHashSkill_Deterministic(t *testing.T) {
 
 func TestHashSkill_DifferentBodyDiffers(t *testing.T) {
 	h := NewHasher()
-	s1 := &adept.Skill{ID: "ok", Version: 1, Description: "x", Body: "body1"}
-	s2 := &adept.Skill{ID: "ok", Version: 1, Description: "x", Body: "body2"}
+	s1 := &adept.Skill{ID: "ok", Description: "x", Body: "body1"}
+	s2 := &adept.Skill{ID: "ok", Description: "x", Body: "body2"}
 	a, err := h.HashSkill(s1)
 	require.NoError(t, err)
 	b, err := h.HashSkill(s2)
@@ -178,8 +201,8 @@ func TestHashSkill_DifferentBodyDiffers(t *testing.T) {
 
 func TestHashSkill_CRLFEquivalentToLF(t *testing.T) {
 	h := NewHasher()
-	s1 := &adept.Skill{ID: "ok", Version: 1, Description: "x", Body: "a\nb\n"}
-	s2 := &adept.Skill{ID: "ok", Version: 1, Description: "x", Body: "a\r\nb\r\n"}
+	s1 := &adept.Skill{ID: "ok", Description: "x", Body: "a\nb\n"}
+	s2 := &adept.Skill{ID: "ok", Description: "x", Body: "a\r\nb\r\n"}
 	a, err := h.HashSkill(s1)
 	require.NoError(t, err)
 	b, err := h.HashSkill(s2)

@@ -12,9 +12,6 @@ import "sort"
 type Part struct {
 	// SkillID is the canonical skill id (used for stable ordering and reporting).
 	SkillID string
-	// SkillVersion is the canonical skill version. Newer versions are
-	// preferred when priority ties.
-	SkillVersion int
 	// Bytes is the rendered fragment payload.
 	Bytes []byte
 	// Priority controls retention under budget pressure. Higher wins.
@@ -24,7 +21,7 @@ type Part struct {
 // PackResult is the deterministic output of a Pack call.
 type PackResult struct {
 	// Kept lists the parts that fit under the budget, in the deterministic
-	// pack order (priority desc, version desc, len asc, id asc).
+	// pack order (priority desc, len asc, id asc).
 	Kept []Part
 	// Dropped lists the parts that did NOT fit, in the same deterministic
 	// ordering as Kept relative to the input.
@@ -51,6 +48,8 @@ type packer struct{}
 func NewPacker() Packer { return &packer{} }
 
 // Pack implements the greedy fit-by-priority algorithm.
+//
+// Sort order: Priority desc, len(Bytes) asc, SkillID asc.
 func (p *packer) Pack(parts []Part, budgetB, overheadB int) (PackResult, error) {
 	if len(parts) == 0 {
 		return PackResult{Kept: nil, Dropped: nil, TotalB: 0}, nil
@@ -64,9 +63,6 @@ func (p *packer) Pack(parts []Part, budgetB, overheadB int) (PackResult, error) 
 		a, b := in[i], in[j]
 		if a.Priority != b.Priority {
 			return a.Priority > b.Priority
-		}
-		if a.SkillVersion != b.SkillVersion {
-			return a.SkillVersion > b.SkillVersion
 		}
 		if la, lb := len(a.Bytes), len(b.Bytes); la != lb {
 			return la < lb

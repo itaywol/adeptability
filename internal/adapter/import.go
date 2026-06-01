@@ -29,7 +29,7 @@ const importedReplaceWarning = "regex replace rules were not reversed; manual cl
 // aggregator render path so multi-skill aggregator output can be split back
 // into individual skills on import.
 var (
-	adeptBeginRE = regexp.MustCompile(`<!--\s*adeptability:begin\s+id=([a-z0-9_][a-z0-9_-]{0,49})\s+version=(\d+)\s*-->`)
+	adeptBeginRE = regexp.MustCompile(`<!--\s*adeptability:begin\s+id=([a-z0-9_][a-z0-9_-]{0,49})\s+hash=([a-f0-9]{8})\s*-->`)
 	adeptEndRE   = regexp.MustCompile(`<!--\s*adeptability:end\s+id=[a-z0-9_][a-z0-9_-]{0,49}\s*-->`)
 )
 
@@ -84,7 +84,7 @@ func (a *syntheticAdapter) importPerSkillFile(fullPath, id string) (adept.Import
 		return adept.ImportedSkill{}, fmt.Errorf("synthetic %s import %s: %w", a.spec.ID, id, err)
 	}
 	skill := a.skillFromFrontmatter(front, id)
-	skill.Body = a.stripBodyPrefixSuffix(body, id, skill.Version)
+	skill.Body = a.stripBodyPrefixSuffix(body, id)
 
 	imp := adept.ImportedSkill{
 		Skill:      skill,
@@ -170,7 +170,6 @@ func (a *syntheticAdapter) splitAggregatorContent(raw []byte, sourcePath, bucket
 		}
 		skill := &adept.Skill{
 			ID:          id,
-			Version:     1,
 			Description: fmt.Sprintf("Imported from %s %s", a.spec.ID, id),
 			Activation:  adept.ActivationAgent,
 			Body:        strings.TrimSpace(body),
@@ -205,7 +204,6 @@ func (a *syntheticAdapter) splitAggregatorContent(raw []byte, sourcePath, bucket
 		}
 		skill := &adept.Skill{
 			ID:          id,
-			Version:     1,
 			Description: desc,
 			Activation:  adept.ActivationAgent,
 			Body:        section,
@@ -349,7 +347,6 @@ func splitYAMLFrontmatter(raw []byte) ([]byte, []byte, error) {
 func (a *syntheticAdapter) skillFromFrontmatter(front []byte, fallbackID string) *adept.Skill {
 	skill := &adept.Skill{
 		ID:         fallbackID,
-		Version:    1,
 		Activation: adept.ActivationAgent,
 	}
 	if len(front) == 0 {
@@ -385,9 +382,6 @@ func (a *syntheticAdapter) skillFromFrontmatter(front []byte, fallbackID string)
 
 	if skill.ID == "" {
 		skill.ID = fallbackID
-	}
-	if skill.Version == 0 {
-		skill.Version = 1
 	}
 	// Infer activation when canonical fields imply it but no explicit
 	// `activation:` key was recovered. This handles forward configs that only
@@ -445,15 +439,6 @@ func assignSkillField(s *adept.Skill, canonicalKey string, v any) {
 		if str, ok := v.(string); ok {
 			s.ID = str
 		}
-	case "version":
-		switch n := v.(type) {
-		case int:
-			s.Version = n
-		case int64:
-			s.Version = int(n)
-		case float64:
-			s.Version = int(n)
-		}
 	case "description":
 		if str, ok := v.(string); ok {
 			s.Description = str
@@ -477,15 +462,6 @@ func assignSkillField(s *adept.Skill, canonicalKey string, v any) {
 	case "tags":
 		if g := toStringSlice(v); g != nil {
 			s.Tags = g
-		}
-	case "size-hint-kib":
-		switch n := v.(type) {
-		case int:
-			s.SizeHintKiB = n
-		case int64:
-			s.SizeHintKiB = int(n)
-		case float64:
-			s.SizeHintKiB = int(n)
 		}
 	default:
 		if strings.HasPrefix(canonicalKey, "metadata.") {
@@ -534,9 +510,9 @@ func toStringSlice(v any) []string {
 
 // stripBodyPrefixSuffix removes the (token-expanded) body prefix/suffix the
 // forward renderer would have prepended/appended. Empty values are no-ops.
-func (a *syntheticAdapter) stripBodyPrefixSuffix(body []byte, id string, version int) string {
+func (a *syntheticAdapter) stripBodyPrefixSuffix(body []byte, id string) string {
 	s := string(body)
-	tokens := map[string]string{"{id}": id, "{version}": fmt.Sprintf("%d", version)}
+	tokens := map[string]string{"{id}": id}
 	prefix := expandTokens(a.spec.Body.Prefix, tokens)
 	suffix := expandTokens(a.spec.Body.Suffix, tokens)
 	if prefix != "" && strings.HasPrefix(s, prefix) {

@@ -8,12 +8,12 @@ import (
 	"github.com/itaywol/adeptability/internal/adapter"
 	"github.com/itaywol/adeptability/internal/budget"
 	"github.com/itaywol/adeptability/internal/canonical"
+	"github.com/itaywol/adeptability/internal/config"
 	"github.com/itaywol/adeptability/internal/fsutil"
 	"github.com/itaywol/adeptability/internal/git"
 	"github.com/itaywol/adeptability/internal/harness"
 	"github.com/itaywol/adeptability/internal/hash"
 	"github.com/itaywol/adeptability/internal/library"
-	"github.com/itaywol/adeptability/internal/lockfile"
 	"github.com/itaywol/adeptability/internal/log"
 	"github.com/itaywol/adeptability/internal/org"
 	"github.com/itaywol/adeptability/internal/project"
@@ -42,7 +42,7 @@ type Deps struct {
 	Validator canonical.Validator
 	Loader    canonical.Loader
 	Hasher    hash.Hasher
-	Store     lockfile.Store
+	Config    config.Store
 	Status    status.Resolver
 	Writer    fsutil.Writer
 	Linker    fsutil.Linker
@@ -95,9 +95,6 @@ func NewDeps(gf *GlobalFlags, b BuildInfo) (*Deps, error) {
 	if err != nil {
 		return nil, fmt.Errorf("detect sign backend: %w", err)
 	}
-	// Demote the sign-detect notice to debug. It would otherwise pollute
-	// stderr on every invocation in environments without cosign, which
-	// breaks --json output for callers that merge stdout+stderr.
 	logger.Debug("sign", "backend", string(signResult.Backend), "notice", signResult.Notice)
 	verifier := signResult.Verifier
 	signer := signResult.Signer
@@ -110,7 +107,7 @@ func NewDeps(gf *GlobalFlags, b BuildInfo) (*Deps, error) {
 		Validator:     validator,
 		Loader:        canonical.NewLoader(parser, validator),
 		Hasher:        hash.NewHasher(),
-		Store:         lockfile.NewStore(writer.AtomicWrite),
+		Config:        config.NewStore(writer.AtomicWrite),
 		Status:        status.NewResolver(),
 		Writer:        writer,
 		Linker:        linker,
@@ -175,7 +172,7 @@ func (d *Deps) Library() (library.Library, error) {
 	if err != nil {
 		return nil, err
 	}
-	return library.New(root, d.Parser, d.Hasher, d.Store, d.Writer), nil
+	return library.New(root, d.Parser, d.Hasher, d.Writer), nil
 }
 
 // Project returns a Project bound to the resolved root.
@@ -184,7 +181,7 @@ func (d *Deps) Project() (project.Project, error) {
 	if err != nil {
 		return nil, err
 	}
-	return project.New(root, d.Parser, d.Hasher, d.Store, d.Writer), nil
+	return project.New(root, d.Parser, d.Hasher, d.Config, d.Writer), nil
 }
 
 // ResolveLibraryRoot returns --library, then $ADEPT_LIBRARY, then $HOME/.adeptability.

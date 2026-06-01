@@ -34,8 +34,6 @@ func newHarnessCmd(d *Deps) *cobra.Command {
 func newHarnessListCmd(d *Deps) *cobra.Command {
 	c := &cobra.Command{Use: "list", Short: "List registered harnesses"}
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
-		// Pull in user-defined adapters from <library>/adapters/ so list reflects
-		// every harness that would participate in a sync.
 		if err := d.LoadUserAdapters(); err != nil {
 			d.Log.Warn("load user adapters", "err", err)
 		}
@@ -122,7 +120,7 @@ func newHarnessSyncCmd(d *Deps) *cobra.Command {
 	var ids []string
 	var force, dryRun bool
 	c := &cobra.Command{Use: "sync", Short: "Sync project skills into enabled harnesses"}
-	c.Flags().StringSliceVar(&ids, "id", nil, "harness ids (default: all enabled in lockfile)")
+	c.Flags().StringSliceVar(&ids, "id", nil, "harness ids (default: all enabled)")
 	c.Flags().BoolVar(&force, "force", false, "overwrite drifted harness files")
 	c.Flags().BoolVar(&dryRun, "dry-run", false, "report what would be written, write nothing")
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
@@ -154,9 +152,24 @@ func (r *harnessSyncRenderable) Plain(w io.Writer) error {
 	tw := NewTabWriter(w)
 	fmt.Fprintln(tw, "HARNESS\tWRITTEN\tSKIPPED\tDROPPED")
 	for _, res := range r.Results {
-		fmt.Fprintf(tw, "%s\t%d\t%d\t%d\n", res.Harness, len(res.Written), len(res.Skipped), len(res.Dropped))
+		// FRICTION BUG 7: DROPPED reflects actual aggregator drops, not
+		// pre-aggregation render misses. Surface both counts so users see
+		// the full picture when budgets clip skills.
+		dropped := len(res.DroppedSkillIDs)
+		if dropped == 0 {
+			dropped = len(res.Dropped)
+		}
+		fmt.Fprintf(tw, "%s\t%d\t%d\t%d\n", res.Harness, len(res.Written), len(res.Skipped), dropped)
 	}
-	return tw.Flush()
+	if err := tw.Flush(); err != nil {
+		return err
+	}
+	for _, res := range r.Results {
+		if len(res.DroppedSkillIDs) > 0 {
+			fmt.Fprintf(w, "  %s dropped: %v\n", res.Harness, res.DroppedSkillIDs)
+		}
+	}
+	return nil
 }
 
 func newHarnessImportCmd(d *Deps) *cobra.Command {
@@ -239,24 +252,32 @@ func newHarnessEnableCmd(d *Deps) *cobra.Command {
 	c.Flags().StringVar(&modeStr, "mode", string(adept.ModeSymlink), "symlink or copy")
 	_ = c.MarkFlagRequired("id")
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
+		// FRICTION BUG 4: validate the harness exists in the registry before
+		// touching the config. Otherwise a typo silently writes a bogus id
+		// that breaks the next `sync`.
+		if err := d.LoadUserAdapters(); err != nil {
+			d.Log.Warn("load user adapters", "err", err)
+		}
+		if _, err := d.Registry.Get(id); err != nil {
+			return fmt.Errorf("harness enable %q: %w", id, adept.ErrHarnessUnknown)
+		}
 		p, err := d.Project()
 		if err != nil {
 			return err
 		}
-		lf, err := p.Lock()
+		cfg, err := p.Config()
 		if err != nil {
 			return err
 		}
-		// Dedupe-insert.
 		set := map[string]bool{}
-		for _, h := range lf.Harnesses {
+		for _, h := range cfg.Harnesses {
 			set[h] = true
 		}
 		if !set[id] {
-			lf.Harnesses = append(lf.Harnesses, id)
+			cfg.Harnesses = append(cfg.Harnesses, id)
 		}
-		lf = d.Store.SetHarnessMode(lf, id, adept.HarnessMode(modeStr))
-		if err := p.SaveLock(lf); err != nil {
+		d.Config.SetHarnessMode(cfg, id, adept.HarnessMode(modeStr))
+		if err := p.SaveConfig(cfg); err != nil {
 			return err
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "enabled %s (mode=%s)\n", id, modeStr)
@@ -271,22 +292,24 @@ func newHarnessDisableCmd(d *Deps) *cobra.Command {
 	c.Flags().StringVar(&id, "id", "", "harness id (required)")
 	_ = c.MarkFlagRequired("id")
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
+		// disable is intentionally idempotent — disabling something that
+		// isn't enabled is a no-op success.
 		p, err := d.Project()
 		if err != nil {
 			return err
 		}
-		lf, err := p.Lock()
+		cfg, err := p.Config()
 		if err != nil {
 			return err
 		}
-		filtered := make([]string, 0, len(lf.Harnesses))
-		for _, h := range lf.Harnesses {
+		filtered := make([]string, 0, len(cfg.Harnesses))
+		for _, h := range cfg.Harnesses {
 			if h != id {
 				filtered = append(filtered, h)
 			}
 		}
-		lf.Harnesses = filtered
-		if err := p.SaveLock(lf); err != nil {
+		cfg.Harnesses = filtered
+		if err := p.SaveConfig(cfg); err != nil {
 			return err
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "disabled %s\n", id)
@@ -305,7 +328,6 @@ func newHarnessAddCmd(d *Deps) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		// Install to <library>/adapters/<id>.yaml for persistence.
 		libRoot, err := d.ResolveLibraryRoot()
 		if err != nil {
 			return err
@@ -314,12 +336,29 @@ func newHarnessAddCmd(d *Deps) *cobra.Command {
 		if err := d.Writer.EnsureDir(filepath.Dir(dst)); err != nil {
 			return err
 		}
-		// Copy file bytes to the persistent location.
 		if err := copyFileVia(d, fromFile, dst); err != nil {
 			return fmt.Errorf("persist adapter: %w", err)
 		}
 		if err := d.Registry.Register(a); err != nil {
 			return err
+		}
+		// Record the adapter id in the project config so it round-trips
+		// across machines via the same config.json everyone uses.
+		p, perr := d.Project()
+		if perr == nil {
+			cfg, cerr := p.Config()
+			if cerr == nil {
+				known := map[string]bool{}
+				for _, x := range cfg.Adapters {
+					known[x] = true
+				}
+				if !known[a.Spec().ID] {
+					cfg.Adapters = append(cfg.Adapters, a.Spec().ID)
+					if err := p.SaveConfig(cfg); err != nil {
+						d.Log.Warn("save adapter id to project config", "err", err)
+					}
+				}
+			}
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "registered harness %s (persisted at %s)\n", a.Spec().ID, dst)
 		return nil
@@ -346,18 +385,22 @@ func newRenderCmd(d *Deps) *cobra.Command {
 	_ = c.MarkFlagRequired("id")
 	_ = c.MarkFlagRequired("harness")
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
+		// FRICTION BUG 3: validate --harness FIRST so the error mentions
+		// the harness, not the (still-missing) skill. Typos on the harness
+		// flag used to surface as "skill not found" which sent users
+		// chasing the wrong wire.
+		if err := d.LoadUserAdapters(); err != nil {
+			d.Log.Warn("load user adapters", "err", err)
+		}
+		a, err := d.Registry.Get(harnessID)
+		if err != nil {
+			return fmt.Errorf("render: harness %q: %w", harnessID, adept.ErrHarnessUnknown)
+		}
 		p, err := d.Project()
 		if err != nil {
 			return err
 		}
 		s, err := p.GetSkill(skillID)
-		if err != nil {
-			return err
-		}
-		if err := d.LoadUserAdapters(); err != nil {
-			d.Log.Warn("load user adapters", "err", err)
-		}
-		a, err := d.Registry.Get(harnessID)
 		if err != nil {
 			return err
 		}

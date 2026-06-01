@@ -36,12 +36,12 @@ func newOrgInitCmd(d *Deps) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		lf, err := p.Lock()
+		cfg, err := p.Config()
 		if err != nil {
 			return err
 		}
-		lf.Org = &adept.OrgRef{Remote: remote, Ref: ref}
-		if err := p.SaveLock(lf); err != nil {
+		cfg.Org = &adept.OrgRef{Remote: remote, Ref: ref}
+		if err := p.SaveConfig(cfg); err != nil {
 			return err
 		}
 		scheme := orgRemoteScheme(remote)
@@ -59,7 +59,6 @@ func orgRemoteScheme(remote string) string {
 	case strings.HasPrefix(remote, "http://"), strings.HasPrefix(remote, "https://"):
 		return "http"
 	default:
-		// Git URLs (git@…:repo.git), bare paths, file:// — all read locally.
 		return "file"
 	}
 }
@@ -71,18 +70,18 @@ func newOrgSyncCmd(d *Deps) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		lf, err := p.Lock()
+		cfg, err := p.Config()
 		if err != nil {
 			return err
 		}
-		if lf.Org == nil {
+		if cfg.Org == nil {
 			return fmt.Errorf("project has no org configured; run `adept org init`")
 		}
 		libRoot, err := d.ResolveLibraryRoot()
 		if err != nil {
 			return err
 		}
-		client, err := chooseOrgClient(d, lf.Org.Remote, libRoot)
+		client, err := chooseOrgClient(d, cfg.Org.Remote, libRoot)
 		if err != nil {
 			return fmt.Errorf("select org client: %w", err)
 		}
@@ -90,12 +89,7 @@ func newOrgSyncCmd(d *Deps) *cobra.Command {
 		if err != nil {
 			return fmt.Errorf("fetch org manifest: %w", err)
 		}
-		// Install required + optional skills already enrolled.
 		l, err := d.Library()
-		if err != nil {
-			return err
-		}
-		libLock, err := d.Store.Read(l.LockfilePath())
 		if err != nil {
 			return err
 		}
@@ -105,14 +99,7 @@ func newOrgSyncCmd(d *Deps) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("required skill %s: %w", ref.ID, err)
 			}
-			entry, ok := libLock.Skills[ref.ID]
-			if !ok {
-				return fmt.Errorf("library missing lock entry for required %s", ref.ID)
-			}
-			if ref.MinVersion > 0 && entry.Version < ref.MinVersion {
-				return fmt.Errorf("required skill %s v%d < min %d", ref.ID, entry.Version, ref.MinVersion)
-			}
-			if err := p.InstallSkill(s, s.Files, entry); err != nil {
+			if err := p.InstallSkill(s, s.Files); err != nil {
 				return err
 			}
 			installed = append(installed, ref.ID)
@@ -138,10 +125,7 @@ func (r *orgSyncRenderable) Plain(w io.Writer) error {
 	return nil
 }
 
-// chooseOrgClient resolves the manifest client based on the remote URL
-// scheme. HTTP/HTTPS uses the network-backed client with an on-disk ETag
-// cache under <library>/.org-cache/; anything else falls back to the local
-// FileClient reading <library>/org.yaml.
+// chooseOrgClient resolves the manifest client based on the remote URL scheme.
 func chooseOrgClient(d *Deps, remote, libRoot string) (org.Client, error) {
 	switch orgRemoteScheme(remote) {
 	case "http":

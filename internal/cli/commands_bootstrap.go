@@ -4,16 +4,14 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 
 	"github.com/itaywol/adeptability/internal/harness"
-	"github.com/itaywol/adeptability/pkg/adept"
 )
 
 // bootstrap is the first-time adoption flow:
-//  1. ensure project canonical layout exists (.adeptability/skills/, lockfile);
+//  1. ensure project canonical layout exists (.adeptability/skills/, config.json);
 //  2. walk every registered harness and reverse-render its on-disk state;
 //  3. write the recovered skills into project canonical;
 //  4. report imports + conflicts.
@@ -38,18 +36,20 @@ func newBootstrapCmd(d *Deps) *cobra.Command {
 	c.Flags().BoolVar(&dryRun, "dry-run", false, "report what would be imported without writing")
 	c.Flags().BoolVar(&force, "force", false, "overwrite existing project canonical skills")
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
-		projRoot, err := d.ResolveProjectRoot()
+		p, err := d.Project()
 		if err != nil {
 			return err
 		}
 		// Ensure the project skeleton exists.
-		if err := d.Writer.EnsureDir(filepath.Join(projRoot, adept.BaseDirName, adept.SkillsDirName)); err != nil {
+		if err := d.Writer.EnsureDir(p.SkillsDir()); err != nil {
 			return fmt.Errorf("bootstrap: create project skeleton: %w", err)
 		}
-		lockPath := filepath.Join(projRoot, adept.LockFileName)
-		if _, err := os.Stat(lockPath); os.IsNotExist(err) {
-			if err := d.Store.Write(lockPath, d.Store.Empty()); err != nil {
-				return fmt.Errorf("bootstrap: write lockfile: %w", err)
+		if err := d.Writer.EnsureDir(p.BaseSnapshotsDir()); err != nil {
+			return fmt.Errorf("bootstrap: create base dir: %w", err)
+		}
+		if _, err := os.Stat(p.ConfigPath()); os.IsNotExist(err) {
+			if err := p.SaveConfig(d.Config.Empty()); err != nil {
+				return fmt.Errorf("bootstrap: write config: %w", err)
 			}
 		}
 
@@ -57,10 +57,6 @@ func newBootstrapCmd(d *Deps) *cobra.Command {
 			d.Log.Warn("load user adapters", "err", err)
 		}
 
-		p, err := d.Project()
-		if err != nil {
-			return err
-		}
 		ctx := withTimeout(cmd.Context())
 		report, err := d.Orchestrator.Import(ctx, p, harness.ImportOptions{
 			Strategy:      harness.ImportStrategy(strategyStr),
@@ -80,20 +76,20 @@ func newBootstrapCmd(d *Deps) *cobra.Command {
 				contributed[row.Harness] = true
 			}
 			if len(contributed) > 0 {
-				lf, err := p.Lock()
+				cfg, err := p.Config()
 				if err != nil {
 					return err
 				}
 				known := map[string]bool{}
-				for _, h := range lf.Harnesses {
+				for _, h := range cfg.Harnesses {
 					known[h] = true
 				}
 				for h := range contributed {
 					if !known[h] {
-						lf.Harnesses = append(lf.Harnesses, h)
+						cfg.Harnesses = append(cfg.Harnesses, h)
 					}
 				}
-				if err := p.SaveLock(lf); err != nil {
+				if err := p.SaveConfig(cfg); err != nil {
 					return err
 				}
 			}

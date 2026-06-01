@@ -10,8 +10,11 @@ import (
 )
 
 // scan walks the given path for SKILL.md files and reports their state
-// relative to the library — without writing anything. Replaces the prior
-// art's TUI: same information, JSON or table output, scriptable.
+// relative to the library — without writing anything.
+//
+// FRICTION BUG 6: a missing scan root must error + exit 1, not silently
+// print an empty table. The scanner now returns ErrScanRootMissing; this
+// command surfaces it directly.
 func newScanCmd(d *Deps) *cobra.Command {
 	c := &cobra.Command{
 		Use:   "scan [path]",

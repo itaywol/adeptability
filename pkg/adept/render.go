@@ -29,8 +29,10 @@ type RenderOutput struct {
 
 	// SkillID is set by the renderer so aggregators can group/sort.
 	SkillID string
-	// SkillVersion lets aggregators prioritize newer skills under budget pressure.
-	SkillVersion int
+	// SkillHash is the short hex hash of the source canonical skill.
+	// Aggregators surface it in section markers so users can correlate a
+	// section back to a specific canonical revision.
+	SkillHash string
 	// Warnings surface non-fatal rendering decisions (e.g. sidecars dropped
 	// because the target harness is single-file).
 	Warnings []string

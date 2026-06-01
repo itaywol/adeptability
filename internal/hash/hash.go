@@ -5,7 +5,8 @@
 //   - Normalizing line endings (CRLF -> LF) before hashing content.
 //   - Framing entries with explicit length prefixes so directory walks can't
 //     collide with file contents.
-//   - Excluding metadata-only paths (.adeptignore, lockfile, .git).
+//   - Excluding metadata-only paths (.adeptignore, config.json, .signature,
+//     staging dir, .git).
 package hash
 
 import (
@@ -79,10 +80,16 @@ func (h *hasher) HashSkillDir(dir string) (string, error) {
 			if strings.HasPrefix(base, ".") {
 				return fs.SkipDir
 			}
+			// Exclude the staging dir, which holds transient pull/merge state.
+			if rel == adept.StagingDir {
+				return fs.SkipDir
+			}
 			return nil
 		}
-		// Exclude metadata-only files.
-		if rel == adept.IgnoreFileName || rel == adept.LockFileName {
+		// Exclude metadata-only files: ignore file, project config, signature.
+		if rel == adept.IgnoreFileName ||
+			rel == adept.ConfigFileName ||
+			rel == adept.SignatureName {
 			return nil
 		}
 		if matchAny(patterns, rel) {

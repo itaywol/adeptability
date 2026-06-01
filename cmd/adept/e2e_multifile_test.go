@@ -42,7 +42,6 @@ func TestE2E_MultiFileSkill(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Join(src, "assets"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(src, "skill.yaml"), []byte(""+
 		"id: multi-test\n"+
-		"version: 1\n"+
 		"description: Skill bundle with markdown references, scripts, and assets\n"+
 		"activation: agent\n"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(src, "SKILL.md"), []byte(""+

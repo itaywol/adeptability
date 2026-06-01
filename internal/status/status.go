@@ -1,24 +1,29 @@
 // Package status is a pure state machine that resolves the sync state of a
-// single skill from three observations:
+// single skill from three content hashes:
 //
-//  1. The hash of the skill content currently on disk in the project.
-//  2. The lockfile entry recorded by the project (if any).
-//  3. The lockfile entry recorded by the central library (if any).
+//  1. The hash of the project canonical (<root>/.adeptability/skills/<id>/).
+//  2. The hash of the last-synced base snapshot (<root>/.adeptability/base/<id>/).
+//  3. The hash of the library canonical ($ADEPT_LIBRARY/skills/<id>/).
 //
-// No I/O happens here.
+// No I/O happens here — callers hash directories themselves and feed the
+// resolver three strings. An empty string means "absent from that side".
 package status
 
 import "github.com/itaywol/adeptability/pkg/adept"
 
-// Input is everything the resolver needs to make a decision.
+// Input is everything the resolver needs to make a decision. All three fields
+// are content-hash strings (e.g. "sha256:<hex>"). Empty string means the
+// corresponding side is absent on disk.
 type Input struct {
-	// ProjectHash is the hash of the on-disk skill in the project.
-	// Empty string means the skill is not on disk in the project.
+	// ProjectHash is the hash of the on-disk skill in the project canonical.
+	// Empty string = skill not present in the project.
 	ProjectHash string
-	// ProjectEntry is the project lockfile entry. nil = no project lock.
-	ProjectEntry *adept.LockEntry
-	// LibraryEntry is the library lockfile entry. nil = no library entry.
-	LibraryEntry *adept.LockEntry
+	// BaseHash is the hash of the last-synced base snapshot for this skill.
+	// Empty string = no base snapshot recorded (skill has never been synced).
+	BaseHash string
+	// LibraryHash is the hash of the skill in the central library.
+	// Empty string = skill not present in the library.
+	LibraryHash string
 }
 
 // Resolver turns an Input into a Status.
@@ -36,39 +41,36 @@ func NewResolver() Resolver {
 // Resolve applies the documented transition table.
 //
 // Decision order:
-//  1. Skill not on disk + no library entry -> LocalOnly (effectively absent).
-//  2. Skill not on disk + library entry present -> LibraryOnly.
-//  3. No project entry OR no library entry (and skill is on disk) -> LocalOnly.
-//  4. project changed + library advanced -> Diverged.
-//  5. project changed -> Ahead.
-//  6. library advanced -> Behind.
-//  7. otherwise -> Synced.
-func (r *resolver) Resolve(in Input) adept.Status {
-	onDisk := in.ProjectHash != ""
-
-	if !onDisk {
-		if in.LibraryEntry != nil {
-			return adept.StatusLibraryOnly
-		}
-		return adept.StatusLocalOnly
-	}
-
-	if in.ProjectEntry == nil || in.LibraryEntry == nil {
-		return adept.StatusLocalOnly
-	}
-
-	projectChanged := in.ProjectHash != in.ProjectEntry.Hash
-	libraryAdvanced := in.LibraryEntry.Version != in.ProjectEntry.Version ||
-		in.LibraryEntry.Hash != in.ProjectEntry.Hash
-
+//  1. Project absent + library absent -> LocalOnly (effectively absent).
+//  2. Project absent + library present -> LibraryOnly.
+//  3. Project present + library absent -> LocalOnly.
+//  4. Project present + library present + no base -> LocalOnly
+//     (installed but never synced; treat as freshly local).
+//  5. Project changed (vs base) + library changed (vs base) -> Diverged.
+//  6. Project changed only -> Ahead.
+//  7. Library changed only -> Behind.
+//  8. Neither side changed vs base -> Synced.
+func (resolver) Resolve(in Input) adept.Status {
 	switch {
-	case projectChanged && libraryAdvanced:
+	case in.ProjectHash == "" && in.LibraryHash == "":
+		return adept.StatusLocalOnly
+	case in.ProjectHash == "" && in.LibraryHash != "":
+		return adept.StatusLibraryOnly
+	case in.ProjectHash != "" && in.LibraryHash == "":
+		return adept.StatusLocalOnly
+	case in.BaseHash == "":
+		// Installed but no base — treat as freshly local.
+		return adept.StatusLocalOnly
+	}
+	projectChanged := in.ProjectHash != in.BaseHash
+	libraryChanged := in.LibraryHash != in.BaseHash
+	switch {
+	case projectChanged && libraryChanged:
 		return adept.StatusDiverged
 	case projectChanged:
 		return adept.StatusAhead
-	case libraryAdvanced:
+	case libraryChanged:
 		return adept.StatusBehind
-	default:
-		return adept.StatusSynced
 	}
+	return adept.StatusSynced
 }

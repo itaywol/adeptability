@@ -1,5 +1,5 @@
 // Package adeptschema embeds JSON Schemas for canonical types so consumers
-// can validate skill.yaml, adapter.yaml, and org.yaml without I/O.
+// can validate skill.yaml, adapter.yaml, org.yaml, and config.json without I/O.
 package adeptschema
 
 import _ "embed"
@@ -12,3 +12,6 @@ var AdapterSchema []byte
 
 //go:embed org.schema.json
 var OrgSchema []byte
+
+//go:embed config.schema.json
+var ConfigSchema []byte

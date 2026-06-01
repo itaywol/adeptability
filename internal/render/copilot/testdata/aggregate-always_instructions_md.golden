@@ -2,13 +2,13 @@
 applyTo: "**"
 ---
 
-<!-- adeptability:begin id=api-design version=1 -->
+<!-- adeptability:begin id=api-design hash=3d2c5d72 -->
 ## API design
 
 REST first.
 <!-- adeptability:end id=api-design -->
 
-<!-- adeptability:begin id=go-style version=2 -->
+<!-- adeptability:begin id=go-style hash=e8029059 -->
 ## Go style
 
 Use gofmt.

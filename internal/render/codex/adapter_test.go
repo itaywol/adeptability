@@ -98,7 +98,7 @@ func TestValidate_Synced(t *testing.T) {
 	w := newFakeReader()
 	r := New()
 	a := NewAdapterWithReader(r, budget.NewPacker(), nil, w)
-	parts := renderAll(t, []*adept.Skill{{ID: "x", Version: 1, Description: "X", Body: "body\n"}})
+	parts := renderAll(t, []*adept.Skill{{ID: "x", Description: "X", Body: "body\n"}})
 	outs, err := a.Aggregate(context.Background(), parts, 0)
 	if err != nil {
 		t.Fatalf("Aggregate: %v", err)
@@ -118,7 +118,7 @@ func TestValidate_Missing(t *testing.T) {
 	w := newFakeReader()
 	r := New()
 	a := NewAdapterWithReader(r, budget.NewPacker(), nil, w)
-	parts := renderAll(t, []*adept.Skill{{ID: "x", Version: 1, Description: "X", Body: "body\n"}})
+	parts := renderAll(t, []*adept.Skill{{ID: "x", Description: "X", Body: "body\n"}})
 	outs, _ := a.Aggregate(context.Background(), parts, 0)
 	rep, err := a.Validate("/proj", outs)
 	if err != nil {
@@ -133,7 +133,7 @@ func TestValidate_Drifted(t *testing.T) {
 	w := newFakeReader()
 	r := New()
 	a := NewAdapterWithReader(r, budget.NewPacker(), nil, w)
-	parts := renderAll(t, []*adept.Skill{{ID: "x", Version: 1, Description: "X", Body: "body\n"}})
+	parts := renderAll(t, []*adept.Skill{{ID: "x", Description: "X", Body: "body\n"}})
 	outs, _ := a.Aggregate(context.Background(), parts, 0)
 	w.files["/proj/AGENTS.md"] = []byte("something else entirely")
 	rep, err := a.Validate("/proj", outs)

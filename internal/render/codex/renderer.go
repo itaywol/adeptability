@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/itaywol/adeptability/internal/render/common"
 	"github.com/itaywol/adeptability/pkg/adept"
 )
 
@@ -49,25 +50,26 @@ func (r *Renderer) Render(_ context.Context, in adept.RenderInput) (adept.Render
 		return adept.RenderOutput{}, fmt.Errorf("codex render: %w: skill missing id", adept.ErrSkillInvalid)
 	}
 
-	frag := buildFragment(s)
+	hash := common.ShortSkillHash(s)
+	frag := buildFragment(s, hash)
 	return adept.RenderOutput{
-		Path:         OutputFile,
-		Bytes:        []byte(frag),
-		Mode:         0o644,
-		SkillID:      s.ID,
-		SkillVersion: s.Version,
+		Path:      OutputFile,
+		Bytes:     []byte(frag),
+		Mode:      0o644,
+		SkillID:   s.ID,
+		SkillHash: hash,
 	}, nil
 }
 
 // buildFragment emits the marker-wrapped section for a skill.
 //
-//	<!-- adeptability:begin id=<id> version=<n> -->
+//	<!-- adeptability:begin id=<id> hash=<8-hex> -->
 //	## <description as heading>
 //	<body>
 //	<!-- adeptability:end id=<id> -->
-func buildFragment(s *adept.Skill) string {
+func buildFragment(s *adept.Skill, hash string) string {
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("<!-- adeptability:begin id=%s version=%d -->\n", s.ID, s.Version))
+	b.WriteString(fmt.Sprintf("<!-- adeptability:begin id=%s hash=%s -->\n", s.ID, hash))
 	heading := strings.TrimSpace(s.Description)
 	if heading == "" {
 		heading = s.ID

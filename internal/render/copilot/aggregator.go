@@ -57,10 +57,9 @@ func aggregate(
 			)
 		}
 		acc.parts = append(acc.parts, budget.Part{
-			SkillID:      pt.SkillID,
-			SkillVersion: pt.SkillVersion,
-			Bytes:        pt.Bytes,
-			Priority:     0,
+			SkillID:  pt.SkillID,
+			Bytes:    pt.Bytes,
+			Priority: 0,
 		})
 	}
 

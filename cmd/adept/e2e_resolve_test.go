@@ -129,6 +129,8 @@ func TestE2E_ResolveMerge(t *testing.T) {
 		out, code := run(t, e, "--project", e.proj, "resolve", "pr-review", "--strategy", "merge")
 		require.Equalf(t, 0, code, "merge should exit 0 cleanly; output:\n%s", out)
 		require.Contains(t, out, "merged pr-review")
+		// v0.2: no "v<N>" suffix in the merge success line.
+		require.NotRegexp(t, `merged pr-review with library v\d+`, out)
 
 		merged, err := os.ReadFile(projSkillPath(e))
 		require.NoError(t, err)

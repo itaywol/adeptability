@@ -49,7 +49,6 @@ func (a *Adapter) Import(_ context.Context, projectRoot string) ([]adept.Importe
 		}
 		skill := &adept.Skill{
 			ID:          id,
-			Version:     1,
 			Description: fm.Description,
 			Body:        body,
 		}

@@ -17,9 +17,9 @@
           "items": {
             "type": "object",
             "required": ["id"],
+            "additionalProperties": false,
             "properties": {
-              "id": { "type": "string" },
-              "min-version": { "type": "integer", "minimum": 1 }
+              "id": { "type": "string" }
             }
           }
         },
@@ -28,9 +28,9 @@
           "items": {
             "type": "object",
             "required": ["id"],
+            "additionalProperties": false,
             "properties": {
-              "id": { "type": "string" },
-              "min-version": { "type": "integer", "minimum": 1 }
+              "id": { "type": "string" }
             }
           }
         }

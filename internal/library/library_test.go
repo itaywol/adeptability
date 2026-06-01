@@ -11,7 +11,6 @@ import (
 	"github.com/itaywol/adeptability/internal/canonical"
 	"github.com/itaywol/adeptability/internal/fsutil"
 	"github.com/itaywol/adeptability/internal/hash"
-	"github.com/itaywol/adeptability/internal/lockfile"
 	"github.com/itaywol/adeptability/pkg/adept"
 )
 
@@ -20,15 +19,13 @@ func newLib(t *testing.T) (Library, string) {
 	root := t.TempDir()
 	parser := canonical.NewParser()
 	hasher := hash.NewHasher()
-	store := lockfile.NewStore(nil)
 	w := fsutil.NewWriter()
-	return New(root, parser, hasher, store, w), root
+	return New(root, parser, hasher, w), root
 }
 
 func sampleSkill(id string) *adept.Skill {
 	return &adept.Skill{
 		ID:          id,
-		Version:     1,
 		Description: "desc for " + id,
 		Activation:  adept.ActivationAgent,
 		Body:        "# " + id + "\n\nBody for " + id + ".\n",
@@ -61,8 +58,20 @@ func TestLibrary_AddSkill_WritesFiles(t *testing.T) {
 	require.NoError(t, lib.AddSkill(skill, nil))
 	skillPath := filepath.Join(root, adept.SkillsDirName, "skill-a", adept.SkillFileName)
 	require.FileExists(t, skillPath)
-	require.FileExists(t, filepath.Join(root, adept.LockFileName))
 	require.True(t, lib.HasSkill("skill-a"))
+}
+
+func TestLibrary_AddSkill_NoLockfileWritten(t *testing.T) {
+	// Regression guard: the new model has NO library lockfile. The library
+	// directory must contain only the skills/ tree.
+	lib, root := newLib(t)
+	require.NoError(t, lib.AddSkill(sampleSkill("skill-a"), nil))
+	entries, err := os.ReadDir(root)
+	require.NoError(t, err)
+	for _, e := range entries {
+		require.NotContains(t, e.Name(), "lock", "library must not write a lockfile")
+		require.NotEqual(t, adept.ConfigFileName, e.Name(), "library must not write a config")
+	}
 }
 
 func TestLibrary_AddSkill_RoundTrip(t *testing.T) {
@@ -72,30 +81,41 @@ func TestLibrary_AddSkill_RoundTrip(t *testing.T) {
 	loaded, err := lib.GetSkill("skill-a")
 	require.NoError(t, err)
 	require.Equal(t, "skill-a", loaded.ID)
-	require.Equal(t, 1, loaded.Version)
 	require.Equal(t, "desc for skill-a", loaded.Description)
 	require.Contains(t, loaded.Body, "Body for skill-a")
 }
 
-func TestLibrary_AddSkill_BumpsVersionOnChange(t *testing.T) {
+func TestLibrary_AddSkill_IdempotentForIdenticalContent(t *testing.T) {
 	lib, _ := newLib(t)
-	first := sampleSkill("skill-a")
-	require.NoError(t, lib.AddSkill(first, nil))
+	skill := sampleSkill("skill-a")
+	require.NoError(t, lib.AddSkill(skill, nil))
+	h1, err := lib.HashSkill("skill-a")
+	require.NoError(t, err)
+	require.NotEmpty(t, h1)
 
-	// Same content: no bump.
-	again := sampleSkill("skill-a")
-	require.NoError(t, lib.AddSkill(again, nil))
+	// Re-add the same content. Must not change the hash on disk.
+	require.NoError(t, lib.AddSkill(sampleSkill("skill-a"), nil))
+	h2, err := lib.HashSkill("skill-a")
+	require.NoError(t, err)
+	require.Equal(t, h1, h2)
+}
+
+func TestLibrary_AddSkill_OverwritesOnChange(t *testing.T) {
+	lib, _ := newLib(t)
+	require.NoError(t, lib.AddSkill(sampleSkill("skill-a"), nil))
+	h1, err := lib.HashSkill("skill-a")
+	require.NoError(t, err)
+
+	changed := sampleSkill("skill-a")
+	changed.Body = "# skill-a\n\nFresh body text.\n"
+	require.NoError(t, lib.AddSkill(changed, nil))
+	h2, err := lib.HashSkill("skill-a")
+	require.NoError(t, err)
+	require.NotEqual(t, h1, h2, "content change must produce a new hash")
+
 	loaded, err := lib.GetSkill("skill-a")
 	require.NoError(t, err)
-	require.Equal(t, 1, loaded.Version)
-
-	// Modified body: version bumps to 2.
-	changed := sampleSkill("skill-a")
-	changed.Body = "# skill-a\n\nNew body text.\n"
-	require.NoError(t, lib.AddSkill(changed, nil))
-	loaded, err = lib.GetSkill("skill-a")
-	require.NoError(t, err)
-	require.Equal(t, 2, loaded.Version)
+	require.Contains(t, loaded.Body, "Fresh body text.")
 }
 
 func TestLibrary_AddSkill_PersistsSidecars(t *testing.T) {
@@ -161,6 +181,13 @@ func TestLibrary_RemoveSkill_IdempotentOnMissing(t *testing.T) {
 
 func TestLibrary_AddSkill_RejectsEmptyID(t *testing.T) {
 	lib, _ := newLib(t)
-	err := lib.AddSkill(&adept.Skill{Version: 1, Description: "x"}, nil)
+	err := lib.AddSkill(&adept.Skill{Description: "x"}, nil)
 	require.ErrorIs(t, err, adept.ErrSkillInvalid)
+}
+
+func TestLibrary_HashSkill_MissingReturnsEmpty(t *testing.T) {
+	lib, _ := newLib(t)
+	h, err := lib.HashSkill("never-added")
+	require.NoError(t, err)
+	require.Empty(t, h)
 }

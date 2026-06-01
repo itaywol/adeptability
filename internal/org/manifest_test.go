@@ -21,7 +21,6 @@ func TestParser_AcceptsValidManifest(t *testing.T) {
 	require.Equal(t, "acme", m.Name)
 	require.Len(t, m.Required, 2)
 	require.Equal(t, "skill-a", m.Required[0].ID)
-	require.Equal(t, 1, m.Required[0].MinVersion)
 	require.Len(t, m.Optional, 1)
 	require.Equal(t, "skill-c", m.Optional[0].ID)
 }

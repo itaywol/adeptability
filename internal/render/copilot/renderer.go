@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/itaywol/adeptability/internal/render/common"
 	"github.com/itaywol/adeptability/pkg/adept"
 )
 
@@ -55,13 +56,14 @@ func (r *Renderer) Render(_ context.Context, in adept.RenderInput) (adept.Render
 		return adept.RenderOutput{}, nil
 	}
 
-	frag := buildFragment(s)
+	hash := common.ShortSkillHash(s)
+	frag := buildFragment(s, hash)
 	return adept.RenderOutput{
-		Path:         spec.Path,
-		Bytes:        []byte(frag),
-		Mode:         0o644,
-		SkillID:      s.ID,
-		SkillVersion: s.Version,
+		Path:      spec.Path,
+		Bytes:     []byte(frag),
+		Mode:      0o644,
+		SkillID:   s.ID,
+		SkillHash: hash,
 		Sidecars: []adept.SideFile{{
 			RelPath: metaSidecarName,
 			Bytes:   []byte(spec.ApplyTo),
@@ -72,9 +74,9 @@ func (r *Renderer) Render(_ context.Context, in adept.RenderInput) (adept.Render
 
 // buildFragment emits the marker-wrapped section. Bucket frontmatter is
 // prepended later by the aggregator (one frontmatter block per file).
-func buildFragment(s *adept.Skill) string {
+func buildFragment(s *adept.Skill, hash string) string {
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("<!-- adeptability:begin id=%s version=%d -->\n", s.ID, s.Version))
+	b.WriteString(fmt.Sprintf("<!-- adeptability:begin id=%s hash=%s -->\n", s.ID, hash))
 	heading := strings.TrimSpace(s.Description)
 	if heading == "" {
 		heading = s.ID

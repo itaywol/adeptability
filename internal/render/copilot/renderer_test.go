@@ -6,6 +6,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -19,7 +20,6 @@ func TestRenderer_AlwaysSkill(t *testing.T) {
 	r := New()
 	s := &adept.Skill{
 		ID:          "go-style",
-		Version:     2,
 		Description: "Always-on Go rules",
 		Activation:  adept.ActivationAlways,
 		Body:        "Use gofmt.\n",
@@ -31,8 +31,11 @@ func TestRenderer_AlwaysSkill(t *testing.T) {
 	if out.Path != ".github/instructions/always.instructions.md" {
 		t.Fatalf("unexpected path: %s", out.Path)
 	}
-	if out.SkillID != "go-style" || out.SkillVersion != 2 {
-		t.Fatalf("missing skill metadata: %+v", out)
+	if out.SkillID != "go-style" {
+		t.Fatalf("missing SkillID: %+v", out)
+	}
+	if len(out.SkillHash) != 8 {
+		t.Fatalf("expected 8-char SkillHash, got %q", out.SkillHash)
 	}
 	// Meta sidecar carries applyTo for the aggregator.
 	var foundMeta bool
@@ -47,13 +50,18 @@ func TestRenderer_AlwaysSkill(t *testing.T) {
 	if !foundMeta {
 		t.Fatalf("expected meta sidecar")
 	}
+	if !regexp.MustCompile(`<!-- adeptability:begin id=go-style hash=[a-f0-9]{8} -->`).MatchString(string(out.Bytes)) {
+		t.Fatalf("missing hashed begin marker:\n%s", out.Bytes)
+	}
+	if strings.Contains(string(out.Bytes), "version=") {
+		t.Fatalf("must not contain version= marker:\n%s", out.Bytes)
+	}
 }
 
 func TestRenderer_GlobsSkill(t *testing.T) {
 	r := New()
 	s := &adept.Skill{
 		ID:          "ts-rules",
-		Version:     1,
 		Description: "TypeScript rules",
 		Activation:  adept.ActivationGlobs,
 		Globs:       []string{"src/**/*.ts", "**/*.tsx"},
@@ -80,7 +88,7 @@ func TestRenderer_GlobsSkill(t *testing.T) {
 
 func TestRenderer_AgentSkillIsSkipped(t *testing.T) {
 	r := New()
-	s := &adept.Skill{ID: "x", Version: 1, Activation: adept.ActivationAgent, Body: "x"}
+	s := &adept.Skill{ID: "x", Activation: adept.ActivationAgent, Body: "x"}
 	out, err := r.Render(context.Background(), adept.RenderInput{Skill: s})
 	if err != nil {
 		t.Fatalf("Render error: %v", err)
@@ -92,7 +100,7 @@ func TestRenderer_AgentSkillIsSkipped(t *testing.T) {
 
 func TestRenderer_ManualSkillIsSkipped(t *testing.T) {
 	r := New()
-	s := &adept.Skill{ID: "x", Version: 1, Activation: adept.ActivationManual, Body: "x"}
+	s := &adept.Skill{ID: "x", Activation: adept.ActivationManual, Body: "x"}
 	out, _ := r.Render(context.Background(), adept.RenderInput{Skill: s})
 	if out.Path != "" {
 		t.Fatalf("expected empty output for manual skill")
@@ -117,7 +125,7 @@ func TestRenderer_MissingID(t *testing.T) {
 
 func TestRenderer_Idempotent(t *testing.T) {
 	r := New()
-	s := &adept.Skill{ID: "idem", Version: 1, Description: "Idem", Activation: adept.ActivationAlways, Body: "body\n"}
+	s := &adept.Skill{ID: "idem", Description: "Idem", Activation: adept.ActivationAlways, Body: "body\n"}
 	o1, _ := r.Render(context.Background(), adept.RenderInput{Skill: s})
 	o2, _ := r.Render(context.Background(), adept.RenderInput{Skill: s})
 	if string(o1.Bytes) != string(o2.Bytes) {
@@ -129,7 +137,6 @@ func TestRenderer_Golden_Always(t *testing.T) {
 	assertGolden(t, "always",
 		&adept.Skill{
 			ID:          "go-style",
-			Version:     2,
 			Description: "Go style guide",
 			Activation:  adept.ActivationAlways,
 			Body:        "Use gofmt.\nPrefer explicit errors.\n",
@@ -141,7 +148,6 @@ func TestRenderer_Golden_Globs(t *testing.T) {
 	assertGolden(t, "globs",
 		&adept.Skill{
 			ID:          "ts-rules",
-			Version:     1,
 			Description: "TypeScript rules",
 			Activation:  adept.ActivationGlobs,
 			Globs:       []string{"src/**/*.ts"},
