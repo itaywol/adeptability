@@ -13,10 +13,10 @@ import (
 )
 
 // bootstrap is the first-time adoption flow:
-//   1. ensure project canonical layout exists (.adeptability/skills/, lockfile);
-//   2. walk every registered harness and reverse-render its on-disk state;
-//   3. write the recovered skills into project canonical;
-//   4. report imports + conflicts.
+//  1. ensure project canonical layout exists (.adeptability/skills/, lockfile);
+//  2. walk every registered harness and reverse-render its on-disk state;
+//  3. write the recovered skills into project canonical;
+//  4. report imports + conflicts.
 //
 // After bootstrap the user typically runs `adept push <id>` to publish each
 // imported skill to the central library, and `adept harness sync` to verify

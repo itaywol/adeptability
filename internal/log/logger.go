@@ -6,8 +6,8 @@ func Nop() Logger { return nopLogger{} }
 
 type nopLogger struct{}
 
-func (nopLogger) Debug(string, ...any)  {}
-func (nopLogger) Info(string, ...any)   {}
-func (nopLogger) Warn(string, ...any)   {}
-func (nopLogger) Error(string, ...any)  {}
-func (n nopLogger) With(...any) Logger  { return n }
+func (nopLogger) Debug(string, ...any) {}
+func (nopLogger) Info(string, ...any)  {}
+func (nopLogger) Warn(string, ...any)  {}
+func (nopLogger) Error(string, ...any) {}
+func (n nopLogger) With(...any) Logger { return n }

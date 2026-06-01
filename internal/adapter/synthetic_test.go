@@ -79,8 +79,8 @@ func TestSynthetic_AggregatorBudgetOverflow(t *testing.T) {
 	}
 	// Force a tiny budget by reconstructing a synthetic.
 	spec := Spec{
-		ID:    "agents-test",
-		Kind:  adept.KindAggregatorSingle,
+		ID:     "agents-test",
+		Kind:   adept.KindAggregatorSingle,
 		Output: "AGENTS.md",
 		Budget: 8,
 	}
@@ -148,7 +148,7 @@ func TestSynthetic_BadRegexRejected(t *testing.T) {
 		ID:     "x",
 		Kind:   adept.KindPerSkill,
 		Output: "out.md",
-		Body: Body{Replace: []Replace{{Regex: "[", With: "y"}}},
+		Body:   Body{Replace: []Replace{{Regex: "[", With: "y"}}},
 	})
 	require.ErrorIs(t, err, adept.ErrAdapterInvalid)
 }

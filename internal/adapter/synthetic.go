@@ -42,10 +42,10 @@ func NewSynthetic(spec Spec) (adept.HarnessAdapter, error) {
 		compiled = append(compiled, bodyRule{re: re, with: r.With})
 	}
 	return &syntheticAdapter{
-		spec:       spec,
-		bodyRules:  compiled,
-		fmBuilder:  common.NewFrontmatterBuilder(),
-		baseSpec:   toHarnessSpec(spec),
+		spec:      spec,
+		bodyRules: compiled,
+		fmBuilder: common.NewFrontmatterBuilder(),
+		baseSpec:  toHarnessSpec(spec),
 	}, nil
 }
 

@@ -74,10 +74,10 @@ type project struct {
 	writer fsutil.Writer
 }
 
-func (p *project) Root() string             { return p.root }
-func (p *project) BaseDir() string          { return filepath.Join(p.root, adept.BaseDirName) }
-func (p *project) SkillsDir() string        { return filepath.Join(p.BaseDir(), adept.SkillsDirName) }
-func (p *project) BaseSnapshotDir() string  { return filepath.Join(p.BaseDir(), adept.BaseSnapDir) }
+func (p *project) Root() string            { return p.root }
+func (p *project) BaseDir() string         { return filepath.Join(p.root, adept.BaseDirName) }
+func (p *project) SkillsDir() string       { return filepath.Join(p.BaseDir(), adept.SkillsDirName) }
+func (p *project) BaseSnapshotDir() string { return filepath.Join(p.BaseDir(), adept.BaseSnapDir) }
 func (p *project) BaseDirForSkill(id string) string {
 	return filepath.Join(p.BaseSnapshotDir(), id)
 }

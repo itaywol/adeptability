@@ -37,13 +37,13 @@ var (
 // skills. Behavior depends on the adapter Kind:
 //
 //   - per-skill          : walk the {id}-templated output pattern, recover
-//                          frontmatter + body, collect sidecars when
-//                          needs-directory is true.
+//     frontmatter + body, collect sidecars when
+//     needs-directory is true.
 //   - aggregator-single  : read the single output file, split by adept section
-//                          markers or fall back to one synthesized skill.
+//     markers or fall back to one synthesized skill.
 //   - aggregator-per-glob: enumerate files matching the {glob}-templated
-//                          output pattern, treat each bucket like the
-//                          single-aggregator case.
+//     output pattern, treat each bucket like the
+//     single-aggregator case.
 func (a *syntheticAdapter) Import(_ context.Context, projectRoot string) ([]adept.ImportedSkill, error) {
 	switch a.spec.Kind {
 	case adept.KindPerSkill:
@@ -298,10 +298,11 @@ func (a *syntheticAdapter) findOutputMatches(projectRoot, wildcard string) ([]ma
 }
 
 // matchSegment returns (token, remainingChildPath, ok). It handles two shapes:
-//   prefix=".junie/guidelines/", entryName="alpha.md", suffix=".md"   →
-//      token="alpha", child="", ok=true
-//   prefix=".claude/skills/",   entryName="alpha",   suffix="/SKILL.md" →
-//      token="alpha", child="SKILL.md", ok=true (entry must be a dir)
+//
+//	prefix=".junie/guidelines/", entryName="alpha.md", suffix=".md"   →
+//	   token="alpha", child="", ok=true
+//	prefix=".claude/skills/",   entryName="alpha",   suffix="/SKILL.md" →
+//	   token="alpha", child="SKILL.md", ok=true (entry must be a dir)
 func matchSegment(entryName, prefixRem, suffix string) (string, string, bool) {
 	// Strip prefix remainder (chars between last slash before wildcard and
 	// the wildcard itself).

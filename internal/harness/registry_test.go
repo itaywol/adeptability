@@ -21,8 +21,8 @@ type mockAdapter struct {
 	imports func(context.Context, string) ([]adept.ImportedSkill, error)
 }
 
-func (m *mockAdapter) Spec() adept.HarnessSpec   { return m.spec }
-func (m *mockAdapter) Renderer() adept.Renderer  { return m.render }
+func (m *mockAdapter) Spec() adept.HarnessSpec  { return m.spec }
+func (m *mockAdapter) Renderer() adept.Renderer { return m.render }
 func (m *mockAdapter) Aggregate(ctx context.Context, parts []adept.RenderOutput, budget int) ([]adept.RenderOutput, error) {
 	if m.agg == nil {
 		return parts, nil

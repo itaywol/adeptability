@@ -16,13 +16,13 @@ import (
 var update = flag.Bool("update", false, "update golden files")
 
 type skillFixture struct {
-	ID           string                `yaml:"id"`
-	Version      int                   `yaml:"version"`
-	Description  string                `yaml:"description"`
-	Activation   adept.ActivationMode  `yaml:"activation"`
-	Globs        []string              `yaml:"globs,omitempty"`
-	AllowedTools []string              `yaml:"allowed-tools,omitempty"`
-	Body         string                `yaml:"body"`
+	ID           string               `yaml:"id"`
+	Version      int                  `yaml:"version"`
+	Description  string               `yaml:"description"`
+	Activation   adept.ActivationMode `yaml:"activation"`
+	Globs        []string             `yaml:"globs,omitempty"`
+	AllowedTools []string             `yaml:"allowed-tools,omitempty"`
+	Body         string               `yaml:"body"`
 }
 
 func loadFixture(t *testing.T, name string) *adept.Skill {

@@ -61,11 +61,11 @@ const (
 
 // KeyFor implements Bucketer.
 //
-// - activation=always → AlwaysKey bucket with applyTo:"**".
-// - activation=globs (non-empty globs) → bucket-<sha8(sorted-globs)>.
-// - activation=agent / activation=manual → (zero, false).
-// - activation=globs but Globs is empty → (zero, false): defensive, schema
-//   normally forbids it.
+//   - activation=always → AlwaysKey bucket with applyTo:"**".
+//   - activation=globs (non-empty globs) → bucket-<sha8(sorted-globs)>.
+//   - activation=agent / activation=manual → (zero, false).
+//   - activation=globs but Globs is empty → (zero, false): defensive, schema
+//     normally forbids it.
 func (b *bucketer) KeyFor(s *adept.Skill) (BucketSpec, bool) {
 	if s == nil {
 		return BucketSpec{}, false

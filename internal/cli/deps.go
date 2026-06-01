@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/itaywol/adeptability/internal/adapter"
+	"github.com/itaywol/adeptability/internal/budget"
 	"github.com/itaywol/adeptability/internal/canonical"
 	"github.com/itaywol/adeptability/internal/fsutil"
 	"github.com/itaywol/adeptability/internal/git"
@@ -23,7 +24,6 @@ import (
 	"github.com/itaywol/adeptability/internal/render/opencode"
 	"github.com/itaywol/adeptability/internal/sign"
 	"github.com/itaywol/adeptability/internal/status"
-	"github.com/itaywol/adeptability/internal/budget"
 	"github.com/itaywol/adeptability/pkg/adept"
 )
 
@@ -95,11 +95,10 @@ func NewDeps(gf *GlobalFlags, b BuildInfo) (*Deps, error) {
 	if err != nil {
 		return nil, fmt.Errorf("detect sign backend: %w", err)
 	}
-	if signResult.Notice != "" {
-		logger.Info("sign", "backend", string(signResult.Backend), "notice", signResult.Notice)
-	} else {
-		logger.Debug("sign", "backend", string(signResult.Backend))
-	}
+	// Demote the sign-detect notice to debug. It would otherwise pollute
+	// stderr on every invocation in environments without cosign, which
+	// breaks --json output for callers that merge stdout+stderr.
+	logger.Debug("sign", "backend", string(signResult.Backend), "notice", signResult.Notice)
 	verifier := signResult.Verifier
 	signer := signResult.Signer
 	signBackend := signResult.Backend

@@ -63,11 +63,11 @@ func TestLogger_NilWriterDoesNotPanic(t *testing.T) {
 
 func TestParseLevel(t *testing.T) {
 	cases := map[string]Level{
-		"debug":   LevelDebug,
-		"INFO":    LevelInfo,
-		"":        LevelInfo,
-		" warn ":  LevelWarn,
-		"ERROR":   LevelError,
+		"debug":  LevelDebug,
+		"INFO":   LevelInfo,
+		"":       LevelInfo,
+		" warn ": LevelWarn,
+		"ERROR":  LevelError,
 	}
 	for in, want := range cases {
 		got, err := ParseLevel(in)

@@ -24,17 +24,17 @@ import (
 // Spec mirrors the adapter.schema.json document. Field names match the YAML
 // keys (kebab-case is mapped via tags).
 type Spec struct {
-	ID          string           `yaml:"id"`
-	Name        string           `yaml:"name"`
+	ID          string            `yaml:"id"`
+	Name        string            `yaml:"name"`
 	Kind        adept.HarnessKind `yaml:"kind"`
-	Output      string           `yaml:"output"`
-	BaseDir     string           `yaml:"base-dir"`
-	NeedsDir    bool             `yaml:"needs-directory"`
-	Budget      int              `yaml:"size-budget-bytes"`
-	Frontmatter Frontmatter      `yaml:"frontmatter"`
-	Body        Body             `yaml:"body"`
-	Detect      []string         `yaml:"detect"`
-	Import      Import           `yaml:"import"`
+	Output      string            `yaml:"output"`
+	BaseDir     string            `yaml:"base-dir"`
+	NeedsDir    bool              `yaml:"needs-directory"`
+	Budget      int               `yaml:"size-budget-bytes"`
+	Frontmatter Frontmatter       `yaml:"frontmatter"`
+	Body        Body              `yaml:"body"`
+	Detect      []string          `yaml:"detect"`
+	Import      Import            `yaml:"import"`
 }
 
 // Import carries optional reverse-rendering hints. Auto-derived from forward

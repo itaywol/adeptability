@@ -16,10 +16,10 @@ import (
 // recordingRunner is a CommandRunner that captures invocations and returns a
 // canned response. Safe for concurrent use so race-tests stay clean.
 type recordingRunner struct {
-	mu       sync.Mutex
-	calls    []recordedCall
-	respOut  []byte
-	respErr  error
+	mu      sync.Mutex
+	calls   []recordedCall
+	respOut []byte
+	respErr error
 }
 
 type recordedCall struct {
@@ -116,8 +116,8 @@ func TestCosignVerify_RejectsEmptyInputs(t *testing.T) {
 	require.NoError(t, err)
 
 	cases := []struct {
-		name             string
-		blob, sig, cert  []byte
+		name            string
+		blob, sig, cert []byte
 	}{
 		{"empty blob", nil, []byte("s"), []byte("c")},
 		{"empty sig", []byte("b"), nil, []byte("c")},

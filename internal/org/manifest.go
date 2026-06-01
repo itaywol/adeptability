@@ -98,9 +98,9 @@ func (p *parser) Parse(data []byte) (*Manifest, error) {
 }
 
 type rawManifest struct {
-	Version int        `yaml:"version"`
-	Name    string     `yaml:"name"`
-	Skills  rawSkills  `yaml:"skills"`
+	Version int       `yaml:"version"`
+	Name    string    `yaml:"name"`
+	Skills  rawSkills `yaml:"skills"`
 }
 
 type rawSkills struct {

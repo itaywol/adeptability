@@ -73,10 +73,10 @@ func diff3Merge(ours, base, theirs []string, opts Options) (out []byte, conflict
 // region preceding/following all sync points if empty); unstable chunks
 // are the gaps between sync points where one or both sides diverged.
 type chunk struct {
-	stable                              bool
-	oursStart, oursEnd                  int
-	baseStart, baseEnd                  int
-	theirsStart, theirsEnd              int
+	stable                 bool
+	oursStart, oursEnd     int
+	baseStart, baseEnd     int
+	theirsStart, theirsEnd int
 }
 
 // buildChunks identifies sync points and partitions the inputs.
