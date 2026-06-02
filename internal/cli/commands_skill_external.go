@@ -100,8 +100,7 @@ func newSkillInstallCmd(d *Deps) *cobra.Command {
 		}
 
 		// Structured static scan: prose-rules over SKILL.md + tighter
-		// script-only rules over any sidecars in the tarball. Phase 2.2
-		// layers an LLM intent pass on top of this same Report.
+		// script-only rules over any sidecars in the tarball.
 		sideForScan := map[string][]byte{}
 		for k, v := range files {
 			if k == adept.SkillFileName {
@@ -109,21 +108,28 @@ func newSkillInstallCmd(d *Deps) *cobra.Command {
 			}
 			sideForScan[k] = v
 		}
-		report := scanner.Scan(scan.Target{
+		target := scan.Target{
 			Name:     slug.String(),
 			Body:     md,
 			Sidecars: sideForScan,
-		})
+		}
+		report := scanner.Scan(target)
+
+		// Phase 2.2 intent pass — runs when the project has both an LLM
+		// provider configured AND scan.onInstall enabled (or the
+		// default-on-when-llm-configured fallback). Failures degrade
+		// gracefully to the static report; we don't want a flaky LLM to
+		// block install on its own.
+		report = maybeRunLLMReview(ctx, d, target, report)
 
 		// Preview.
 		printInstallPreview(w, slug, sha, meta, installs, matched, sortKeys(files), report)
 
-		// Critical findings hard-block unless the user explicitly opts
-		// out with --allow-unsafe. High findings prompt y/N (handled by
-		// the regular confirm step below). Medium/Low are informational
-		// — already surfaced in the preview.
-		if report.Worst() == scan.SeverityCritical && !allowUnsafe {
-			return fmt.Errorf("install aborted: %d critical finding(s); pass --allow-unsafe to override after review", countSeverity(report, scan.SeverityCritical))
+		// The blocking severity is configurable (default critical).
+		// Lower severities pass through unless the user has tightened
+		// the gate via `adept config set scan.blockSeverity`.
+		if blocks := installBlocks(d, p, report); blocks && !allowUnsafe {
+			return fmt.Errorf("install aborted by safety scan; review findings and pass --allow-unsafe to override")
 		}
 		if !yes && !confirm(cmd.InOrStdin(), w, "proceed with install?") {
 			fmt.Fprintln(w, "install cancelled")

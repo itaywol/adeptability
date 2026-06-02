@@ -151,6 +151,8 @@ type canonicalForm struct {
 	Harnesses []string           `json:"harnesses,omitempty"`
 	Mode      adept.HarnessMode  `json:"mode,omitempty"`
 	Libraries []adept.LibraryRef `json:"libraries,omitempty"`
+	Scan      *adept.ScanConfig  `json:"scan,omitempty"`
+	LLM       *adept.LLMConfig   `json:"llm,omitempty"`
 }
 
 func (s *store) canonicalize(cfg *adept.Config) canonicalForm {
@@ -164,6 +166,14 @@ func (s *store) canonicalize(cfg *adept.Config) canonicalForm {
 	}
 	if len(cfg.Libraries) > 0 {
 		out.Libraries = append(out.Libraries, cfg.Libraries...)
+	}
+	if cfg.Scan != nil {
+		cp := *cfg.Scan
+		out.Scan = &cp
+	}
+	if cfg.LLM != nil {
+		cp := *cfg.LLM
+		out.LLM = &cp
 	}
 	return out
 }

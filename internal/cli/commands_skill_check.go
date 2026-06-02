@@ -28,12 +28,15 @@ import (
 // identical regardless of whether the LLM is configured.
 func newSkillCheckCmd(d *Deps) *cobra.Command {
 	var format string
+	var useLLM, noLLM bool
 	c := &cobra.Command{
 		Use:   "check <target>",
 		Short: "Scan a skill (project | library:<name>:<id> | <owner>/<repo>/<skill>) for safety issues",
 		Args:  cobra.ExactArgs(1),
 	}
 	c.Flags().StringVar(&format, "format", "table", "output format: table|markdown|json")
+	c.Flags().BoolVar(&useLLM, "llm", false, "force the LLM intent pass (errors out when no provider configured)")
+	c.Flags().BoolVar(&noLLM, "no-llm", false, "skip the LLM intent pass even when a provider is configured")
 	c.RunE = func(cmd *cobra.Command, args []string) error {
 		ctx := cmd.Context()
 		target, err := resolveCheckTarget(ctx, d, args[0])
@@ -41,6 +44,26 @@ func newSkillCheckCmd(d *Deps) *cobra.Command {
 			return err
 		}
 		report := scan.NewScanner().Scan(target)
+		// LLM intent pass: default-on when a provider is configured.
+		// --no-llm disables; --llm forces and errors when not configured.
+		if !noLLM {
+			prov := d.LLMProvider()
+			if useLLM && prov == nil {
+				return fmt.Errorf("--llm requested but no provider configured (run `adept config llm set <provider>`)")
+			}
+			if prov != nil {
+				if availErr := prov.Available(ctx); availErr == nil {
+					reviewer := &scan.LLMReviewer{Provider: prov}
+					if merged, err := reviewer.Review(ctx, target, report); err == nil {
+						report = merged
+					} else {
+						d.Log.Warn("llm review failed; static-only report", "err", err)
+					}
+				} else {
+					d.Log.Warn("llm provider unavailable; static-only report", "err", availErr)
+				}
+			}
+		}
 		w := cmd.OutOrStdout()
 		switch format {
 		case "table":

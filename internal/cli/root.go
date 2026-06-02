@@ -96,6 +96,7 @@ func NewRoot(b BuildInfo) *cobra.Command {
 		newHarnessCmd(deps),
 		newSkillCmd(deps),
 		newLibraryCmd(deps),
+		newConfigCmd(deps),
 	)
 	applyUsageOnArgError(root)
 	return root

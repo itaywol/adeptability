@@ -59,7 +59,22 @@ adept skill    add <id> [--from <path>] [--edit]                       # local s
                | check <target> [--format=table|markdown|json]          # static safety scan
                | edit <id> | remove <id> | list
 adept library  add <name> --from <url> [--ref <branch>] | remove <name> [--purge] | list
+adept config   list | get <key> | set <key> <value> | unset <key>
+               | llm set <provider> [--model …] [--endpoint …] | llm unset | llm test
 ```
+
+### Configurable keys (strict-typed)
+
+| Key | Allowed | Default |
+|---|---|---|
+| `mode` | `symlink` \| `copy` | `symlink` |
+| `scan.onInstall` | `true` \| `false` | on when an LLM provider is configured, off otherwise |
+| `scan.blockSeverity` | `critical` \| `high` \| `medium` | `critical` |
+| `llm.provider` | `anthropic` \| `ollama` | unset |
+| `llm.model` | provider-specific (e.g. `claude-haiku-4-5`, `llama3.1`) | provider default |
+| `llm.endpoint` | URL (mainly for self-hosted ollama) | provider default |
+
+API keys are read from the environment at call time (`ANTHROPIC_API_KEY` for Anthropic). adept never stores secrets in `config.json`.
 
 Global flags: `--json`, `--log-level debug|info|warn|error`, `--project <path>`, `--library <path>`.
 
@@ -134,7 +149,29 @@ Exit code matches the worst severity:
 
 `skill install` runs the same scanner before writing; **critical findings hard-block** the install unless `--allow-unsafe` is passed. Lower severities surface in the install preview and require the usual `y/N` confirm.
 
-Phase 2.2 layers an LLM intent pass on top of the same Report shape — once you wire a provider via `adept config llm set <provider>`, false positives shrink and intent-only findings (jailbreaks dressed as polite suggestions, multi-step exfiltration, polyglot payloads) become catchable.
+### LLM intent pass
+
+`adept skill check` and `adept skill install` automatically run an LLM intent pass on top of the static report when a provider is configured:
+
+```bash
+export ANTHROPIC_API_KEY=sk-...
+adept config llm set anthropic --model claude-haiku-4-5-20251001
+adept config llm test                        # health-pings the provider
+adept skill check vercel-labs/skills/find-skills    # static + LLM merged
+adept skill check ... --no-llm               # opt out per-call
+adept skill check ... --llm                  # error out if not configured
+```
+
+The reviewer reads each static finding, drops false positives, and adds intent-level findings the regex layer cannot catch (politely-worded jailbreaks, multi-step exfiltration, polyglot payloads). LLM-originated findings get `SKILL-LLM-NNN` ids and otherwise share the `Finding` shape so renderers and exit-code mapping are unchanged.
+
+`scan.onInstall=true` makes the install gate consult the merged report; `scan.blockSeverity` (default `critical`) sets the threshold that hard-blocks the install. Provider failures (no key, unreachable Ollama, parsing error) degrade gracefully — install continues with the static-only report and a warning on stderr.
+
+Providers:
+
+- **Anthropic** — `ANTHROPIC_API_KEY` env var. Default model `claude-haiku-4-5-20251001`. Override with `--model` at config time.
+- **Ollama** — local, no key. Default endpoint `http://127.0.0.1:11434`, default model `llama3.1`. Override with `--endpoint` for self-hosted instances.
+
+Adding a new provider = implement `llm.Provider` (4 methods) + register in `internal/cli/deps.go`.
 
 ### 5. Stack multiple libraries (Model B union)
 

@@ -38,4 +38,29 @@ type Config struct {
 	Harnesses []string     `json:"harnesses,omitempty"`
 	Mode      HarnessMode  `json:"mode,omitempty"`
 	Libraries []LibraryRef `json:"libraries,omitempty"`
+	Scan      *ScanConfig  `json:"scan,omitempty"`
+	LLM       *LLMConfig   `json:"llm,omitempty"`
+}
+
+// ScanConfig controls the safety scan behavior. Pointer fields mean
+// "unset → use built-in default" so users can leave only the keys they
+// actually want to override in the on-disk JSON.
+type ScanConfig struct {
+	// OnInstall toggles the scan gate. When nil the runtime default is
+	// "on if an LLM provider is configured, off otherwise". Explicit
+	// true/false overrides that heuristic.
+	OnInstall *bool `json:"onInstall,omitempty"`
+	// BlockSeverity is the lowest severity that aborts an install.
+	// One of "critical" | "high" | "medium". Default "critical".
+	BlockSeverity string `json:"blockSeverity,omitempty"`
+}
+
+// LLMConfig records WHICH provider/model adept uses for the optional
+// intent-evaluation pass. API keys are intentionally NOT stored here —
+// the provider implementations resolve them from environment variables
+// at call time so secrets never end up in the project tree.
+type LLMConfig struct {
+	Provider string `json:"provider,omitempty"` // anthropic | ollama
+	Model    string `json:"model,omitempty"`
+	Endpoint string `json:"endpoint,omitempty"` // optional (ollama custom host)
 }

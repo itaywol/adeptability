@@ -33,6 +33,30 @@
         }
       },
       "uniqueItems": true
+    },
+    "scan": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "onInstall": { "type": "boolean" },
+        "blockSeverity": {
+          "type": "string",
+          "enum": ["critical", "high", "medium"]
+        }
+      }
+    },
+    "llm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider"],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": ["anthropic", "ollama"]
+        },
+        "model": { "type": "string" },
+        "endpoint": { "type": "string" }
+      }
     }
   }
 }

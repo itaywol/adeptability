@@ -17,6 +17,9 @@ import (
 	"github.com/itaywol/adeptability/internal/log"
 	"github.com/itaywol/adeptability/internal/org"
 	"github.com/itaywol/adeptability/internal/project"
+	"github.com/itaywol/adeptability/internal/llm"
+	"github.com/itaywol/adeptability/internal/llm/anthropic"
+	"github.com/itaywol/adeptability/internal/llm/ollama"
 	gh "github.com/itaywol/adeptability/internal/registry/github"
 	"github.com/itaywol/adeptability/internal/registry/skillssh"
 	"github.com/itaywol/adeptability/internal/render/claude"
@@ -61,6 +64,40 @@ type Deps struct {
 	// External skill registry clients (skill install/search/info)
 	GitHub   gh.Client
 	SkillsSh skillssh.Client
+
+	// LLM provider resolver — used by skill check / install scan gates.
+	// Empty when no provider is configured for this project.
+	LLMRegistry llm.Registry
+}
+
+// LLMProvider returns the provider configured in the project, or nil
+// when none is set. The caller is responsible for checking Available()
+// before issuing an Evaluate.
+func (d *Deps) LLMProvider() llm.Provider {
+	if d.LLMRegistry == nil {
+		return nil
+	}
+	p, err := d.Project()
+	if err != nil {
+		return nil
+	}
+	cfg, err := p.Config()
+	if err != nil || cfg.LLM == nil || cfg.LLM.Provider == "" {
+		return nil
+	}
+	prov, err := d.LLMRegistry.Get(cfg.LLM.Provider)
+	if err != nil {
+		return nil
+	}
+	// Per-config endpoint/model overrides are applied by re-constructing
+	// the provider with the user values when they differ from defaults.
+	switch cfg.LLM.Provider {
+	case "anthropic":
+		return anthropic.New(nil, cfg.LLM.Endpoint, cfg.LLM.Model)
+	case "ollama":
+		return ollama.New(nil, cfg.LLM.Endpoint, cfg.LLM.Model)
+	}
+	return prov
 }
 
 // NewDeps wires concrete implementations. This is the only place where
@@ -112,6 +149,7 @@ func NewDeps(gf *GlobalFlags, b BuildInfo) (*Deps, error) {
 		OrgParser:     orgParser,
 		GitHub:        gh.New(nil),
 		SkillsSh:      skillssh.New(nil, ""),
+		LLMRegistry:   llm.NewRegistry(anthropic.New(nil, "", ""), ollama.New(nil, "", "")),
 	}, nil
 }
 
