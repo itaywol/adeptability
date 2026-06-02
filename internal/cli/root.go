@@ -43,6 +43,18 @@ func NewRoot(b BuildInfo) *cobra.Command {
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		Version:       fmt.Sprintf("%s (commit %s, built %s)", b.Version, b.Commit, b.Date),
+		// Cobra's default "no subcommand matched" behavior prints help and
+		// exits 0, which swallows typos like `adept totaly-fke`. RunE lets us
+		// take over: bare `adept` still shows help (and exits 0), but any
+		// stray positional becomes a hard "unknown command" error.
+		RunE: func(c *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return c.Help()
+			}
+			_ = c.Help()
+			fmt.Fprintln(c.ErrOrStderr())
+			return fmt.Errorf("unknown command %q for %q", args[0], c.CommandPath())
+		},
 	}
 
 	root.PersistentFlags().BoolVar(&gf.JSON, "json", false, "emit machine-readable JSON output")
@@ -84,7 +96,38 @@ func NewRoot(b BuildInfo) *cobra.Command {
 		newShowCmd(deps),
 		newDoctorCmd(deps),
 	)
+	applyUsageOnArgError(root)
 	return root
+}
+
+// applyUsageOnArgError walks the command tree and makes sure that
+// argument-shape or flag-shape errors (missing positional, missing required
+// flag value, unknown flag, unknown subcommand) print the command's help
+// before surfacing the error. Runtime errors keep the lean "error: …" path
+// because root.SilenceUsage stays true.
+//
+// Cobra has no single hook for "Args validator failed", so we wrap each
+// command's Args function. Flag errors are handled by SetFlagErrorFunc.
+func applyUsageOnArgError(cmd *cobra.Command) {
+	original := cmd.Args
+	cmd.Args = func(c *cobra.Command, args []string) error {
+		if original != nil {
+			if err := original(c, args); err != nil {
+				_ = c.Help()
+				fmt.Fprintln(c.ErrOrStderr())
+				return err
+			}
+		}
+		return nil
+	}
+	cmd.SetFlagErrorFunc(func(c *cobra.Command, err error) error {
+		_ = c.Help()
+		fmt.Fprintln(c.ErrOrStderr())
+		return err
+	})
+	for _, sub := range cmd.Commands() {
+		applyUsageOnArgError(sub)
+	}
 }
 
 // ExitFromError maps an error to an exit code.

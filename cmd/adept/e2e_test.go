@@ -247,13 +247,16 @@ func TestE2E(t *testing.T) {
 	})
 
 	t.Run("cut commands are not registered", func(t *testing.T) {
+		// Use a no-flag invocation so cobra cannot intercept --help and exit 0.
+		// An unknown subcommand exits non-zero with an "unknown command" error.
 		for _, gone := range []string{
 			"add", "install", "uninstall", "push", "pull", "status", "resolve",
 			"bootstrap", "harness", "org", "render", "apply-all", "scan",
 			"verify", "upgrade",
 		} {
-			out, code := run(t, gone, "--help")
+			out, code := run(t, gone)
 			require.NotEqual(t, 0, code, "command %q should not exist: %s", gone, out)
+			require.Contains(t, out, "unknown command", "expected 'unknown command' error for %q: %s", gone, out)
 		}
 	})
 }
