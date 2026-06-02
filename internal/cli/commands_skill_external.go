@@ -20,8 +20,24 @@ import (
 	gh "github.com/itaywol/adeptability/internal/registry/github"
 	"github.com/itaywol/adeptability/internal/registry"
 	"github.com/itaywol/adeptability/internal/registry/skillssh"
+	"github.com/itaywol/adeptability/internal/scan"
 	"github.com/itaywol/adeptability/pkg/adept"
 )
+
+// scanner is the package-level scanner instance. Stateless, so safe to
+// share across commands.
+var scanner = scan.NewScanner()
+
+// countSeverity returns how many of report's findings carry sev.
+func countSeverity(r scan.Report, sev scan.Severity) int {
+	n := 0
+	for _, f := range r.Findings {
+		if f.Severity == sev {
+			n++
+		}
+	}
+	return n
+}
 
 // ---------- skill install <slug> ----------
 
@@ -83,13 +99,31 @@ func newSkillInstallCmd(d *Deps) *cobra.Command {
 			skillObj.ID = slug.Skill
 		}
 
-		warnings := sniffSkillBody(string(md))
+		// Structured static scan: prose-rules over SKILL.md + tighter
+		// script-only rules over any sidecars in the tarball. Phase 2.2
+		// layers an LLM intent pass on top of this same Report.
+		sideForScan := map[string][]byte{}
+		for k, v := range files {
+			if k == adept.SkillFileName {
+				continue
+			}
+			sideForScan[k] = v
+		}
+		report := scanner.Scan(scan.Target{
+			Name:     slug.String(),
+			Body:     md,
+			Sidecars: sideForScan,
+		})
 
 		// Preview.
-		printInstallPreview(w, slug, sha, meta, installs, matched, sortKeys(files), warnings)
+		printInstallPreview(w, slug, sha, meta, installs, matched, sortKeys(files), report)
 
-		if len(warnings) > 0 && !allowUnsafe {
-			return fmt.Errorf("install aborted: sandbox sniff flagged %d warning(s); pass --allow-unsafe to proceed", len(warnings))
+		// Critical findings hard-block unless the user explicitly opts
+		// out with --allow-unsafe. High findings prompt y/N (handled by
+		// the regular confirm step below). Medium/Low are informational
+		// — already surfaced in the preview.
+		if report.Worst() == scan.SeverityCritical && !allowUnsafe {
+			return fmt.Errorf("install aborted: %d critical finding(s); pass --allow-unsafe to override after review", countSeverity(report, scan.SeverityCritical))
 		}
 		if !yes && !confirm(cmd.InOrStdin(), w, "proceed with install?") {
 			fmt.Fprintln(w, "install cancelled")
@@ -442,7 +476,7 @@ func shortSHA(sha string) string {
 // printInstallPreview is the human-readable pre-confirmation summary.
 // Kept tabular so the JSON mode (which uses different code paths) can
 // be added later without disturbing the human view.
-func printInstallPreview(w io.Writer, slug registry.Slug, sha string, meta gh.RepoMeta, installs int, matched string, files []string, warnings []string) {
+func printInstallPreview(w io.Writer, slug registry.Slug, sha string, meta gh.RepoMeta, installs int, matched string, files []string, report scan.Report) {
 	fmt.Fprintln(w, "── install preview ─────────────────────────────────────────────")
 	fmt.Fprintf(w, "  slug:     %s\n", slug)
 	fmt.Fprintf(w, "  repo:     %s\n", meta.HTMLURL)
@@ -459,11 +493,17 @@ func printInstallPreview(w io.Writer, slug registry.Slug, sha string, meta gh.Re
 			fmt.Fprintf(w, "    - %s\n", f)
 		}
 	}
-	if len(warnings) > 0 {
-		fmt.Fprintln(w, "  warnings:")
-		for _, msg := range warnings {
-			fmt.Fprintf(w, "    ! %s\n", msg)
+	if len(report.Findings) > 0 {
+		counts := report.Counts()
+		fmt.Fprintf(w, "  scan:     worst=%s (critical=%d high=%d medium=%d low=%d)\n",
+			report.Worst(),
+			counts[scan.SeverityCritical], counts[scan.SeverityHigh],
+			counts[scan.SeverityMedium], counts[scan.SeverityLow])
+		fmt.Fprintln(w, "  findings:")
+		for _, f := range report.Findings {
+			fmt.Fprintf(w, "    [%s] %s — %s (%s)\n", f.Severity, f.ID, f.Issue, f.Location)
 		}
+		fmt.Fprintln(w, "  (run `adept skill check "+slug.String()+" --format=markdown` for full detail)")
 	}
 	fmt.Fprintln(w, "─────────────────────────────────────────────────────────────────")
 }

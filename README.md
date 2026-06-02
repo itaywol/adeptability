@@ -56,6 +56,7 @@ adept skill    add <id> [--from <path>] [--edit]                       # local s
                | update [<id>]                                          # bump locked pin
                | info <slug>                                            # repo, stars, license, sha, installs
                | search <query>                                         # skills.sh search
+               | check <target> [--format=table|markdown|json]          # static safety scan
                | edit <id> | remove <id> | list
 adept library  add <name> --from <url> [--ref <branch>] | remove <name> [--purge] | list
 ```
@@ -112,6 +113,28 @@ Before every install the CLI prints a preview (repo URL, SHA, stars, install cou
 On every `adept sync`, locked external skills are re-hashed against `content_hash` — local edits surface as a warning with a pointer to `adept skill update <id>` or remove + re-install.
 
 Non-GitHub catalog sources surfaced by skills.sh (e.g. `skills.volces.com`) are not installable yet; use `adept library add` against the upstream git URL instead.
+
+### Safety scans (`adept skill check`)
+
+```bash
+adept skill check pr-review                               # project canonical
+adept skill check library:default:pr-review               # library-resolved
+adept skill check vercel-labs/skills/find-skills          # remote — fetches & discards
+adept skill check getsentry/skills/skill-scanner --format=markdown
+```
+
+Phase 2.1 ships a static (regex / frontmatter-aware) scanner with structured `Finding` output. Categories mirror getsentry/skills/skill-scanner (`prompt-injection`, `malicious-code`, `excessive-permissions`, `secret-exposure`, `supply-chain`, `url-analysis`, `frontmatter`) and severities `critical / high / medium / low / clean`. Each finding carries `id`, `category`, `severity`, `confidence`, `location`, `issue`, `evidence`, `risk`, `remediation`.
+
+Exit code matches the worst severity:
+
+- `clean` / `low` → `0`
+- `medium` → `0` (informational; still warned)
+- `high` → `1` (non-zero so CI can branch)
+- `critical` → `2` (same dirty-state code as `status` / `diff`)
+
+`skill install` runs the same scanner before writing; **critical findings hard-block** the install unless `--allow-unsafe` is passed. Lower severities surface in the install preview and require the usual `y/N` confirm.
+
+Phase 2.2 layers an LLM intent pass on top of the same Report shape — once you wire a provider via `adept config llm set <provider>`, false positives shrink and intent-only findings (jailbreaks dressed as polite suggestions, multi-step exfiltration, polyglot payloads) become catchable.
 
 ### 5. Stack multiple libraries (Model B union)
 
