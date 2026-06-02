@@ -14,13 +14,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestE2E exercises the full happy-path: init -> add -> install -> sync ->
-// status. It is gated on the binary being built first; when run via
-// `go test ./...` it rebuilds the binary into a temp file.
+// TestE2E exercises the new v0.3 surface end-to-end:
 //
-// This is the regression net for the goal: "accurate transfer across every
-// harness." If anything breaks the canonical -> per-harness pipeline for any
-// of the five built-in harnesses, this test fails.
+//   adept init [--from <url>] [--mode symlink|copy]
+//   adept sync [--harness <id>] [--force] [--dry-run]
+//   adept sync-from [--harness <id>] [--all] [--force]
+//   adept diff [--harness <id>]
+//   adept list [--from-library]
+//   adept show <id> [--from-library]
+//   adept doctor
+//
+// The three target flows are: init on empty project, init with library
+// remote, init in a project that already has harness skills on disk
+// (auto-adopt). After init, sync/sync-from/diff round-trip canonical and
+// harness state.
 func TestE2E(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping e2e under -short")
@@ -55,44 +62,106 @@ func TestE2E(t *testing.T) {
 		return out.String() + errBuf.String(), code
 	}
 
-	t.Run("init library and project", func(t *testing.T) {
-		out, code := run(t, "init", "library")
-		require.Equal(t, 0, code, out)
-		// New model: library is just a directory tree — no lockfile.
-		_, err := os.Stat(filepath.Join(lib, "adeptability.lock.json"))
-		require.True(t, os.IsNotExist(err), "library must not write a lockfile")
-		out, code = run(t, "--project", proj, "init", "project")
+	// Seed the library with two canonical-form skills. The example skills
+	// under examples/skills/* are split (skill.yaml + SKILL.md) and rely on
+	// `adept add` to consolidate into a single canonical SKILL.md. The new
+	// surface has no `add`, so we plant the consolidated form directly.
+	require.NoError(t, os.MkdirAll(filepath.Join(lib, "skills", "pr-review"), 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(lib, "skills", "pr-review", "SKILL.md"),
+		[]byte("---\n"+
+			"id: pr-review\n"+
+			"description: Apply before opening a PR. Tests, security, performance.\n"+
+			"activation: agent\n"+
+			"allowed-tools: [Read, Grep, Bash]\n"+
+			"---\n"+
+			"# PR Review Checklist\n\nUse this before requesting review on a pull request.\n"),
+		0o644,
+	))
+	require.NoError(t, os.MkdirAll(filepath.Join(lib, "skills", "typescript-style"), 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(lib, "skills", "typescript-style", "SKILL.md"),
+		[]byte("---\n"+
+			"id: typescript-style\n"+
+			"description: Project TypeScript conventions. Use when editing .ts or .tsx files.\n"+
+			"activation: globs\n"+
+			"globs:\n"+
+			"  - \"**/*.ts\"\n"+
+			"  - \"**/*.tsx\"\n"+
+			"---\n"+
+			"# TypeScript Style\n\nUse const for values never reassigned.\n"),
+		0o644,
+	))
+
+	t.Run("init on empty project (no harness files yet)", func(t *testing.T) {
+		out, code := run(t, "--project", proj, "init")
 		require.Equal(t, 0, code, out)
 		require.FileExists(t, filepath.Join(proj, ".adeptability", "config.json"))
-		_, err = os.Stat(filepath.Join(proj, "adeptability.lock.json"))
-		require.True(t, os.IsNotExist(err), "project must not write a lockfile")
+		require.NoFileExists(t, filepath.Join(proj, "adeptability.lock.json"))
+		// No harness output yet because nothing is enabled — adoption only
+		// kicks in when harness files already exist on disk.
+		require.NoDirExists(t, filepath.Join(proj, ".claude"))
 	})
 
-	exampleDir := filepath.Join(repoRoot, "examples", "skills")
-	t.Run("add and install two skills", func(t *testing.T) {
-		out, code := run(t, "add", filepath.Join(exampleDir, "pr-review"))
+	t.Run("init seeds harnesses=[] and mode=symlink by default", func(t *testing.T) {
+		out, code := run(t, "--project", proj, "doctor", "--json")
 		require.Equal(t, 0, code, out)
-		out, code = run(t, "add", filepath.Join(exampleDir, "typescript-style"))
-		require.Equal(t, 0, code, out)
-		out, code = run(t, "--project", proj, "install", "pr-review")
-		require.Equal(t, 0, code, out)
-		out, code = run(t, "--project", proj, "install", "typescript-style")
-		require.Equal(t, 0, code, out)
-	})
-
-	t.Run("enable every harness and sync", func(t *testing.T) {
-		for _, h := range []string{"claude-code", "cursor", "opencode", "codex", "copilot"} {
-			out, code := run(t, "--project", proj, "harness", "enable", "--id", h)
-			require.Equal(t, 0, code, out)
+		var rep struct {
+			Mode      string `json:"mode"`
+			Harnesses []struct {
+				ID string `json:"id"`
+			} `json:"harnesses"`
 		}
-		out, code := run(t, "--project", proj, "harness", "sync", "--force")
-		require.Equal(t, 0, code, out)
+		require.NoError(t, json.Unmarshal([]byte(out), &rep))
+		require.Equal(t, "symlink", rep.Mode)
+		require.NotEmpty(t, rep.Harnesses, "built-in harnesses must be registered")
 	})
 
-	t.Run("claude SKILL.md has expected frontmatter", func(t *testing.T) {
-		path := filepath.Join(proj, ".claude/skills/pr-review/SKILL.md")
-		require.FileExists(t, path)
-		b, err := os.ReadFile(path)
+	t.Run("init in project with preexisting harness files auto-adopts", func(t *testing.T) {
+		adoptProj := filepath.Join(t.TempDir(), "adopt")
+		require.NoError(t, os.MkdirAll(filepath.Join(adoptProj, ".claude", "skills", "preexisting"), 0o755))
+		require.NoError(t, os.WriteFile(
+			filepath.Join(adoptProj, ".claude", "skills", "preexisting", "SKILL.md"),
+			[]byte("---\nname: preexisting\ndescription: pre-existing harness skill\n---\n# body\n"),
+			0o644,
+		))
+		out, code := run(t, "--project", adoptProj, "init", "--mode", "copy")
+		require.Equal(t, 0, code, out)
+		require.Contains(t, out, "adopted harnesses: claude-code")
+		require.FileExists(t, filepath.Join(adoptProj, ".adeptability", "skills", "preexisting", "SKILL.md"))
+		// config should record claude-code + mode=copy
+		cfgBytes, err := os.ReadFile(filepath.Join(adoptProj, ".adeptability", "config.json"))
+		require.NoError(t, err)
+		require.Contains(t, string(cfgBytes), `"claude-code"`)
+		require.Contains(t, string(cfgBytes), `"mode": "copy"`)
+	})
+
+	// After this point, manually wire one skill + enable a few harnesses
+	// so sync/diff/sync-from have content to operate on.
+	t.Run("seed canonical skill + enable harnesses", func(t *testing.T) {
+		// Copy a skill into project canonical the cheap way (no `install`
+		// command anymore — projects normally adopt from a harness or pull
+		// the library via init --from).
+		copyDir(t, filepath.Join(lib, "skills", "pr-review"), filepath.Join(proj, ".adeptability", "skills", "pr-review"))
+		copyDir(t, filepath.Join(lib, "skills", "pr-review"), filepath.Join(proj, ".adeptability", "base", "pr-review"))
+		writeJSON(t, filepath.Join(proj, ".adeptability", "config.json"), map[string]any{
+			"schema":    1,
+			"harnesses": []string{"claude-code", "cursor", "codex", "copilot", "opencode"},
+			"mode":      "copy",
+		})
+	})
+
+	t.Run("sync renders to every enabled harness", func(t *testing.T) {
+		out, code := run(t, "--project", proj, "sync", "--force")
+		require.Equal(t, 0, code, out)
+		require.FileExists(t, filepath.Join(proj, ".claude/skills/pr-review/SKILL.md"))
+		require.FileExists(t, filepath.Join(proj, ".cursor/rules/pr-review.mdc"))
+		require.FileExists(t, filepath.Join(proj, ".opencode/skill/pr-review/SKILL.md"))
+		require.FileExists(t, filepath.Join(proj, "AGENTS.md"))
+	})
+
+	t.Run("claude SKILL.md carries the expected frontmatter", func(t *testing.T) {
+		b, err := os.ReadFile(filepath.Join(proj, ".claude/skills/pr-review/SKILL.md"))
 		require.NoError(t, err)
 		s := string(b)
 		require.Contains(t, s, "name: pr-review")
@@ -100,143 +169,96 @@ func TestE2E(t *testing.T) {
 		require.Contains(t, s, "allowed-tools")
 	})
 
-	t.Run("cursor mdc has globs for typescript-style", func(t *testing.T) {
-		path := filepath.Join(proj, ".cursor/rules/typescript-style.mdc")
-		require.FileExists(t, path)
-		b, err := os.ReadFile(path)
+	t.Run("codex AGENTS.md uses hash markers, fits 32 KiB", func(t *testing.T) {
+		b, err := os.ReadFile(filepath.Join(proj, "AGENTS.md"))
 		require.NoError(t, err)
-		s := string(b)
-		require.Contains(t, s, "description:")
-		require.Contains(t, s, "globs:")
-		require.Contains(t, s, "**/*.ts")
-		require.Contains(t, s, "alwaysApply: false")
+		require.LessOrEqual(t, len(b), 32768)
+		require.Regexp(t, regexp.MustCompile(`adeptability:begin id=pr-review hash=[0-9a-f]{8}`), string(b))
+		require.NotContains(t, string(b), "version=", "section markers must use hash, not version")
 	})
 
-	t.Run("opencode SKILL.md is plain markdown", func(t *testing.T) {
-		path := filepath.Join(proj, ".opencode/skill/pr-review/SKILL.md")
-		require.FileExists(t, path)
-		b, err := os.ReadFile(path)
-		require.NoError(t, err)
-		s := string(b)
-		require.True(t, strings.HasPrefix(s, "# pr-review"), "expected `# <id>` heading, got: %s", s[:min(80, len(s))])
-	})
-
-	t.Run("codex aggregates AGENTS.md within budget", func(t *testing.T) {
-		path := filepath.Join(proj, "AGENTS.md")
-		require.FileExists(t, path)
-		b, err := os.ReadFile(path)
-		require.NoError(t, err)
-		require.LessOrEqual(t, len(b), 32768, "AGENTS.md must fit 32 KiB")
-		s := string(b)
-		// Both skills present, both with section markers carrying the new
-		// hash form (id=<id> hash=<8hex>) instead of the old version=N.
-		require.Regexp(t, regexp.MustCompile(`adeptability:begin id=pr-review hash=[0-9a-f]{8}`), s)
-		require.Regexp(t, regexp.MustCompile(`adeptability:begin id=typescript-style hash=[0-9a-f]{8}`), s)
-		require.NotContains(t, s, "version=", "section markers must use hash, not version")
-	})
-
-	t.Run("copilot bucket has applyTo glob", func(t *testing.T) {
-		dir := filepath.Join(proj, ".github/instructions")
-		entries, err := os.ReadDir(dir)
-		require.NoError(t, err)
-		require.NotEmpty(t, entries)
-		var seenApplyTo bool
-		for _, e := range entries {
-			b, err := os.ReadFile(filepath.Join(dir, e.Name()))
-			require.NoError(t, err)
-			if strings.Contains(string(b), "applyTo: \"**/*.ts,**/*.tsx\"") {
-				seenApplyTo = true
-			}
-		}
-		require.True(t, seenApplyTo, "expected one bucket with applyTo for ts/tsx globs")
-	})
-
-	t.Run("status reports synced after fresh install", func(t *testing.T) {
-		out, code := run(t, "--project", proj, "status", "--json")
+	t.Run("diff is clean after fresh sync", func(t *testing.T) {
+		out, code := run(t, "--project", proj, "diff", "--json")
 		require.Equal(t, 0, code, out)
-		var payload struct {
-			Skills []struct {
-				ID     string `json:"id"`
-				Status string `json:"status"`
-			} `json:"skills"`
+		var reports []struct {
+			Harness string   `json:"harness"`
+			Drifted []string `json:"drifted"`
 		}
-		require.NoError(t, json.Unmarshal([]byte(out), &payload))
-		require.NotEmpty(t, payload.Skills)
-		for _, s := range payload.Skills {
-			require.Equal(t, "synced", s.Status, "skill %s should be synced", s.ID)
+		require.NoError(t, json.Unmarshal([]byte(out), &reports))
+		for _, r := range reports {
+			require.Empty(t, r.Drifted, "harness %s should be clean", r.Harness)
 		}
 	})
 
-	t.Run("status JSON contains no version field", func(t *testing.T) {
-		out, code := run(t, "--project", proj, "status", "--json")
+	t.Run("diff reports drift after harness-side edit", func(t *testing.T) {
+		require.NoError(t, appendToFile(
+			filepath.Join(proj, ".claude/skills/pr-review/SKILL.md"),
+			"\n## harness-edit\n",
+		))
+		out, code := run(t, "--project", proj, "diff", "--harness", "claude-code")
+		require.Equal(t, 2, code, out)
+		require.Contains(t, out, "drift")
+	})
+
+	t.Run("sync-from --harness adopts that harness's edit", func(t *testing.T) {
+		out, code := run(t, "--project", proj, "sync-from", "--harness", "claude-code", "--force")
 		require.Equal(t, 0, code, out)
-		require.NotContains(t, out, `"version"`, "v0.2 status output must not surface a version field")
+		b, err := os.ReadFile(filepath.Join(proj, ".adeptability", "skills", "pr-review", "SKILL.md"))
+		require.NoError(t, err)
+		require.Contains(t, string(b), "harness-edit")
 	})
 
-	t.Run("diff equal", func(t *testing.T) {
-		out, code := run(t, "--project", proj, "diff", "pr-review")
+	t.Run("list shows the canonical project skill", func(t *testing.T) {
+		out, code := run(t, "--project", proj, "list")
 		require.Equal(t, 0, code, out)
-		require.Contains(t, out, "equal    true")
+		require.Contains(t, out, "pr-review")
 	})
 
-	t.Run("render command prints rendered bytes", func(t *testing.T) {
-		out, code := run(t, "--project", proj, "render", "--id", "pr-review", "--harness", "claude-code")
+	t.Run("list --from-library shows library skills", func(t *testing.T) {
+		out, code := run(t, "list", "--from-library")
 		require.Equal(t, 0, code, out)
-		require.Contains(t, out, "name: pr-review")
+		require.Contains(t, out, "pr-review")
+		require.Contains(t, out, "typescript-style")
 	})
 
-	t.Run("config-driven adapter registers and persists", func(t *testing.T) {
-		out, code := run(t, "harness", "add", "--from", filepath.Join(repoRoot, "examples/adapters/jetbrains-junie.yaml"))
+	t.Run("show emits a labeled table by default", func(t *testing.T) {
+		out, code := run(t, "--project", proj, "show", "pr-review")
 		require.Equal(t, 0, code, out)
-		require.FileExists(t, filepath.Join(lib, "adapters", "jetbrains-junie.yaml"))
-		out, code = run(t, "harness", "list", "--json")
+		require.Contains(t, out, "ID")
+		require.Contains(t, out, "pr-review")
+		// Plain output is not JSON.
+		require.False(t, strings.HasPrefix(strings.TrimSpace(out), "{"))
+	})
+
+	t.Run("show --json emits structured output", func(t *testing.T) {
+		out, code := run(t, "--project", proj, "--json", "show", "pr-review")
 		require.Equal(t, 0, code, out)
-		require.Contains(t, out, "jetbrains-junie")
+		var s map[string]any
+		require.NoError(t, json.Unmarshal([]byte(out), &s))
+		require.Equal(t, "pr-review", s["id"])
 	})
 
-	// FRICTION BUG 2: uninstalling a missing skill must exit non-zero with
-	// a clear message rather than silently succeeding.
-	t.Run("uninstall missing skill exits non-zero", func(t *testing.T) {
-		out, code := run(t, "--project", proj, "uninstall", "definitely-not-installed")
-		require.Equal(t, 1, code, out)
-		require.Contains(t, strings.ToLower(out), "skill not found")
+	t.Run("doctor reports project + library status", func(t *testing.T) {
+		out, code := run(t, "--project", proj, "doctor")
+		require.Equal(t, 0, code, out)
+		require.Contains(t, out, "library: ok")
+		require.Contains(t, out, "project: ok")
+		require.Contains(t, out, "mode: copy")
 	})
 
-	// FRICTION BUG 4: harness enable with unknown id must exit non-zero
-	// instead of writing a bogus harness id into the config.
-	t.Run("harness enable with unknown id rejected", func(t *testing.T) {
-		out, code := run(t, "--project", proj, "harness", "enable", "--id", "totally-fake-harness")
-		require.Equal(t, 1, code, out)
-		require.Contains(t, strings.ToLower(out), "harness")
-	})
-
-	// FRICTION BUG 3: render with unknown harness must surface the harness
-	// in the error, not the (still-missing) skill.
-	t.Run("render with unknown harness names the harness", func(t *testing.T) {
-		out, code := run(t, "--project", proj, "render", "--id", "pr-review", "--harness", "made-up")
-		require.Equal(t, 1, code, out)
-		require.Contains(t, strings.ToLower(out), "harness")
-		require.NotContains(t, strings.ToLower(out), "skill not found")
-	})
-
-	// FRICTION BUG 6: scan of a missing root must exit non-zero, not print
-	// an empty table and succeed.
-	t.Run("scan missing root exits non-zero", func(t *testing.T) {
-		out, code := run(t, "scan", filepath.Join(t.TempDir(), "does-not-exist"))
-		require.Equal(t, 1, code, out)
-	})
-
-	// `migrate` command is intentionally removed in v0.2 — no backward
-	// compatibility, no migrations. The CLI must not advertise it.
-	t.Run("migrate command is gone", func(t *testing.T) {
-		out, code := run(t, "migrate", "--from", "/no/where")
-		require.NotEqual(t, 0, code, out)
-		require.NotContains(t, strings.ToLower(out), "migrated 0 skill")
+	t.Run("cut commands are not registered", func(t *testing.T) {
+		for _, gone := range []string{
+			"add", "install", "uninstall", "push", "pull", "status", "resolve",
+			"bootstrap", "harness", "org", "render", "apply-all", "scan",
+			"verify", "upgrade",
+		} {
+			out, code := run(t, gone, "--help")
+			require.NotEqual(t, 0, code, "command %q should not exist: %s", gone, out)
+		}
 	})
 }
 
-// findRepoRoot locates the module root by walking up from the current working
-// directory until go.mod is found.
+// findRepoRoot locates the module root by walking up from cwd.
 func findRepoRoot(t *testing.T) string {
 	t.Helper()
 	dir, err := os.Getwd()
@@ -267,9 +289,37 @@ func buildBinary(t *testing.T, repoRoot, dst string) {
 	require.WithinDuration(t, time.Now(), fi.ModTime(), 30*time.Second)
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
+func copyDir(t *testing.T, src, dst string) {
+	t.Helper()
+	require.NoError(t, os.MkdirAll(dst, 0o755))
+	entries, err := os.ReadDir(src)
+	require.NoError(t, err)
+	for _, e := range entries {
+		s := filepath.Join(src, e.Name())
+		d := filepath.Join(dst, e.Name())
+		if e.IsDir() {
+			copyDir(t, s, d)
+			continue
+		}
+		b, err := os.ReadFile(s)
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(d, b, 0o644))
 	}
-	return b
+}
+
+func appendToFile(path, extra string) error {
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = f.WriteString(extra)
+	return err
+}
+
+func writeJSON(t *testing.T, path string, v any) {
+	t.Helper()
+	b, err := json.MarshalIndent(v, "", "  ")
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(path, append(b, '\n'), 0o644))
 }

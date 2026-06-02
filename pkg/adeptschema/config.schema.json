@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://itaywol.github.io/adeptability/schemas/config.schema.json",
   "title": "Adeptability Project Config",
-  "description": "Per-project configuration. Carries ONLY project-level state (harnesses, modes, org pointer, adapters). Per-skill state lives on the filesystem.",
+  "description": "Per-project configuration. Carries ONLY project-level state (enabled harnesses, materialization mode, library remote). Per-skill state lives on the filesystem.",
   "type": "object",
   "required": ["schema"],
   "additionalProperties": false,
@@ -13,14 +13,11 @@
       "items": { "type": "string" },
       "uniqueItems": true
     },
-    "harnessModes": {
-      "type": "object",
-      "additionalProperties": {
-        "type": "string",
-        "enum": ["symlink", "copy"]
-      }
+    "mode": {
+      "type": "string",
+      "enum": ["symlink", "copy"]
     },
-    "org": {
+    "library": {
       "type": "object",
       "additionalProperties": false,
       "required": ["remote"],
@@ -28,11 +25,6 @@
         "remote": { "type": "string" },
         "ref": { "type": "string" }
       }
-    },
-    "adapters": {
-      "type": "array",
-      "items": { "type": "string" },
-      "uniqueItems": true
     }
   }
 }

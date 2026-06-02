@@ -27,9 +27,8 @@ func TestStore_Empty(t *testing.T) {
 	require.NotNil(t, cfg)
 	require.Equal(t, adept.ConfigSchemaVersion, cfg.Schema)
 	require.Empty(t, cfg.Harnesses)
-	require.Empty(t, cfg.HarnessModes)
-	require.Nil(t, cfg.Org)
-	require.Empty(t, cfg.Adapters)
+	require.Empty(t, cfg.Mode)
+	require.Nil(t, cfg.Library)
 }
 
 func TestStore_ReadMissingReturnsEmpty(t *testing.T) {
@@ -52,9 +51,8 @@ func TestStore_WriteEmptyRoundTrip(t *testing.T) {
 	require.True(t, strings.HasSuffix(got, "\n"), "missing trailing newline")
 	require.Contains(t, got, `"schema": 1`)
 	require.NotContains(t, got, "harnesses")
-	require.NotContains(t, got, "harnessModes")
-	require.NotContains(t, got, "adapters")
-	require.NotContains(t, got, `"org"`)
+	require.NotContains(t, got, `"mode"`)
+	require.NotContains(t, got, `"library"`)
 
 	back, err := s.Read(path)
 	require.NoError(t, err)
@@ -68,12 +66,8 @@ func TestStore_WritePopulatedRoundTrip(t *testing.T) {
 	in := &adept.Config{
 		Schema:    adept.ConfigSchemaVersion,
 		Harnesses: []string{"claude-code", "cursor"},
-		HarnessModes: map[string]adept.HarnessMode{
-			"claude-code": adept.ModeSymlink,
-			"cursor":      adept.ModeCopy,
-		},
-		Org:      &adept.OrgRef{Remote: "https://example.com/org.git", Ref: "v1"},
-		Adapters: []string{"./adapters/junie.yaml"},
+		Mode:      adept.ModeCopy,
+		Library:   &adept.LibraryRef{Remote: "https://example.com/org.git", Ref: "v1"},
 	}
 	require.NoError(t, s.Write(path, in))
 
@@ -81,9 +75,8 @@ func TestStore_WritePopulatedRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, in.Schema, got.Schema)
 	require.Equal(t, in.Harnesses, got.Harnesses)
-	require.Equal(t, in.HarnessModes, got.HarnessModes)
-	require.Equal(t, in.Org, got.Org)
-	require.Equal(t, in.Adapters, got.Adapters)
+	require.Equal(t, in.Mode, got.Mode)
+	require.Equal(t, in.Library, got.Library)
 }
 
 func TestStore_WriteCanonicalFieldOrder(t *testing.T) {
@@ -91,17 +84,16 @@ func TestStore_WriteCanonicalFieldOrder(t *testing.T) {
 	s := newTestStore()
 	path := writePath(t)
 	in := &adept.Config{
-		Schema:       adept.ConfigSchemaVersion,
-		Harnesses:    []string{"claude-code"},
-		HarnessModes: map[string]adept.HarnessMode{"claude-code": adept.ModeSymlink},
-		Org:          &adept.OrgRef{Remote: "https://x.example/org"},
-		Adapters:     []string{"a.yaml"},
+		Schema:    adept.ConfigSchemaVersion,
+		Harnesses: []string{"claude-code"},
+		Mode:      adept.ModeSymlink,
+		Library:   &adept.LibraryRef{Remote: "https://x.example/org"},
 	}
 	require.NoError(t, s.Write(path, in))
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 	body := string(data)
-	order := []string{`"schema"`, `"harnesses"`, `"harnessModes"`, `"org"`, `"adapters"`}
+	order := []string{`"schema"`, `"harnesses"`, `"mode"`, `"library"`}
 	prev := -1
 	for _, key := range order {
 		idx := strings.Index(body, key)
@@ -131,11 +123,11 @@ func TestStore_RejectsSchemaZero(t *testing.T) {
 	require.True(t, errors.Is(err, adept.ErrLockSchemaMismatch))
 }
 
-func TestStore_RejectsInvalidHarnessMode(t *testing.T) {
+func TestStore_RejectsInvalidMode(t *testing.T) {
 	t.Parallel()
 	s := newTestStore()
 	path := writePath(t)
-	require.NoError(t, os.WriteFile(path, []byte(`{"schema":1,"harnessModes":{"claude-code":"bogus"}}`), 0o644))
+	require.NoError(t, os.WriteFile(path, []byte(`{"schema":1,"mode":"bogus"}`), 0o644))
 	_, err := s.Read(path)
 	require.Error(t, err)
 	require.False(t, errors.Is(err, adept.ErrLockSchemaMismatch), "wrong sentinel for invalid mode")
@@ -145,35 +137,34 @@ func TestStore_RejectsUnknownTopLevelField(t *testing.T) {
 	t.Parallel()
 	s := newTestStore()
 	path := writePath(t)
-	// "version" is not a valid top-level key under v0.2; schema must reject.
+	// "version" is not a valid top-level key; schema must reject.
 	require.NoError(t, os.WriteFile(path, []byte(`{"schema":1,"version":"oops"}`), 0o644))
 	_, err := s.Read(path)
 	require.Error(t, err)
 }
 
-func TestStore_GetHarnessModeDefault(t *testing.T) {
+func TestStore_GetModeDefault(t *testing.T) {
 	t.Parallel()
 	s := newTestStore()
 	cfg := s.Empty()
-	require.Equal(t, adept.ModeSymlink, s.GetHarnessMode(cfg, "claude-code"))
-	// nil config also yields the default.
-	require.Equal(t, adept.ModeSymlink, s.GetHarnessMode(nil, "claude-code"))
+	require.Equal(t, adept.ModeSymlink, s.GetMode(cfg))
+	require.Equal(t, adept.ModeSymlink, s.GetMode(nil))
 }
 
-func TestStore_SetHarnessModeReplaces(t *testing.T) {
+func TestStore_SetModeReplaces(t *testing.T) {
 	t.Parallel()
 	s := newTestStore()
 	cfg := s.Empty()
-	s.SetHarnessMode(cfg, "claude-code", adept.ModeCopy)
-	require.Equal(t, adept.ModeCopy, s.GetHarnessMode(cfg, "claude-code"))
-	s.SetHarnessMode(cfg, "claude-code", adept.ModeSymlink)
-	require.Equal(t, adept.ModeSymlink, s.GetHarnessMode(cfg, "claude-code"))
+	s.SetMode(cfg, adept.ModeCopy)
+	require.Equal(t, adept.ModeCopy, s.GetMode(cfg))
+	s.SetMode(cfg, adept.ModeSymlink)
+	require.Equal(t, adept.ModeSymlink, s.GetMode(cfg))
 }
 
-func TestStore_SetHarnessModeNilSafe(t *testing.T) {
+func TestStore_SetModeNilSafe(t *testing.T) {
 	t.Parallel()
 	s := newTestStore()
-	require.Nil(t, s.SetHarnessMode(nil, "x", adept.ModeSymlink))
+	require.Nil(t, s.SetMode(nil, adept.ModeSymlink))
 }
 
 func TestStore_WriteUsesInjectedWriter(t *testing.T) {

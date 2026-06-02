@@ -53,14 +53,15 @@ func setHarnesses(t *testing.T, p project.Project, ids ...string) {
 	require.NoError(t, p.SaveConfig(cfg))
 }
 
-func setHarnessMode(t *testing.T, p project.Project, id string, mode adept.HarnessMode) {
+// setHarnessMode now writes the project-wide Mode (per-harness modes were
+// removed in the v0.3 UX refactor — every harness uses the global default).
+// The id parameter is preserved so existing call sites compile; the value
+// is ignored.
+func setHarnessMode(t *testing.T, p project.Project, _ string, mode adept.HarnessMode) {
 	t.Helper()
 	cfg, err := p.Config()
 	require.NoError(t, err)
-	if cfg.HarnessModes == nil {
-		cfg.HarnessModes = map[string]adept.HarnessMode{}
-	}
-	cfg.HarnessModes[id] = mode
+	cfg.Mode = mode
 	require.NoError(t, p.SaveConfig(cfg))
 }
 

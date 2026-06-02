@@ -29,31 +29,47 @@ func TestE2E_MultiFileSkill(t *testing.T) {
 
 	lib := filepath.Join(t.TempDir(), "lib")
 	proj := filepath.Join(t.TempDir(), "proj")
-	src := filepath.Join(t.TempDir(), "source", "multi")
 	env := []string{
 		"PATH=" + os.Getenv("PATH"),
 		"HOME=" + t.TempDir(),
 		"ADEPT_LIBRARY=" + lib,
 	}
 
-	// Build a realistic multi-file skill on disk.
-	require.NoError(t, os.MkdirAll(filepath.Join(src, "references"), 0o755))
-	require.NoError(t, os.MkdirAll(filepath.Join(src, "scripts"), 0o755))
-	require.NoError(t, os.MkdirAll(filepath.Join(src, "assets"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(src, "skill.yaml"), []byte(""+
+	// Seed the project canonical with a realistic multi-file skill. In the
+	// new surface there is no `add`/`install`: canonical content is either
+	// adopted from harness files via `init` / `sync-from`, or cloned in by
+	// `init --from`. For the test we plant the canonical bundle directly,
+	// then drive sync.
+	canonicalRoot := filepath.Join(proj, ".adeptability", "skills", "multi-test")
+	require.NoError(t, os.MkdirAll(filepath.Join(canonicalRoot, "references"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(canonicalRoot, "scripts"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(canonicalRoot, "assets"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(canonicalRoot, "SKILL.md"), []byte(""+
+		"---\n"+
 		"id: multi-test\n"+
 		"description: Skill bundle with markdown references, scripts, and assets\n"+
-		"activation: agent\n"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(src, "SKILL.md"), []byte(""+
+		"activation: agent\n"+
+		"---\n"+
 		"# Main\n\nSee [API](references/api.md) and run scripts/validate.sh.\n"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(src, "references", "api.md"),
+	require.NoError(t, os.WriteFile(filepath.Join(canonicalRoot, "references", "api.md"),
 		[]byte("# API\nGET /v1/foo\n"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(src, "references", "errors.md"),
+	require.NoError(t, os.WriteFile(filepath.Join(canonicalRoot, "references", "errors.md"),
 		[]byte("# Errors\n401 unauthorized\n"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(src, "scripts", "validate.sh"),
+	require.NoError(t, os.WriteFile(filepath.Join(canonicalRoot, "scripts", "validate.sh"),
 		[]byte("#!/usr/bin/env sh\necho ok\n"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(src, "assets", "logo.svg"),
+	require.NoError(t, os.WriteFile(filepath.Join(canonicalRoot, "assets", "logo.svg"),
 		[]byte("<svg></svg>\n"), 0o644))
+
+	// Seed the base snapshot (so sync's drift detection is meaningful).
+	copyDir(t, canonicalRoot, filepath.Join(proj, ".adeptability", "base", "multi-test"))
+
+	// Write a config enabling every built-in harness in copy mode (avoids
+	// any host symlink permission issues in CI sandboxes).
+	require.NoError(t, os.WriteFile(
+		filepath.Join(proj, ".adeptability", "config.json"),
+		[]byte(`{"schema":1,"harnesses":["claude-code","cursor","opencode","codex","copilot"],"mode":"copy"}`+"\n"),
+		0o644,
+	))
 
 	run := func(t *testing.T, args ...string) {
 		t.Helper()
@@ -63,14 +79,7 @@ func TestE2E_MultiFileSkill(t *testing.T) {
 		require.NoErrorf(t, err, "adept %v: %s", args, out)
 	}
 
-	run(t, "init", "library")
-	run(t, "--project", proj, "init", "project")
-	run(t, "add", src)
-	run(t, "--project", proj, "install", "multi-test")
-	for _, h := range []string{"claude-code", "cursor", "opencode", "codex", "copilot"} {
-		run(t, "--project", proj, "harness", "enable", "--id", h)
-	}
-	run(t, "--project", proj, "harness", "sync", "--force")
+	run(t, "--project", proj, "sync", "--force")
 
 	t.Run("claude preserves the full bundle", func(t *testing.T) {
 		root := filepath.Join(proj, ".claude/skills/multi-test")
@@ -80,7 +89,6 @@ func TestE2E_MultiFileSkill(t *testing.T) {
 		require.FileExists(t, filepath.Join(root, "scripts/validate.sh"))
 		require.FileExists(t, filepath.Join(root, "assets/logo.svg"))
 
-		// Relative references resolve from the harness dir via the symlinks.
 		b, err := os.ReadFile(filepath.Join(root, "references/api.md"))
 		require.NoError(t, err)
 		require.Contains(t, string(b), "GET /v1/foo")
@@ -97,7 +105,6 @@ func TestE2E_MultiFileSkill(t *testing.T) {
 
 	t.Run("cursor drops sidecars (single-file model)", func(t *testing.T) {
 		require.FileExists(t, filepath.Join(proj, ".cursor/rules/multi-test.mdc"))
-		// No directory should exist alongside the .mdc.
 		_, err := os.Stat(filepath.Join(proj, ".cursor/rules/references"))
 		require.True(t, os.IsNotExist(err))
 	})
@@ -108,10 +115,4 @@ func TestE2E_MultiFileSkill(t *testing.T) {
 		require.FileExists(t, filepath.Join(proj, "AGENTS.md"))
 	})
 
-	t.Run("staging mirrors harness layout", func(t *testing.T) {
-		stagingClaude := filepath.Join(proj, ".adeptability/staging/.claude/skills/multi-test")
-		require.FileExists(t, filepath.Join(stagingClaude, "SKILL.md"))
-		require.FileExists(t, filepath.Join(stagingClaude, "references/api.md"))
-		require.FileExists(t, filepath.Join(stagingClaude, "scripts/validate.sh"))
-	})
 }

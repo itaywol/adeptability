@@ -44,6 +44,10 @@ type Client interface {
 	Status(ctx context.Context, dir string) (dirty bool, lines []string, err error)
 	HeadHash(ctx context.Context, dir string) (string, error)
 	EnsureConfig(ctx context.Context, dir, key, value string) error
+	// CloneOrPull clones url@ref into dest if dest is not already a git
+	// repository, otherwise runs `git fetch && git checkout ref` in place.
+	// Used by `adept init --from <git-url>` to bootstrap a library remote.
+	CloneOrPull(ctx context.Context, url, ref, dest string) error
 }
 
 // execRunner shells out to the configured git binary.
@@ -160,6 +164,41 @@ func (c *client) HeadHash(ctx context.Context, dir string) (string, error) {
 		return "", fmt.Errorf("git rev-parse HEAD: %w", err)
 	}
 	return strings.TrimSpace(res.Stdout), nil
+}
+
+// CloneOrPull clones url@ref into dest, or fetches+checks-out ref if dest
+// is already a git working tree. The empty string for ref means HEAD/the
+// remote's default branch.
+func (c *client) CloneOrPull(ctx context.Context, url, ref, dest string) error {
+	if dest == "" {
+		return fmt.Errorf("git clone: empty destination")
+	}
+	if c.IsRepo(dest) {
+		if _, err := c.r.Run(ctx, dest, "fetch", "--all", "--prune"); err != nil {
+			return fmt.Errorf("git fetch in %s: %w", dest, err)
+		}
+		if ref != "" {
+			if _, err := c.r.Run(ctx, dest, "checkout", ref); err != nil {
+				return fmt.Errorf("git checkout %s in %s: %w", ref, dest, err)
+			}
+			if _, err := c.r.Run(ctx, dest, "pull", "--ff-only", "origin", ref); err != nil {
+				return fmt.Errorf("git pull %s in %s: %w", ref, dest, err)
+			}
+		}
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		return fmt.Errorf("git clone: ensure parent dir %s: %w", dest, err)
+	}
+	args := []string{"clone"}
+	if ref != "" {
+		args = append(args, "--branch", ref)
+	}
+	args = append(args, url, dest)
+	if _, err := c.r.Run(ctx, "", args...); err != nil {
+		return fmt.Errorf("git clone %s into %s: %w", url, dest, err)
+	}
+	return nil
 }
 
 // EnsureConfig sets key=value when the current value differs (or is missing).

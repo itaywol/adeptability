@@ -13,10 +13,7 @@ func TestRootHasAllCommands(t *testing.T) {
 	t.Parallel()
 	root := NewRoot(BuildInfo{Version: "test", Commit: "abc", Date: "today"})
 	want := []string{
-		"init", "bootstrap", "list", "add", "show", "install", "uninstall",
-		"pull", "push", "status", "diff", "resolve", "harness",
-		"render", "apply-all", "org", "doctor", "verify",
-		"scan", "upgrade",
+		"init", "sync", "sync-from", "diff", "list", "show", "doctor",
 	}
 	got := map[string]bool{}
 	for _, c := range root.Commands() {
@@ -24,6 +21,22 @@ func TestRootHasAllCommands(t *testing.T) {
 	}
 	for _, name := range want {
 		require.Truef(t, got[name], "missing command: %s", name)
+	}
+}
+
+func TestRootRejectsCutCommands(t *testing.T) {
+	t.Parallel()
+	root := NewRoot(BuildInfo{Version: "test"})
+	registered := map[string]bool{}
+	for _, c := range root.Commands() {
+		registered[strings.Fields(c.Use)[0]] = true
+	}
+	for _, gone := range []string{
+		"add", "install", "uninstall", "push", "pull", "status", "resolve",
+		"bootstrap", "harness", "org", "render", "apply-all", "scan",
+		"verify", "upgrade",
+	} {
+		require.Falsef(t, registered[gone], "command %q must be cut", gone)
 	}
 }
 

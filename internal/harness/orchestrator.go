@@ -96,28 +96,31 @@ func (o *orchestrator) Sync(ctx context.Context, p project.Project, opts SyncOpt
 		return nil, fmt.Errorf("sync: list skills: %w", err)
 	}
 	results := make([]SyncResult, 0, len(harnessIDs))
-	// Per-harness mode bookkeeping: if any symlink falls back to a copy, we
-	// persist the mode flip into the project config.
-	modes := cloneModes(cfg.HarnessModes)
-	modeChanged := false
+	// Mode is a single global default applied to every harness in this
+	// project. If a symlink falls back to a copy (FS does not support
+	// symlinks), we persist the flip into the project config so subsequent
+	// runs are consistent.
+	desiredMode := cfg.Mode
+	if desiredMode == "" {
+		desiredMode = adept.ModeSymlink
+	}
+	resolvedMode := desiredMode
 	for _, hid := range harnessIDs {
 		adapter, err := o.reg.Get(hid)
 		if err != nil {
 			return results, fmt.Errorf("sync %q: %w", hid, err)
 		}
-		desiredMode := defaultMode(modes, hid)
-		res, flippedMode, err := o.syncHarness(ctx, p, adapter, skills, opts, desiredMode)
+		res, flippedMode, err := o.syncHarness(ctx, p, adapter, skills, opts, resolvedMode)
 		if err != nil {
 			return results, fmt.Errorf("sync %q: %w", hid, err)
 		}
 		results = append(results, res)
-		if flippedMode != desiredMode {
-			modes[hid] = flippedMode
-			modeChanged = true
+		if flippedMode == adept.ModeCopy && resolvedMode != adept.ModeCopy {
+			resolvedMode = adept.ModeCopy
 		}
 	}
-	if !opts.DryRun && modeChanged {
-		cfg.HarnessModes = modes
+	if !opts.DryRun && resolvedMode != desiredMode {
+		cfg.Mode = resolvedMode
 		if err := p.SaveConfig(cfg); err != nil {
 			return results, fmt.Errorf("sync: persist mode flip: %w", err)
 		}
@@ -556,21 +559,6 @@ func filterTargets(skills []*adept.Skill, harnessID string) []*adept.Skill {
 		}
 	}
 	return out
-}
-
-func cloneModes(in map[string]adept.HarnessMode) map[string]adept.HarnessMode {
-	out := map[string]adept.HarnessMode{}
-	for k, v := range in {
-		out[k] = v
-	}
-	return out
-}
-
-func defaultMode(modes map[string]adept.HarnessMode, hid string) adept.HarnessMode {
-	if m, ok := modes[hid]; ok && m != "" {
-		return m
-	}
-	return adept.ModeSymlink
 }
 
 func stagingPathFor(projectRoot string, out adept.RenderOutput) string {

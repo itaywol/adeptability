@@ -22,7 +22,6 @@ import (
 	"github.com/itaywol/adeptability/internal/render/copilot"
 	"github.com/itaywol/adeptability/internal/render/cursor"
 	"github.com/itaywol/adeptability/internal/render/opencode"
-	"github.com/itaywol/adeptability/internal/sign"
 	"github.com/itaywol/adeptability/internal/status"
 	"github.com/itaywol/adeptability/pkg/adept"
 )
@@ -54,11 +53,8 @@ type Deps struct {
 	Orchestrator  harness.Orchestrator
 	AdapterLoader adapter.Loader
 
-	// Org + signing
-	OrgParser   org.Parser
-	Verifier    sign.Verifier
-	Signer      sign.Signer
-	SignBackend sign.Backend
+	// Library remote (used by init --from)
+	OrgParser org.Parser
 }
 
 // NewDeps wires concrete implementations. This is the only place where
@@ -91,15 +87,6 @@ func NewDeps(gf *GlobalFlags, b BuildInfo) (*Deps, error) {
 		return nil, fmt.Errorf("build org parser: %w", err)
 	}
 
-	signResult, err := sign.Detect(sign.DetectOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("detect sign backend: %w", err)
-	}
-	logger.Debug("sign", "backend", string(signResult.Backend), "notice", signResult.Notice)
-	verifier := signResult.Verifier
-	signer := signResult.Signer
-	signBackend := signResult.Backend
-
 	return &Deps{
 		Flags:         gf,
 		Build:         b,
@@ -117,9 +104,6 @@ func NewDeps(gf *GlobalFlags, b BuildInfo) (*Deps, error) {
 		Orchestrator:  harness.NewOrchestrator(reg, parser, writer, linker, logger),
 		AdapterLoader: adapterLoader,
 		OrgParser:     orgParser,
-		Verifier:      verifier,
-		Signer:        signer,
-		SignBackend:   signBackend,
 	}, nil
 }
 

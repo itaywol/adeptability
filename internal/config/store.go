@@ -36,12 +36,12 @@ type Store interface {
 	Write(path string, cfg *adept.Config) error
 	// Empty returns a zero-valued config with the current schema version.
 	Empty() *adept.Config
-	// SetHarnessMode sets the mode for a harness id, allocating the map if
-	// needed. Returns the same config pointer for fluent use.
-	SetHarnessMode(cfg *adept.Config, harness string, m adept.HarnessMode) *adept.Config
-	// GetHarnessMode returns the configured mode for a harness id, or
-	// adept.ModeSymlink as the default when unset.
-	GetHarnessMode(cfg *adept.Config, harness string) adept.HarnessMode
+	// SetMode sets the global materialization mode for every harness in this
+	// project. Returns the same config pointer for fluent use.
+	SetMode(cfg *adept.Config, m adept.HarnessMode) *adept.Config
+	// GetMode returns the configured global mode, or adept.ModeSymlink when
+	// unset.
+	GetMode(cfg *adept.Config) adept.HarnessMode
 }
 
 // NewStore constructs a Store with an injected WriteFunc. If write is nil the
@@ -147,11 +147,10 @@ func (s *store) Write(path string, cfg *adept.Config) error {
 // JSON stays clean. We marshal this rather than the public Config so changes
 // to the public field order do not bleed into the on-disk byte sequence.
 type canonicalForm struct {
-	Schema       int                          `json:"schema"`
-	Harnesses    []string                     `json:"harnesses,omitempty"`
-	HarnessModes map[string]adept.HarnessMode `json:"harnessModes,omitempty"`
-	Org          *adept.OrgRef                `json:"org,omitempty"`
-	Adapters     []string                     `json:"adapters,omitempty"`
+	Schema    int                `json:"schema"`
+	Harnesses []string           `json:"harnesses,omitempty"`
+	Mode      adept.HarnessMode  `json:"mode,omitempty"`
+	Library   *adept.LibraryRef  `json:"library,omitempty"`
 }
 
 func (s *store) canonicalize(cfg *adept.Config) canonicalForm {
@@ -159,45 +158,30 @@ func (s *store) canonicalize(cfg *adept.Config) canonicalForm {
 	if schema == 0 {
 		schema = adept.ConfigSchemaVersion
 	}
-	out := canonicalForm{Schema: schema}
+	out := canonicalForm{Schema: schema, Mode: cfg.Mode}
 	if len(cfg.Harnesses) > 0 {
 		out.Harnesses = append(out.Harnesses, cfg.Harnesses...)
 	}
-	if len(cfg.HarnessModes) > 0 {
-		out.HarnessModes = make(map[string]adept.HarnessMode, len(cfg.HarnessModes))
-		for k, v := range cfg.HarnessModes {
-			out.HarnessModes[k] = v
-		}
-	}
-	if cfg.Org != nil {
-		copyOrg := *cfg.Org
-		out.Org = &copyOrg
-	}
-	if len(cfg.Adapters) > 0 {
-		out.Adapters = append(out.Adapters, cfg.Adapters...)
+	if cfg.Library != nil {
+		copyLib := *cfg.Library
+		out.Library = &copyLib
 	}
 	return out
 }
 
-func (s *store) SetHarnessMode(cfg *adept.Config, harness string, m adept.HarnessMode) *adept.Config {
+func (s *store) SetMode(cfg *adept.Config, m adept.HarnessMode) *adept.Config {
 	if cfg == nil {
 		return nil
 	}
-	if cfg.HarnessModes == nil {
-		cfg.HarnessModes = map[string]adept.HarnessMode{}
-	}
-	cfg.HarnessModes[harness] = m
+	cfg.Mode = m
 	return cfg
 }
 
-func (s *store) GetHarnessMode(cfg *adept.Config, harness string) adept.HarnessMode {
-	if cfg == nil {
+func (s *store) GetMode(cfg *adept.Config) adept.HarnessMode {
+	if cfg == nil || cfg.Mode == "" {
 		return adept.ModeSymlink
 	}
-	if m, ok := cfg.HarnessModes[harness]; ok && m != "" {
-		return m
-	}
-	return adept.ModeSymlink
+	return cfg.Mode
 }
 
 func defaultAtomicWrite(path string, data []byte, mode os.FileMode) error {

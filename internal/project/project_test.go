@@ -111,16 +111,13 @@ func TestProject_SaveConfig_RoundTrip(t *testing.T) {
 	desired := &adept.Config{
 		Schema:    adept.ConfigSchemaVersion,
 		Harnesses: []string{"claude-code", "cursor"},
-		HarnessModes: map[string]adept.HarnessMode{
-			"claude-code": adept.ModeSymlink,
-			"cursor":      adept.ModeCopy,
-		},
+		Mode:      adept.ModeCopy,
 	}
 	require.NoError(t, p.SaveConfig(desired))
 	loaded, err := p.Config()
 	require.NoError(t, err)
 	require.Equal(t, desired.Harnesses, loaded.Harnesses)
-	require.Equal(t, desired.HarnessModes["cursor"], loaded.HarnessModes["cursor"])
+	require.Equal(t, desired.Mode, loaded.Mode)
 }
 
 func TestProject_InstallSkill_RejectsEmptyID(t *testing.T) {

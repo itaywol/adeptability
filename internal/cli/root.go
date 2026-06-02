@@ -77,25 +77,12 @@ func NewRoot(b BuildInfo) *cobra.Command {
 
 	root.AddCommand(
 		newInitCmd(deps),
-		newBootstrapCmd(deps),
-		newListCmd(deps),
-		newAddCmd(deps),
-		newShowCmd(deps),
-		newInstallCmd(deps),
-		newUninstallCmd(deps),
-		newPullCmd(deps),
-		newPushCmd(deps),
-		newStatusCmd(deps),
+		newSyncCmd(deps),
+		newSyncFromCmd(deps),
 		newDiffCmd(deps),
-		newResolveCmd(deps),
-		newHarnessCmd(deps),
-		newRenderCmd(deps),
-		newApplyAllCmd(deps),
-		newOrgCmd(deps),
+		newListCmd(deps),
+		newShowCmd(deps),
 		newDoctorCmd(deps),
-		newVerifyCmd(deps),
-		newScanCmd(deps),
-		newUpgradeCmd(deps),
 	)
 	return root
 }
