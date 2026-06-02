@@ -51,7 +51,12 @@ adept sync-from [--harness <id>] [--all] [--force] [--dry-run]
 adept diff     [--harness <id>]
 
 adept harness  add <id> | remove <id> | list
-adept skill    add <id> [--from <path>] [--edit] | edit <id> | remove <id> | list
+adept skill    add <id> [--from <path>] [--edit]                       # local scaffold/import
+               | install <owner>/<repo>[#ref]/<skill> [--yes] [--allow-unsafe]   # from skills.sh / GitHub
+               | update [<id>]                                          # bump locked pin
+               | info <slug>                                            # repo, stars, license, sha, installs
+               | search <query>                                         # skills.sh search
+               | edit <id> | remove <id> | list
 adept library  add <name> --from <url> [--ref <branch>] | remove <name> [--purge] | list
 ```
 
@@ -91,7 +96,24 @@ adept sync                   # library skills + project canonical → harnesses
 
 Authenticate via git's native chain — SSH agent, `~/.netrc`, or the configured `credential.helper` (gh CLI, osxkeychain, libsecret). `adept` never sees the secret; if git prompts, it prompts you directly.
 
-### 4. Stack multiple libraries (Model B union)
+### 4. Install a single skill from skills.sh
+
+```bash
+adept skill search find-skills              # query skills.sh
+adept skill info  vercel-labs/skills/find-skills
+adept skill install vercel-labs/skills/find-skills   # preview + Y/n
+adept skill update                          # bump every locked external skill
+```
+
+`skill install` clones the upstream GitHub repo at a resolved SHA, extracts the requested skill directory only, writes it into `.adeptability/skills/<id>/`, and pins the upstream provenance in `.adeptability/adept.lock.json` (`source`, `slug`, `repo`, `sha`, `content_hash`, `installed_at`).
+
+Before every install the CLI prints a preview (repo URL, SHA, stars, install count, license, file list) and runs a sandbox sniff over the SKILL.md body for known dangerous patterns (`curl ... | sh`, `rm -rf /`, `sudo`, secret references, base64 decode pipelines). Warnings block the install unless `--allow-unsafe` is passed; `--yes` skips the y/N confirm but never bypasses the sniff.
+
+On every `adept sync`, locked external skills are re-hashed against `content_hash` — local edits surface as a warning with a pointer to `adept skill update <id>` or remove + re-install.
+
+Non-GitHub catalog sources surfaced by skills.sh (e.g. `skills.volces.com`) are not installable yet; use `adept library add` against the upstream git URL instead.
+
+### 5. Stack multiple libraries (Model B union)
 
 ```bash
 adept library add core   --from git@github.com:my-org/core-skills.git

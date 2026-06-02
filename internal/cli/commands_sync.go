@@ -33,6 +33,7 @@ func newSyncCmd(d *Deps) *cobra.Command {
 		if err := d.LoadUserAdapters(); err != nil {
 			d.Log.Warn("load user adapters", "err", err)
 		}
+		verifyExternalLocks(d, p, cmd.ErrOrStderr())
 		skills, err := resolveSkills(d, p)
 		if err != nil {
 			return err

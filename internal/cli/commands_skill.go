@@ -29,6 +29,10 @@ func newSkillCmd(d *Deps) *cobra.Command {
 		newSkillEditCmd(d),
 		newSkillRemoveCmd(d),
 		newSkillListCmd(d),
+		newSkillInstallCmd(d),
+		newSkillUpdateCmd(d),
+		newSkillInfoCmd(d),
+		newSkillSearchCmd(d),
 	)
 	return c
 }

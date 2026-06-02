@@ -17,6 +17,8 @@ import (
 	"github.com/itaywol/adeptability/internal/log"
 	"github.com/itaywol/adeptability/internal/org"
 	"github.com/itaywol/adeptability/internal/project"
+	gh "github.com/itaywol/adeptability/internal/registry/github"
+	"github.com/itaywol/adeptability/internal/registry/skillssh"
 	"github.com/itaywol/adeptability/internal/render/claude"
 	"github.com/itaywol/adeptability/internal/render/codex"
 	"github.com/itaywol/adeptability/internal/render/copilot"
@@ -55,6 +57,10 @@ type Deps struct {
 
 	// Library remote (used by init --from)
 	OrgParser org.Parser
+
+	// External skill registry clients (skill install/search/info)
+	GitHub   gh.Client
+	SkillsSh skillssh.Client
 }
 
 // NewDeps wires concrete implementations. This is the only place where
@@ -104,6 +110,8 @@ func NewDeps(gf *GlobalFlags, b BuildInfo) (*Deps, error) {
 		Orchestrator:  harness.NewOrchestrator(reg, parser, writer, linker, logger),
 		AdapterLoader: adapterLoader,
 		OrgParser:     orgParser,
+		GitHub:        gh.New(nil),
+		SkillsSh:      skillssh.New(nil, ""),
 	}, nil
 }
 
