@@ -86,6 +86,11 @@ func (l *loader) LoadSkillDir(dir string) (*adept.Skill, error) {
 		return nil, fmt.Errorf("loader: read %s: %w", yamlPath, yamlErr)
 	}
 
+	// Directory name is authoritative for skill identity.
+	if skill.ID == "" {
+		skill.ID = filepath.Base(dir)
+	}
+
 	if err := l.validator.Validate(skill); err != nil {
 		return nil, err
 	}

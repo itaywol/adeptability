@@ -37,6 +37,19 @@ func (p *parser) ParseSkillYAML(data []byte) (*adept.Skill, error) {
 	if err := yaml.Unmarshal(data, s); err != nil {
 		return nil, fmt.Errorf("parse skill.yaml: %w: %v", adept.ErrSkillInvalid, err)
 	}
+	// vercel-labs/skills (and most harness-native SKILL.md) writes `name:`
+	// where adept canonical writes `id:`. Accept either — directory name
+	// remains authoritative at the loader layer, but we map name→id here
+	// so a hand-authored or installed file does not fail validation just
+	// because it follows the upstream agent-skills convention.
+	if s.ID == "" {
+		var alias struct {
+			Name string `yaml:"name"`
+		}
+		if err := yaml.Unmarshal(data, &alias); err == nil && alias.Name != "" {
+			s.ID = alias.Name
+		}
+	}
 	applyDefaults(s)
 	return s, nil
 }

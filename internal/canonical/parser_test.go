@@ -49,6 +49,36 @@ func TestParser_ParseSkillYAML_Empty(t *testing.T) {
 	require.ErrorIs(t, err, adept.ErrSkillInvalid)
 }
 
+// Vercel-labs/skills (and most harness-native SKILL.md) uses `name:` in
+// frontmatter. Parser must accept it as an alias for `id:` so installed
+// skills load without manual rewriting.
+func TestParser_ParseSkillYAML_NameAliasesID(t *testing.T) {
+	t.Parallel()
+	p := NewParser()
+	got, err := p.ParseSkillYAML([]byte("name: find-skills\ndescription: vercel style\n"))
+	require.NoError(t, err)
+	require.Equal(t, "find-skills", got.ID)
+	require.Equal(t, "vercel style", got.Description)
+}
+
+func TestParser_ParseFrontmatter_NameAliasesID(t *testing.T) {
+	t.Parallel()
+	p := NewParser()
+	md := []byte("---\nname: find-skills\ndescription: vercel style\n---\nbody\n")
+	got, _, err := p.ParseFrontmatter(md)
+	require.NoError(t, err)
+	require.Equal(t, "find-skills", got.ID)
+}
+
+// id wins when both are present — explicit canonical key beats the alias.
+func TestParser_ParseSkillYAML_ExplicitIDWinsOverName(t *testing.T) {
+	t.Parallel()
+	p := NewParser()
+	got, err := p.ParseSkillYAML([]byte("id: canonical\nname: alias\ndescription: x\n"))
+	require.NoError(t, err)
+	require.Equal(t, "canonical", got.ID)
+}
+
 func TestParser_ParseSkillYAML_InvalidYAML(t *testing.T) {
 	t.Parallel()
 	p := NewParser()

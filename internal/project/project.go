@@ -176,6 +176,10 @@ func (p *project) GetSkill(id string) (*adept.Skill, error) {
 	if err != nil {
 		return nil, fmt.Errorf("project get %q: %w", id, err)
 	}
+	// Directory name is authoritative — overrides any in-file id/name
+	// that drifted away from the on-disk layout (renames, installs from
+	// external slugs, etc.).
+	skill.ID = id
 	skill.Body = body
 	files, err := p.loadSidecars(id)
 	if err != nil {
