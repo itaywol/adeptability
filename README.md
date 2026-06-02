@@ -243,6 +243,10 @@ The schema is published at `pkg/adeptschema/skill.schema.json` and validated on 
 
 ## Harness Support
 
+### Specialized adapters
+
+These harnesses ship richer renderers (sidecar handling, glob translation, aggregation, size budgets):
+
 | Harness | Output | Format | Activation translation |
 |---|---|---|---|
 | Claude Code | `.claude/skills/<id>/SKILL.md` | per-skill, full sidecars | `description` drives agent decision; `allowed-tools` carried; `manual` → `disable-model-invocation` |
@@ -251,7 +255,58 @@ The schema is published at `pkg/adeptschema/skill.schema.json` and validated on 
 | Codex | `AGENTS.md` | aggregated single file, 32 KiB cap | sections with markers; oldest/largest dropped first under budget |
 | GitHub Copilot | `.github/instructions/<bucket>.instructions.md` | aggregated per-glob | `always` and matching glob sets bucket together |
 
-Need another harness? Drop a YAML adapter file in `$ADEPT_LIBRARY/libs/<name>/adapters/` and it loads at startup — no recompile.
+### Generic per-skill adapters (vercel-labs/skills agent set)
+
+Every harness in the [vercel-labs/skills supported-agents matrix](https://github.com/vercel-labs/skills#supported-agents) is registered out of the box via the generic per-skill adapter. The adapter writes `SKILL.md` (with `name`/`description`/`allowed-tools`) plus any sidecars, and reverse-imports the same shape.
+
+| `--harness` id | Output |
+|---|---|
+| `aider-desk` | `.aider-desk/skills/<id>/SKILL.md` |
+| `amp`, `kimi-cli`, `replit`, `universal` | `.agents/skills/<id>/SKILL.md` |
+| `antigravity` | `.agents/skills/<id>/SKILL.md` |
+| `augment` | `.augment/skills/<id>/SKILL.md` |
+| `bob` | `.bob/skills/<id>/SKILL.md` |
+| `openclaw` | `skills/<id>/SKILL.md` |
+| `cline`, `dexto`, `warp` | `.agents/skills/<id>/SKILL.md` |
+| `codearts-agent` | `.codeartsdoer/skills/<id>/SKILL.md` |
+| `codebuddy` | `.codebuddy/skills/<id>/SKILL.md` |
+| `codemaker` | `.codemaker/skills/<id>/SKILL.md` |
+| `codestudio` | `.codestudio/skills/<id>/SKILL.md` |
+| `command-code` | `.commandcode/skills/<id>/SKILL.md` |
+| `continue` | `.continue/skills/<id>/SKILL.md` |
+| `cortex` | `.cortex/skills/<id>/SKILL.md` |
+| `crush` | `.crush/skills/<id>/SKILL.md` |
+| `deepagents`, `firebender`, `gemini-cli`, `github-copilot` | `.agents/skills/<id>/SKILL.md` |
+| `devin` | `.devin/skills/<id>/SKILL.md` |
+| `droid` | `.factory/skills/<id>/SKILL.md` |
+| `forgecode` | `.forge/skills/<id>/SKILL.md` |
+| `goose` | `.goose/skills/<id>/SKILL.md` |
+| `hermes-agent` | `.hermes/skills/<id>/SKILL.md` |
+| `junie` | `.junie/skills/<id>/SKILL.md` |
+| `iflow-cli` | `.iflow/skills/<id>/SKILL.md` |
+| `kilo` | `.kilocode/skills/<id>/SKILL.md` |
+| `kiro-cli` | `.kiro/skills/<id>/SKILL.md` |
+| `kode` | `.kode/skills/<id>/SKILL.md` |
+| `mcpjam` | `.mcpjam/skills/<id>/SKILL.md` |
+| `mistral-vibe` | `.vibe/skills/<id>/SKILL.md` |
+| `mux` | `.mux/skills/<id>/SKILL.md` |
+| `openhands` | `.openhands/skills/<id>/SKILL.md` |
+| `pi` | `.pi/skills/<id>/SKILL.md` |
+| `qoder` | `.qoder/skills/<id>/SKILL.md` |
+| `qwen-code` | `.qwen/skills/<id>/SKILL.md` |
+| `rovodev` | `.rovodev/skills/<id>/SKILL.md` |
+| `roo` | `.roo/skills/<id>/SKILL.md` |
+| `tabnine-cli` | `.tabnine/agent/skills/<id>/SKILL.md` |
+| `trae`, `trae-cn` | `.trae/skills/<id>/SKILL.md` |
+| `windsurf` | `.windsurf/skills/<id>/SKILL.md` |
+| `zencoder` | `.zencoder/skills/<id>/SKILL.md` |
+| `neovate` | `.neovate/skills/<id>/SKILL.md` |
+| `pochi` | `.pochi/skills/<id>/SKILL.md` |
+| `adal` | `.adal/skills/<id>/SKILL.md` |
+
+Run `adept harness list` for the live registry. Multiple agents sharing the same on-disk path (e.g. the `.agents/skills/` cohort) are registered as distinct ids so you can opt-in by name; their writes are idempotent.
+
+Need yet another harness? Drop a YAML adapter file in `$ADEPT_LIBRARY/libs/<name>/adapters/` and it loads at startup — no recompile.
 
 ## Architecture
 

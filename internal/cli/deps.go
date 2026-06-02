@@ -118,6 +118,9 @@ func NewDeps(gf *GlobalFlags, b BuildInfo) (*Deps, error) {
 	if err := registerBuiltinAdapters(reg, writer, linker); err != nil {
 		return nil, fmt.Errorf("register built-in adapters: %w", err)
 	}
+	if err := registerVercelAgents(reg, writer, linker); err != nil {
+		return nil, fmt.Errorf("register vercel agents: %w", err)
+	}
 
 	adapterValidator, err := adapter.NewSchemaValidator()
 	if err != nil {
