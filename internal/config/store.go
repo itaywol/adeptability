@@ -150,7 +150,7 @@ type canonicalForm struct {
 	Schema    int                `json:"schema"`
 	Harnesses []string           `json:"harnesses,omitempty"`
 	Mode      adept.HarnessMode  `json:"mode,omitempty"`
-	Library   *adept.LibraryRef  `json:"library,omitempty"`
+	Libraries []adept.LibraryRef `json:"libraries,omitempty"`
 }
 
 func (s *store) canonicalize(cfg *adept.Config) canonicalForm {
@@ -162,9 +162,8 @@ func (s *store) canonicalize(cfg *adept.Config) canonicalForm {
 	if len(cfg.Harnesses) > 0 {
 		out.Harnesses = append(out.Harnesses, cfg.Harnesses...)
 	}
-	if cfg.Library != nil {
-		copyLib := *cfg.Library
-		out.Library = &copyLib
+	if len(cfg.Libraries) > 0 {
+		out.Libraries = append(out.Libraries, cfg.Libraries...)
 	}
 	return out
 }

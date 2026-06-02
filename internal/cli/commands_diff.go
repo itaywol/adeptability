@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/itaywol/adeptability/internal/harness"
 	"github.com/itaywol/adeptability/pkg/adept"
 )
 
@@ -21,6 +22,7 @@ func newDiffCmd(d *Deps) *cobra.Command {
 		Args:  cobra.NoArgs,
 	}
 	c.Flags().StringSliceVar(&harnessIDs, "harness", nil, "limit to specific harness ids (default: all enabled)")
+	_ = c.RegisterFlagCompletionFunc("harness", enabledHarnessCompletion(d))
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
 		p, err := d.Project()
 		if err != nil {
@@ -29,7 +31,14 @@ func newDiffCmd(d *Deps) *cobra.Command {
 		if err := d.LoadUserAdapters(); err != nil {
 			d.Log.Warn("load user adapters", "err", err)
 		}
-		reports, err := d.Orchestrator.Status(cmd.Context(), p, harnessIDs)
+		skills, err := resolveSkills(d, p)
+		if err != nil {
+			return err
+		}
+		reports, err := d.Orchestrator.Status(cmd.Context(), p, harness.StatusOptions{
+			HarnessIDs: harnessIDs,
+			Skills:     skills,
+		})
 		if err != nil {
 			return err
 		}

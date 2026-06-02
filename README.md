@@ -39,66 +39,99 @@ npm install -g @itaywol/adeptability
 docker run --rm -v "$PWD:/work" -w /work ghcr.io/itaywol/adeptability:latest --help
 ```
 
-## Quickstart — three flows, four verbs
+## Command surface
 
-The whole surface is `init`, `sync`, `sync-from`, `diff` (plus `list`, `show`, `doctor` for inspection). Pick whichever flow matches your starting point.
+Five top-level verbs + three subcommand groups. Everything else folds into them.
 
-### 1. Empty project
+```
+adept init     [--from <url>] [--ref <branch>] [--name <local>] [--mode symlink|copy]
+adept status
+adept sync     [--harness <id>] [--force] [--dry-run]
+adept sync-from [--harness <id>] [--all] [--force] [--dry-run]
+adept diff     [--harness <id>]
+
+adept harness  add <id> | remove <id> | list
+adept skill    add <id> [--from <path>] [--edit] | edit <id> | remove <id> | list
+adept library  add <name> --from <url> [--ref <branch>] | remove <name> [--purge] | list
+```
+
+Global flags: `--json`, `--log-level debug|info|warn|error`, `--project <path>`, `--library <path>`.
+
+Dynamic shell completion is shipped via cobra; run `adept completion zsh > "${fpath[1]}/_adept"` (or the equivalent for bash/fish) once and tab will fill in skill ids, harness ids, and library names.
+
+## The four user flows
+
+### 1. Empty project — author your own skills
 
 ```bash
 cd ./my-project
-adept init                # creates .adeptability/{skills,base}/ + config.json
-# author a canonical skill directly under .adeptability/skills/<id>/
-adept sync                # renders to every enabled harness
+adept init
+adept skill add lint-style --edit       # scaffolds + opens $EDITOR
+adept harness add claude-code
+adept harness add cursor
+adept sync
 ```
 
-### 2. Project that already has harness skills on disk
+### 2. Existing project with harness skills on disk
 
 ```bash
-cd ./my-project           # has .claude/, .cursor/, AGENTS.md, etc. already
-adept init                # auto-adopts existing skills, enables the matching harnesses
-adept diff                # confirm round-trip
-adept sync                # publish back out
+cd ./my-project              # already has .claude/, .cursor/, AGENTS.md, etc.
+adept init                   # auto-detects and adopts existing harness skills
+adept status                 # confirm what got enabled
+adept diff                   # confirm round-trip is clean
 ```
 
-### 3. Clone a remote library
+### 3. Clone a remote library and use its skills
 
 ```bash
-cd ./my-project
-adept init --from git@github.com:my-org/skills.git --ref main
-# library is cloned into $ADEPT_LIBRARY (default ~/.adeptability)
-# remote URL is persisted; future `adept` runs don't need --from again
-adept sync                # renders the org skills into your harnesses
+adept init --from git@github.com:my-org/skills.git --name shared
+adept harness add claude-code
+adept sync                   # library skills + project canonical → harnesses
 ```
 
-The `--mode symlink|copy` flag on `init` picks the global materialization strategy. `symlink` is the default; `copy` is forced automatically on filesystems that reject symlinks (e.g. some NTFS shares).
+Authenticate via git's native chain — SSH agent, `~/.netrc`, or the configured `credential.helper` (gh CLI, osxkeychain, libsecret). `adept` never sees the secret; if git prompts, it prompts you directly.
 
-## Commands
+### 4. Stack multiple libraries (Model B union)
 
-| Command | Purpose |
-|---|---|
-| `adept init [--from <url>] [--ref <branch>] [--mode symlink\|copy]` | Initialize project. Optionally clone a remote library and/or auto-adopt pre-existing harness skills. |
-| `adept sync [--harness <id>] [--force] [--dry-run]` | Render canonical skills → every enabled harness. The primary "publish" verb. |
-| `adept sync-from [--harness <id>] [--all] [--force] [--dry-run]` | Adopt harness-side edits back into canonical. Interactive prompt with no flags. |
-| `adept diff [--harness <id>]` | Per-harness drift report. Exit 2 when any drift is present. |
-| `adept list [--from-library]` | List project (default) or library skills. |
-| `adept show <id> [--from-library]` | Resolved skill metadata. |
-| `adept doctor` | Validate setup; exit 2 on issues. |
+```bash
+adept library add core   --from git@github.com:my-org/core-skills.git
+adept library add team-a --from git@github.com:my-org/team-a.git
+adept library list
 
-Every command accepts `--json` for machine-readable output, `--log-level debug|info|warn|error`, `--project <path>`, and `--library <path>`.
+# Resolution order: project canonical first, then each library in
+# `library list` order. First-wins on cross-library collisions; the
+# shadowed copy is reported via `adept status` and `adept skill list`.
+adept skill list
+```
+
+Override a library skill locally:
+
+```bash
+adept skill add my-shared-skill              # creates project canonical;
+                                             # automatically shadows the library copy
+adept sync
+```
+
+Reload changes from upstream:
+
+```bash
+cd $ADEPT_LIBRARY/libs/core && git pull      # or:
+adept library add core --from <same-url>     # re-clones / fetches
+```
 
 ## Round-trip example
 
 ```bash
 # bootstrap
 adept init --from git@github.com:my-org/skills.git
+adept harness add claude-code cursor
 adept sync
 
 # someone edits .cursor/rules/lint.mdc by hand
-adept diff --harness cursor          # → drift detected, exit 2
-adept sync-from --harness cursor     # → canonical adopts the edit
-adept sync                           # → re-publish to every harness
-adept diff                           # → clean
+adept diff --harness cursor            # → drift detected, exit 2
+adept sync-from --harness cursor       # → canonical adopts the edit
+adept sync                             # → re-publish to every harness
+adept diff                             # → clean
 ```
 
 ## Canonical Skill Format
@@ -136,15 +169,15 @@ The schema is published at `pkg/adeptschema/skill.schema.json` and validated on 
 | Codex | `AGENTS.md` | aggregated single file, 32 KiB cap | sections with markers; oldest/largest dropped first under budget |
 | GitHub Copilot | `.github/instructions/<bucket>.instructions.md` | aggregated per-glob | `always` and matching glob sets bucket together |
 
-Need another harness? Drop a YAML adapter file in `~/.adeptability/adapters/` and it loads at startup — no recompile.
+Need another harness? Drop a YAML adapter file in `$ADEPT_LIBRARY/libs/<name>/adapters/` and it loads at startup — no recompile.
 
 ## Architecture
 
-- **Library** at `~/.adeptability/skills/<id>/` (override with `$ADEPT_LIBRARY`). A plain directory by default; gets cloned in via `init --from <git-url>`.
+- **Library** at `$ADEPT_LIBRARY/libs/<name>/skills/<id>/` (root default: `$HOME/.adeptability`). Stack as many libraries as you want; each is a git clone (or local path) registered via `library add`.
 - **Project** at `<project>/.adeptability/skills/<id>/`. Last-synced snapshots live at `<project>/.adeptability/base/<id>/` — together with the live library they feed the 3-way drift detector.
-- **Status state machine**: `synced | ahead | behind | diverged | local-only | library-only` derived purely from hashing the three directories on demand. No lockfile.
+- **Resolution** (Model B union): project canonical first, then each library in config order. Project shadows library; first-wins on cross-library collisions. Warnings surface in `adept status` and `adept skill list`.
+- **Status state machine**: `synced | ahead | behind | diverged | local-only | library-only` derived purely from hashing the relevant directories on demand. No lockfile.
 - **Renderers** translate one canonical skill into harness-specific bytes. Aggregator renderers (Codex/Copilot) combine and enforce size budgets.
-- **Adapters** are pluggable — built-in via Go code, or config-driven via YAML.
 - **Mode** (`symlink` or `copy`) is project-wide and stored in `config.json`.
 
 ## Distribution

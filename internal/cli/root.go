@@ -89,12 +89,13 @@ func NewRoot(b BuildInfo) *cobra.Command {
 
 	root.AddCommand(
 		newInitCmd(deps),
+		newStatusCmd(deps),
 		newSyncCmd(deps),
 		newSyncFromCmd(deps),
 		newDiffCmd(deps),
-		newListCmd(deps),
-		newShowCmd(deps),
-		newDoctorCmd(deps),
+		newHarnessCmd(deps),
+		newSkillCmd(deps),
+		newLibraryCmd(deps),
 	)
 	applyUsageOnArgError(root)
 	return root

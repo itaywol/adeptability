@@ -28,7 +28,7 @@ func TestStore_Empty(t *testing.T) {
 	require.Equal(t, adept.ConfigSchemaVersion, cfg.Schema)
 	require.Empty(t, cfg.Harnesses)
 	require.Empty(t, cfg.Mode)
-	require.Nil(t, cfg.Library)
+	require.Empty(t, cfg.Libraries)
 }
 
 func TestStore_ReadMissingReturnsEmpty(t *testing.T) {
@@ -67,7 +67,9 @@ func TestStore_WritePopulatedRoundTrip(t *testing.T) {
 		Schema:    adept.ConfigSchemaVersion,
 		Harnesses: []string{"claude-code", "cursor"},
 		Mode:      adept.ModeCopy,
-		Library:   &adept.LibraryRef{Remote: "https://example.com/org.git", Ref: "v1"},
+		Libraries: []adept.LibraryRef{
+			{Name: "default", Remote: "https://example.com/org.git", Ref: "v1"},
+		},
 	}
 	require.NoError(t, s.Write(path, in))
 
@@ -76,7 +78,7 @@ func TestStore_WritePopulatedRoundTrip(t *testing.T) {
 	require.Equal(t, in.Schema, got.Schema)
 	require.Equal(t, in.Harnesses, got.Harnesses)
 	require.Equal(t, in.Mode, got.Mode)
-	require.Equal(t, in.Library, got.Library)
+	require.Equal(t, in.Libraries, got.Libraries)
 }
 
 func TestStore_WriteCanonicalFieldOrder(t *testing.T) {
@@ -87,13 +89,13 @@ func TestStore_WriteCanonicalFieldOrder(t *testing.T) {
 		Schema:    adept.ConfigSchemaVersion,
 		Harnesses: []string{"claude-code"},
 		Mode:      adept.ModeSymlink,
-		Library:   &adept.LibraryRef{Remote: "https://x.example/org"},
+		Libraries: []adept.LibraryRef{{Name: "default", Remote: "https://x.example/org"}},
 	}
 	require.NoError(t, s.Write(path, in))
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 	body := string(data)
-	order := []string{`"schema"`, `"harnesses"`, `"mode"`, `"library"`}
+	order := []string{`"schema"`, `"harnesses"`, `"mode"`, `"libraries"`}
 	prev := -1
 	for _, key := range order {
 		idx := strings.Index(body, key)

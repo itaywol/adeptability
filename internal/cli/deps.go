@@ -183,6 +183,17 @@ func (d *Deps) ResolveLibraryRoot() (string, error) {
 	return filepath.Join(home, adept.DefaultLibraryDir), nil
 }
 
+// ResolveLibrariesRoot returns the directory under which named libraries
+// live: <ResolveLibraryRoot>/libs/. Each library has its own subdirectory
+// (e.g. libs/default/skills/<id>/, libs/org-shared/skills/<id>/).
+func (d *Deps) ResolveLibrariesRoot() (string, error) {
+	root, err := d.ResolveLibraryRoot()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(root, "libs"), nil
+}
+
 // ResolveProjectRoot returns --project or cwd.
 func (d *Deps) ResolveProjectRoot() (string, error) {
 	if d.Flags != nil && d.Flags.ProjectDir != "" {

@@ -13,7 +13,8 @@ func TestRootHasAllCommands(t *testing.T) {
 	t.Parallel()
 	root := NewRoot(BuildInfo{Version: "test", Commit: "abc", Date: "today"})
 	want := []string{
-		"init", "sync", "sync-from", "diff", "list", "show", "doctor",
+		"init", "status", "sync", "sync-from", "diff",
+		"harness", "skill", "library",
 	}
 	got := map[string]bool{}
 	for _, c := range root.Commands() {
@@ -32,9 +33,9 @@ func TestRootRejectsCutCommands(t *testing.T) {
 		registered[strings.Fields(c.Use)[0]] = true
 	}
 	for _, gone := range []string{
-		"add", "install", "uninstall", "push", "pull", "status", "resolve",
-		"bootstrap", "harness", "org", "render", "apply-all", "scan",
-		"verify", "upgrade",
+		"add", "install", "uninstall", "push", "pull", "resolve",
+		"bootstrap", "org", "render", "apply-all", "scan",
+		"verify", "upgrade", "list", "show", "doctor",
 	} {
 		require.Falsef(t, registered[gone], "command %q must be cut", gone)
 	}

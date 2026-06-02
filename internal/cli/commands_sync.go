@@ -24,6 +24,7 @@ func newSyncCmd(d *Deps) *cobra.Command {
 	c.Flags().StringSliceVar(&harnessIDs, "harness", nil, "limit to specific harness ids (default: all enabled)")
 	c.Flags().BoolVar(&force, "force", false, "overwrite drifted harness files")
 	c.Flags().BoolVar(&dryRun, "dry-run", false, "print what would change, write nothing")
+	_ = c.RegisterFlagCompletionFunc("harness", enabledHarnessCompletion(d))
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
 		p, err := d.Project()
 		if err != nil {
@@ -32,10 +33,15 @@ func newSyncCmd(d *Deps) *cobra.Command {
 		if err := d.LoadUserAdapters(); err != nil {
 			d.Log.Warn("load user adapters", "err", err)
 		}
+		skills, err := resolveSkills(d, p)
+		if err != nil {
+			return err
+		}
 		results, err := d.Orchestrator.Sync(cmd.Context(), p, harness.SyncOptions{
 			HarnessIDs: harnessIDs,
 			Force:      force,
 			DryRun:     dryRun,
+			Skills:     skills,
 		})
 		if err != nil {
 			return err

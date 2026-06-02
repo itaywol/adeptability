@@ -270,7 +270,7 @@ func TestOrchestrator_Status_NoHarnessesReturnsNil(t *testing.T) {
 	p := newProj(t)
 	installSkill(t, p, "skill-a")
 	orch := newOrch(t)
-	reports, err := orch.Status(context.Background(), p, nil)
+	reports, err := orch.Status(context.Background(), p, StatusOptions{})
 	require.NoError(t, err)
 	require.Empty(t, reports)
 }
@@ -294,7 +294,7 @@ func TestOrchestrator_Status_ReportsMissing(t *testing.T) {
 		return dr, nil
 	}
 	orch := newOrch(t, a)
-	reports, err := orch.Status(context.Background(), p, nil)
+	reports, err := orch.Status(context.Background(), p, StatusOptions{})
 	require.NoError(t, err)
 	require.Len(t, reports, 1)
 	require.Equal(t, []string{filepath.Join(".alpha", "skill-a.md")}, reports[0].Missing)

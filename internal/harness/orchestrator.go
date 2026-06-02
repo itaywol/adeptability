@@ -28,6 +28,11 @@ type SyncOptions struct {
 	Force bool
 	// DryRun computes the planned outputs but skips writes.
 	DryRun bool
+	// Skills pre-resolves the skill set passed to the harness adapters.
+	// When nil, orchestrator falls back to project.ListSkills (project-only
+	// mode). The CLI layer fills this in with the project ∪ library union
+	// so multi-library projects render library skills too.
+	Skills []*adept.Skill
 }
 
 // SyncResult summarizes what Sync did (or would have done, when DryRun) for
@@ -47,12 +52,24 @@ type SyncResult struct {
 	Drift           adept.DriftReport
 }
 
+// StatusOptions configures a single Status invocation.
+type StatusOptions struct {
+	// HarnessIDs limits the drift report to specific harnesses. Empty means
+	// "every harness enabled in the project config".
+	HarnessIDs []string
+	// Skills pre-resolves the skill set used for the drift comparison.
+	// When nil, orchestrator falls back to project.ListSkills (project-only
+	// mode). The CLI fills this with the resolved union so multi-library
+	// projects do not report library skills as "missing".
+	Skills []*adept.Skill
+}
+
 // Orchestrator drives the harness adapters. It is the only component that
 // knows how to fan out rendering across CPUs, aggregate per harness, and
 // apply the symlink-or-copy contract.
 type Orchestrator interface {
 	Sync(ctx context.Context, p project.Project, opts SyncOptions) ([]SyncResult, error)
-	Status(ctx context.Context, p project.Project, harnessIDs []string) ([]adept.DriftReport, error)
+	Status(ctx context.Context, p project.Project, opts StatusOptions) ([]adept.DriftReport, error)
 	Import(ctx context.Context, p project.Project, opts ImportOptions) (ImportReport, error)
 }
 
@@ -91,9 +108,18 @@ func (o *orchestrator) Sync(ctx context.Context, p project.Project, opts SyncOpt
 	if len(harnessIDs) == 0 {
 		return nil, nil
 	}
-	skills, err := p.ListSkills()
-	if err != nil {
-		return nil, fmt.Errorf("sync: list skills: %w", err)
+	// Resolved set = project canonical ∪ external sources (libraries),
+	// with project shadowing libraries on shared ids. When opts.Skills is
+	// non-nil the caller has already resolved; orchestrator stays oblivious
+	// to library plumbing.
+	var skills []*adept.Skill
+	if opts.Skills != nil {
+		skills = opts.Skills
+	} else {
+		skills, err = p.ListSkills()
+		if err != nil {
+			return nil, fmt.Errorf("sync: list skills: %w", err)
+		}
 	}
 	results := make([]SyncResult, 0, len(harnessIDs))
 	// Mode is a single global default applied to every harness in this
@@ -320,22 +346,27 @@ func (o *orchestrator) bytesAlreadyOnDisk(absPath string, want []byte) (bool, er
 	return true, nil
 }
 
-func (o *orchestrator) Status(ctx context.Context, p project.Project, harnessIDs []string) ([]adept.DriftReport, error) {
+func (o *orchestrator) Status(ctx context.Context, p project.Project, opts StatusOptions) ([]adept.DriftReport, error) {
 	_ = ctx
 	cfg, err := p.Config()
 	if err != nil {
 		return nil, fmt.Errorf("status: load config: %w", err)
 	}
-	ids := harnessIDs
+	ids := opts.HarnessIDs
 	if len(ids) == 0 {
 		ids = append([]string{}, cfg.Harnesses...)
 	}
 	if len(ids) == 0 {
 		return nil, nil
 	}
-	skills, err := p.ListSkills()
-	if err != nil {
-		return nil, fmt.Errorf("status: list skills: %w", err)
+	var skills []*adept.Skill
+	if opts.Skills != nil {
+		skills = opts.Skills
+	} else {
+		skills, err = p.ListSkills()
+		if err != nil {
+			return nil, fmt.Errorf("status: list skills: %w", err)
+		}
 	}
 	reports := make([]adept.DriftReport, 0, len(ids))
 	for _, hid := range ids {

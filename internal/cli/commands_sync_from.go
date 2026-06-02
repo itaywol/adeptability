@@ -35,6 +35,7 @@ func newSyncFromCmd(d *Deps) *cobra.Command {
 	c.Flags().BoolVar(&all, "all", false, "non-interactive: adopt from every harness (strategy=first)")
 	c.Flags().BoolVar(&dryRun, "dry-run", false, "report what would be imported, write nothing")
 	c.Flags().BoolVar(&force, "force", false, "overwrite existing project canonical content")
+	_ = c.RegisterFlagCompletionFunc("harness", enabledHarnessCompletion(d))
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
 		p, err := d.Project()
 		if err != nil {
@@ -101,7 +102,11 @@ func (r *syncFromRenderable) Plain(w io.Writer) error {
 // prompts per drifted harness whether to adopt. Selected harnesses are
 // passed back through Import with strategy=first.
 func runInteractiveSyncFrom(ctx context.Context, d *Deps, p project.Project, w io.Writer, in io.Reader, dryRun, force bool) error {
-	reports, err := d.Orchestrator.Status(ctx, p, nil)
+	skills, err := resolveSkills(d, p)
+	if err != nil {
+		return err
+	}
+	reports, err := d.Orchestrator.Status(ctx, p, harness.StatusOptions{Skills: skills})
 	if err != nil {
 		return err
 	}
