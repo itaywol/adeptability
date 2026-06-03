@@ -24,7 +24,7 @@ func TestE2E_MultiFileSkill(t *testing.T) {
 	}
 
 	repoRoot := findRepoRoot(t)
-	binPath := filepath.Join(t.TempDir(), "adept")
+	binPath := adeptBin(t.TempDir())
 	buildBinary(t, repoRoot, binPath)
 
 	lib := filepath.Join(t.TempDir(), "lib")

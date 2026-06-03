@@ -8,11 +8,23 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 )
+
+// adeptBin returns the path the e2e binary is built to. `go build` appends
+// `.exe` on Windows, so the test binary path must too — otherwise the build
+// stat and exec both miss the file.
+func adeptBin(dir string) string {
+	name := "adept"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	return filepath.Join(dir, name)
+}
 
 // TestE2E exercises the v0.4 UX-refactor surface end-to-end:
 //
@@ -39,7 +51,7 @@ func TestE2E(t *testing.T) {
 	}
 
 	repoRoot := findRepoRoot(t)
-	binPath := filepath.Join(t.TempDir(), "adept")
+	binPath := adeptBin(t.TempDir())
 	buildBinary(t, repoRoot, binPath)
 
 	libRoot := filepath.Join(t.TempDir(), "lib")
