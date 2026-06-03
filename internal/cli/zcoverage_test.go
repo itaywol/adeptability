@@ -302,10 +302,12 @@ func TestValidateSkillID(t *testing.T) {
 		ok bool
 	}{
 		{"", false},
-		{"good_id-1", true},
+		{"good-id-1", true},
 		{"a", true},
-		{"Bad", false},       // uppercase
-		{"-lead", false},     // leading dash
+		{"under_score", false}, // underscore no longer allowed
+		{"trail-", false},      // trailing dash
+		{"Bad", false},         // uppercase
+		{"-lead", false},       // leading dash
 		{"a/b", false},       // slash
 		{"a b", false},       // space
 		{"dotted.id", false}, // dot

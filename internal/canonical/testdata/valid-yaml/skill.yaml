@@ -1,4 +1,4 @@
-id: valid_yaml_skill
+id: valid-yaml-skill
 description: A valid skill driven by skill.yaml
 activation: agent
 tags:

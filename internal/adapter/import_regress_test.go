@@ -94,12 +94,12 @@ func TestImport_PerSkill_ValidIDPreserved(t *testing.T) {
 	path := filepath.Join(root, ".junie", "guidelines", "alpha.md")
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
 	require.NoError(t, os.WriteFile(path,
-		[]byte("---\nid: my_skill-01\ndescription: hi\n---\nbody\n"), 0o644))
+		[]byte("---\nid: my-skill-01\ndescription: hi\n---\nbody\n"), 0o644))
 
 	out, err := a.Import(context.Background(), root)
 	require.NoError(t, err)
 	require.Len(t, out, 1)
-	require.Equal(t, "my_skill-01", out[0].Skill.ID)
+	require.Equal(t, "my-skill-01", out[0].Skill.ID)
 }
 
 // TestImport_PerSkill_ExplicitAgentActivationNotOverridden is a regression test

@@ -34,7 +34,7 @@ canonical skill  ──render──▶  .claude/skills/…   (per-skill)
 
 ```markdown
 ---
-id: pr-review                 # ^[a-z0-9_][a-z0-9_-]{0,49}$ — matches the directory name
+id: pr-review                 # ^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$ — matches the directory name
 description: Use before opening a PR. Tests, security, performance.   # <= 280 chars
 activation: agent             # always | globs | agent | manual
 globs: []                     # REQUIRED when activation: globs

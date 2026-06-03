@@ -22,4 +22,10 @@ const (
 
 // SkillIDPattern is the validation regex for skill ids. Kept as a string here so
 // pkg/adept stays import-free; internal/canonical compiles it.
-const SkillIDPattern = `^[a-z0-9_][a-z0-9_-]{0,49}$`
+//
+// The charset is the lowest common denominator across harnesses: lowercase
+// ASCII letters, digits, and internal hyphens, no leading/trailing hyphen and
+// no underscore. This matches the Agent Skills `name` rule (Claude Code,
+// OpenCode) so a valid canonical id always renders a valid harness name and
+// directory. Length is capped at 50 characters.
+const SkillIDPattern = `^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$`

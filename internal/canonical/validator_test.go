@@ -19,7 +19,7 @@ func TestValidator_Valid(t *testing.T) {
 	t.Parallel()
 	v := newTestValidator(t)
 	s := &adept.Skill{
-		ID:          "ok_skill",
+		ID:          "ok-skill",
 		Description: "fine",
 		Activation:  adept.ActivationAgent,
 	}
@@ -50,7 +50,7 @@ func TestValidator_MissingDescription(t *testing.T) {
 	t.Parallel()
 	v := newTestValidator(t)
 	s := &adept.Skill{
-		ID: "good_id",
+		ID: "good-id",
 	}
 	err := v.Validate(s)
 	require.Error(t, err)
@@ -61,7 +61,7 @@ func TestValidator_GlobsActivationRequiresGlobs(t *testing.T) {
 	t.Parallel()
 	v := newTestValidator(t)
 	s := &adept.Skill{
-		ID:          "ok_skill",
+		ID:          "ok-skill",
 		Description: "x",
 		Activation:  adept.ActivationGlobs,
 	}
@@ -77,7 +77,7 @@ func TestValidator_DescriptionTooLong(t *testing.T) {
 	t.Parallel()
 	v := newTestValidator(t)
 	s := &adept.Skill{
-		ID:          "ok_skill",
+		ID:          "ok-skill",
 		Description: strings.Repeat("x", 281),
 	}
 	err := v.Validate(s)
