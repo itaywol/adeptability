@@ -48,6 +48,32 @@ func TestImport_DisableModelInvocationInFrontmatterFlipsManual(t *testing.T) {
 	require.Equal(t, adept.ActivationManual, out[0].Skill.Activation)
 }
 
+// TestImport_GlobActivationRoundTrips renders a glob-activated skill and imports
+// the result, asserting that the " (matches: …)" hint the renderer appends to
+// the description is stripped and Globs + activation=globs are recovered, so
+// push -> import -> push is idempotent.
+func TestImport_GlobActivationRoundTrips(t *testing.T) {
+	root := t.TempDir()
+	orig := &adept.Skill{
+		ID:          "glob-rt",
+		Description: "Go lint guardrails",
+		Activation:  adept.ActivationGlobs,
+		Globs:       []string{"cmd/**/*.go", "internal/**/*.go"},
+		Body:        "Run go vet.",
+	}
+	rendered, err := New().Render(context.Background(), adept.RenderInput{Skill: orig, Harness: Spec()})
+	require.NoError(t, err)
+	importRegressWriteSkill(t, root, orig.ID, string(rendered.Bytes))
+
+	out, err := (&Adapter{}).Import(context.Background(), root)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	got := out[0].Skill
+	require.Equal(t, adept.ActivationGlobs, got.Activation)
+	require.Equal(t, orig.Globs, got.Globs)
+	require.Equal(t, "Go lint guardrails", got.Description, "the (matches: …) hint must be stripped")
+}
+
 // TestImport_DisableModelInvocationFalseStaysAgent confirms a `false` value is
 // not flipped even when the body mentions the literal `true` string.
 func TestImport_DisableModelInvocationFalseStaysAgent(t *testing.T) {

@@ -57,7 +57,7 @@ func (a *Adapter) Import(_ context.Context, projectRoot string) ([]adept.Importe
 			skill.Activation = adept.ActivationAlways
 		case len(fm.Globs) > 0:
 			skill.Activation = adept.ActivationGlobs
-			skill.Globs = fm.Globs
+			skill.Globs = []string(fm.Globs)
 		default:
 			skill.Activation = adept.ActivationAgent
 		}
@@ -75,8 +75,40 @@ func (a *Adapter) Import(_ context.Context, projectRoot string) ([]adept.Importe
 
 type cursorFrontmatter struct {
 	Description string   `yaml:"description"`
-	Globs       []string `yaml:"globs"`
+	Globs       csvGlobs `yaml:"globs"`
 	AlwaysApply bool     `yaml:"alwaysApply"`
+}
+
+// csvGlobs decodes Cursor's `globs` field. adept emits it as a bare
+// comma-separated scalar (the format Cursor actually expects), but older
+// adept output and hand-authored rules may write it as a YAML sequence.
+// Both decode to a string slice so import is tolerant of either form.
+type csvGlobs []string
+
+func (g *csvGlobs) UnmarshalYAML(value *yaml.Node) error {
+	switch value.Kind {
+	case yaml.ScalarNode:
+		var s string
+		if err := value.Decode(&s); err != nil {
+			return err
+		}
+		var out []string
+		for _, p := range strings.Split(s, ",") {
+			if p = strings.TrimSpace(p); p != "" {
+				out = append(out, p)
+			}
+		}
+		*g = out
+	case yaml.SequenceNode:
+		var ss []string
+		if err := value.Decode(&ss); err != nil {
+			return err
+		}
+		*g = ss
+	default:
+		*g = nil
+	}
+	return nil
 }
 
 // splitFrontmatter pulls the YAML between leading `---\n` and `\n---\n`. If

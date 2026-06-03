@@ -19,6 +19,12 @@ import (
 // fences that mention the key cannot flip activation to manual.
 var disableModelInvocationRE = regexp.MustCompile(`(?im)^\s*disable-model-invocation:\s*true\s*$`)
 
+// globHintSuffixRE matches the " (matches: a, b)" suffix buildDescription
+// appends to a glob-activated skill's description. The capture group is the
+// ", "-joined glob list, so Import can restore Globs + activation=globs and
+// keep push -> import -> push idempotent.
+var globHintSuffixRE = regexp.MustCompile(` \(matches: (.+)\)$`)
+
 // Import walks .claude/skills/<id>/SKILL.md, parses each file's frontmatter,
 // reverse-maps Claude's schema (`name`/`description`/`allowed-tools`/
 // `disable-model-invocation`) back to canonical activation and metadata, and
@@ -61,6 +67,25 @@ func (a *Adapter) Import(_ context.Context, projectRoot string) ([]adept.Importe
 		// that documents the key does not flip activation to manual.
 		if disableModelInvocationRE.MatchString(frontmatterRegion(raw)) {
 			skill.Activation = adept.ActivationManual
+		}
+		// Reverse the glob hint buildDescription appends for glob-activated
+		// skills: strip the trailing " (matches: …)", restore Globs, and set
+		// activation=globs so a rendered glob skill round-trips instead of
+		// degrading to agent with a polluted description.
+		if skill.Activation != adept.ActivationManual {
+			if m := globHintSuffixRE.FindStringSubmatch(skill.Description); m != nil {
+				var globs []string
+				for _, g := range strings.Split(m[1], ", ") {
+					if g = strings.TrimSpace(g); g != "" {
+						globs = append(globs, g)
+					}
+				}
+				if len(globs) > 0 {
+					skill.Description = strings.TrimSpace(strings.TrimSuffix(skill.Description, m[0]))
+					skill.Globs = globs
+					skill.Activation = adept.ActivationGlobs
+				}
+			}
 		}
 		skill.Body = body
 
