@@ -158,10 +158,25 @@ func Save(path string, lock *Lock) error {
 	if err := os.Chmod(tmp, 0o644); err != nil {
 		return fmt.Errorf("chmod tmp lockfile: %w", err)
 	}
-	if err := os.Rename(tmp, path); err != nil {
+	if err := renameWithRetry(tmp, path); err != nil {
 		return fmt.Errorf("rename lockfile: %w", err)
 	}
 	return nil
+}
+
+// renameWithRetry replaces newpath with oldpath, retrying briefly. On Windows
+// an atomic rename over an existing file can transiently fail with "Access is
+// denied" when a concurrent writer is replacing the same target; a bounded
+// retry lets the writers serialize. On POSIX the first attempt succeeds.
+func renameWithRetry(oldpath, newpath string) error {
+	var err error
+	for i := 0; i < 20; i++ {
+		if err = os.Rename(oldpath, newpath); err == nil {
+			return nil
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	return err
 }
 
 // Set upserts an entry by skill id and returns the same Lock for chaining.
