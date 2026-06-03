@@ -19,6 +19,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -28,6 +29,12 @@ import (
 	"github.com/itaywol/adeptability/internal/hash"
 	"github.com/itaywol/adeptability/pkg/adept"
 )
+
+// skillIDRE guards skill ids before they are joined into filesystem paths.
+// Defense in depth: the canonical loader and CLI already validate ids, but a
+// public store method must never join an unvalidated id (e.g. one containing
+// `..` or a path separator) onto a directory it then creates or deletes.
+var skillIDRE = regexp.MustCompile(adept.SkillIDPattern)
 
 // Project is the contract for read/write operations against a project's
 // .adeptability directory. The root passed to New is the project root, not
@@ -266,8 +273,8 @@ func (p *project) InstallSkill(s *adept.Skill, files []adept.SkillFile) error {
 	if s == nil {
 		return fmt.Errorf("project install: %w: nil skill", adept.ErrSkillInvalid)
 	}
-	if s.ID == "" {
-		return fmt.Errorf("project install: %w: empty id", adept.ErrSkillInvalid)
+	if !skillIDRE.MatchString(s.ID) {
+		return fmt.Errorf("project install: %w: id %q does not match %s", adept.ErrSkillInvalid, s.ID, adept.SkillIDPattern)
 	}
 	if err := p.writeSkillFiles(s, files); err != nil {
 		return fmt.Errorf("project install %q: %w", s.ID, err)
@@ -282,8 +289,8 @@ func (p *project) InstallSkill(s *adept.Skill, files []adept.SkillFile) error {
 }
 
 func (p *project) UninstallSkill(id string) error {
-	if id == "" {
-		return fmt.Errorf("project uninstall: %w: empty id", adept.ErrSkillInvalid)
+	if !skillIDRE.MatchString(id) {
+		return fmt.Errorf("project uninstall: %w: id %q does not match %s", adept.ErrSkillInvalid, id, adept.SkillIDPattern)
 	}
 	if !p.HasSkill(id) {
 		// FRICTION BUG 2: silent success on missing skill hides typos and
