@@ -121,11 +121,11 @@ adept skill install vercel-labs/skills/find-skills   # preview + Y/n
 adept skill update                          # bump every locked external skill
 ```
 
-`skill install` clones the upstream GitHub repo at a resolved SHA, extracts the requested skill directory only, writes it into `.adeptability/skills/<id>/`, and pins the upstream provenance in `.adeptability/adept.lock.json` (`source`, `slug`, `repo`, `sha`, `content_hash`, `installed_at`).
+`skill install` clones the upstream GitHub repo at a resolved SHA, extracts the requested skill directory only, writes it into `.adeptability/skills/<id>/`, and pins the upstream provenance in the lockfile (`source`, `slug`, `repo`, `ref`, `sha`, `skillPath`, `contentHash`, `installedAt`).
 
-Before every install the CLI prints a preview (repo URL, SHA, stars, install count, license, file list) and runs a sandbox sniff over the SKILL.md body for known dangerous patterns (`curl ... | sh`, `rm -rf /`, `sudo`, secret references, base64 decode pipelines). Warnings block the install unless `--allow-unsafe` is passed; `--yes` skips the y/N confirm but never bypasses the sniff.
+Before every install the CLI prints a preview (repo URL, SHA, stars, install count, license, file list) and runs a sandbox sniff over the SKILL.md body for known dangerous patterns (`curl ... | sh`, `rm -rf /`, `sudo`, secret references, base64 decode pipelines). Findings at or above `scan.blockSeverity` (default `critical`) hard-block the install unless `--allow-unsafe` is passed; lower-severity findings surface in the preview and require the usual y/N confirm. `--yes` skips that confirm but never bypasses the scan.
 
-On every `adept sync`, locked external skills are re-hashed against `content_hash` — local edits surface as a warning with a pointer to `adept skill update <id>` or remove + re-install.
+On every `adept sync`, locked external skills are re-hashed against `contentHash` — local edits surface as a warning with a pointer to `adept skill update <id>` or remove + re-install.
 
 Non-GitHub catalog sources surfaced by skills.sh (e.g. `skills.volces.com`) are not installable yet; use `adept library add` against the upstream git URL instead.
 
@@ -251,8 +251,8 @@ These harnesses ship richer renderers (sidecar handling, glob translation, aggre
 |---|---|---|---|
 | Claude Code | `.claude/skills/<id>/SKILL.md` | per-skill, full sidecars | `description` drives agent decision; `allowed-tools` carried; `manual` → `disable-model-invocation` |
 | Cursor | `.cursor/rules/<id>.mdc` | per-skill, single file | `always`→`alwaysApply:true`, `globs`→`globs:[…]`, `agent`→`description:` only |
-| OpenCode | `.opencode/skill/<id>/SKILL.md` | per-skill, full sidecars | body only |
-| Codex | `AGENTS.md` | aggregated single file, 32 KiB cap | sections with markers; oldest/largest dropped first under budget |
+| OpenCode | `.opencode/skill/<id>/SKILL.md` | per-skill, full sidecars | `# id` heading + description + body |
+| Codex | `AGENTS.md` | aggregated single file, 32 KiB cap | sections with markers; lowest-priority skills dropped first under budget |
 | GitHub Copilot | `.github/instructions/<bucket>.instructions.md` | aggregated per-glob | `always` and matching glob sets bucket together |
 
 ### Generic per-skill adapters (vercel-labs/skills agent set)
