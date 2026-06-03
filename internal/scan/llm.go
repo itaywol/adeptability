@@ -12,9 +12,9 @@ import (
 // LLMReviewer adds an intent-evaluation pass on top of a static Report.
 // It asks the configured llm.Provider to:
 //
-//   1. Confirm or dismiss each static finding (filter false positives).
-//   2. Surface intent-level findings the static pass cannot reach
-//      (polite-prompt jailbreaks, multi-step exfiltration, obfuscation).
+//  1. Confirm or dismiss each static finding (filter false positives).
+//  2. Surface intent-level findings the static pass cannot reach
+//     (polite-prompt jailbreaks, multi-step exfiltration, obfuscation).
 //
 // The output preserves the Finding shape so downstream renderers
 // (FormatTable / FormatMarkdown / JSON) keep working without changes.
@@ -207,7 +207,7 @@ func mergeStaticWithLLM(static Report, reply llmReply) Report {
 		id := fmt.Sprintf("SKILL-LLM-%03d", i+1)
 		// Avoid colliding with a confirmed static id.
 		if seen[id] > 0 {
-			id = id + "-L"
+			id += "-L"
 		}
 		location := a.Location
 		if location == "" {
@@ -223,6 +223,29 @@ func mergeStaticWithLLM(static Report, reply llmReply) Report {
 			Evidence:    a.Evidence,
 			Risk:        a.Risk,
 			Remediation: a.Remediation,
+		})
+	}
+	// Apply the holistic overallRisk verdict. The model is explicitly
+	// asked to populate overallRisk for cases it judges dangerous as a
+	// whole (politely-worded jailbreaks, multi-step recipes) without
+	// itemizing a concrete `additional` finding. If that verdict is a
+	// recognized severity ABOVE everything we already have, inject a
+	// synthetic finding so Worst()/the install gate actually reflect it
+	// instead of silently dropping the model's top-level judgment.
+	if sev, ok := ParseSeverity(string(reply.OverallRisk)); ok && severityRank(sev) > severityRank(out.Worst()) {
+		issue := strings.TrimSpace(reply.Summary)
+		if issue == "" {
+			issue = "LLM judged the skill's overall risk higher than any individual finding"
+		}
+		out.Findings = append(out.Findings, Finding{
+			ID:          "SKILL-LLM-OVERALL",
+			Category:    CategoryPromptInjection,
+			Severity:    sev,
+			Confidence:  ConfidenceMedium,
+			Location:    "SKILL.md",
+			Issue:       issue,
+			Risk:        "holistic intent assessment exceeds the per-finding severities",
+			Remediation: "review the skill against the LLM summary before installing",
 		})
 	}
 	// Resort by severity for consistent presentation.

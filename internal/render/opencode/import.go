@@ -23,7 +23,7 @@ func (a *Adapter) Import(_ context.Context, projectRoot string) ([]adept.Importe
 		}
 		return nil, fmt.Errorf("opencode import: %w", err)
 	}
-	var out []adept.ImportedSkill
+	out := make([]adept.ImportedSkill, 0, len(entries))
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
@@ -61,7 +61,7 @@ func (a *Adapter) Import(_ context.Context, projectRoot string) ([]adept.Importe
 // document where the first line is `# <id>` and the next non-empty line is
 // the description.
 func splitOpenCodeMarkdown(s, id string) (string, string) {
-	lines := strings.SplitN(s, "\n", -1)
+	lines := strings.Split(s, "\n")
 	desc := ""
 	bodyStart := 0
 	if len(lines) > 0 && strings.HasPrefix(lines[0], "# ") {

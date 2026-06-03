@@ -9,8 +9,10 @@ import (
 	"github.com/itaywol/adeptability/pkg/adept"
 )
 
-// SizeBudgetB is the per-bucket soft size limit (64 KiB).
-// Currently advisory: the aggregator does not drop parts to honor this in v0.1.
+// SizeBudgetB is the per-bucket size limit (64 KiB). The aggregator enforces
+// it via budget.Packer: parts that do not fit a bucket are dropped (Pack
+// discards res.Dropped) and the orchestrator reports them as DroppedSkillIDs.
+// Unlike Codex, no in-file truncation manifest is emitted for Copilot.
 const SizeBudgetB = 64 * 1024
 
 // metaSidecarName is the in-memory-only sidecar used to convey the bucket

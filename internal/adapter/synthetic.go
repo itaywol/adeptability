@@ -37,7 +37,7 @@ func NewSynthetic(spec Spec) (adept.HarnessAdapter, error) {
 	for i, r := range spec.Body.Replace {
 		re, err := regexp.Compile(r.Regex)
 		if err != nil {
-			return nil, fmt.Errorf("synthetic %q: replace rule %d: %w: %v", spec.ID, i, adept.ErrAdapterInvalid, err)
+			return nil, fmt.Errorf("synthetic %q: replace rule %d: %w: %w", spec.ID, i, adept.ErrAdapterInvalid, err)
 		}
 		compiled = append(compiled, bodyRule{re: re, with: r.With})
 	}
@@ -272,6 +272,12 @@ func resolveOutputPath(tmpl string, s *adept.Skill) (string, error) {
 
 // aggregateSingle concatenates all parts into a single output keyed by path.
 // Parts are sorted by SkillID for deterministic output.
+//
+// When a size budget forces parts to be omitted, the dropped skills are NOT
+// silently discarded: a truncation manifest comment listing the omitted skill
+// ids is prepended to the document body, mirroring the built-in codex
+// aggregator (internal/render/codex/aggregator.go). This keeps budget overflow
+// visible in the written file rather than vanishing without a trace.
 func aggregateSingle(parts []adept.RenderOutput, outPath string, budget int) ([]adept.RenderOutput, error) {
 	if len(parts) == 0 {
 		return nil, nil
@@ -281,24 +287,58 @@ func aggregateSingle(parts []adept.RenderOutput, outPath string, budget int) ([]
 	sort.Slice(cp, func(i, j int) bool {
 		return cp[i].SkillID < cp[j].SkillID
 	})
+
 	var buf strings.Builder
+	var dropped []string
 	for _, p := range cp {
+		// Skip (don't break on) any part that would overflow the budget so a
+		// single large skill early in sort order can't drop every smaller part
+		// that would otherwise still fit.
 		if budget > 0 && buf.Len()+len(p.Bytes) > budget {
-			break
+			if p.SkillID != "" {
+				dropped = append(dropped, p.SkillID)
+			} else {
+				dropped = append(dropped, "<unknown>")
+			}
+			continue
 		}
 		buf.Write(p.Bytes)
 		if !strings.HasSuffix(string(p.Bytes), "\n") {
 			buf.WriteByte('\n')
 		}
 	}
+
+	// Surface dropped skills via a leading manifest comment so budget overflow
+	// leaves a trace in the file instead of vanishing. The manifest is appended
+	// after the budget check so a pathologically tiny budget (smaller than the
+	// manifest itself) still emits the trace rather than erroring on the
+	// comment alone — the kept content is what the budget governs.
 	if budget > 0 && buf.Len() > budget {
 		return nil, fmt.Errorf("aggregate single: %w: %d > %d", adept.ErrBudgetOverflow, buf.Len(), budget)
 	}
+	body := buf.String()
+	if len(dropped) > 0 {
+		body = buildSyntheticTruncationManifest(dropped, budget) + "\n" + body
+	}
 	return []adept.RenderOutput{{
 		Path:  outPath,
-		Bytes: []byte(buf.String()),
+		Bytes: []byte(body),
 		Mode:  0o644,
 	}}, nil
+}
+
+// buildSyntheticTruncationManifest emits a leading HTML comment documenting
+// which skills were omitted due to the size budget, matching the spirit of the
+// codex aggregator's manifest so dropped skills leave a trace in the file.
+func buildSyntheticTruncationManifest(dropped []string, budget int) string {
+	ids := append([]string(nil), dropped...)
+	sort.Strings(ids)
+	return fmt.Sprintf(
+		"<!-- adeptability: omitted %d skill(s) due to %d byte budget. Dropped: %s -->",
+		len(ids),
+		budget,
+		strings.Join(ids, ","),
+	)
 }
 
 // aggregatePerGlob buckets parts by the first glob declared by each skill

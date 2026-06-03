@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -25,7 +26,7 @@ func newStatusCmd(d *Deps) *cobra.Command {
 		Args:  cobra.NoArgs,
 	}
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
-		rep, err := collectStatus(d)
+		rep, err := collectStatus(cmd.Context(), d)
 		if err != nil {
 			return err
 		}
@@ -125,8 +126,10 @@ func (r *statusRenderable) Plain(w io.Writer) error {
 
 // collectStatus assembles the report. Pure read; never mutates state.
 // Returns successfully even when the project is not initialized — the
-// Initialized=false branch tells the caller to recommend `init`.
-func collectStatus(d *Deps) (statusReport, error) {
+// Initialized=false branch tells the caller to recommend `init`. ctx is
+// threaded into the drift/status orchestration so Ctrl-C and command
+// timeouts cancel the (potentially slow) Status call.
+func collectStatus(ctx context.Context, d *Deps) (statusReport, error) {
 	rep := statusReport{}
 	libRoot, err := d.ResolveLibraryRoot()
 	if err != nil {
@@ -204,7 +207,7 @@ func collectStatus(d *Deps) (statusReport, error) {
 		enabled[h] = true
 	}
 	if len(cfg.Harnesses) > 0 {
-		reports, derr := d.Orchestrator.Status(Context(), p, harness.StatusOptions{Skills: resolved})
+		reports, derr := d.Orchestrator.Status(ctx, p, harness.StatusOptions{Skills: resolved})
 		if derr != nil {
 			return rep, derr
 		}

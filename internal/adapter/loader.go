@@ -68,8 +68,8 @@ type Replace struct {
 	With  string `yaml:"with"`
 }
 
-// AdapterValidator validates raw bytes against the adapter JSON Schema.
-type AdapterValidator interface {
+// Validator validates raw bytes against the adapter JSON Schema.
+type Validator interface {
 	Validate(data []byte) error
 }
 
@@ -81,14 +81,14 @@ type Loader interface {
 
 // NewLoader returns a Loader that validates each file against the embedded
 // adapter schema and constructs synthetic adapters from the parsed Spec.
-func NewLoader(validator AdapterValidator, w fsutil.Writer, l fsutil.Linker) Loader {
+func NewLoader(validator Validator, w fsutil.Writer, l fsutil.Linker) Loader {
 	return &loader{validator: validator, writer: w, linker: l}
 }
 
-// NewSchemaValidator compiles the embedded adapter schema and returns an
-// AdapterValidator. Most callers should use this rather than implementing
+// NewSchemaValidator compiles the embedded adapter schema and returns a
+// Validator. Most callers should use this rather than implementing
 // their own.
-func NewSchemaValidator() (AdapterValidator, error) {
+func NewSchemaValidator() (Validator, error) {
 	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(adeptschema.AdapterSchema))
 	if err != nil {
 		return nil, fmt.Errorf("adapter validator: load schema: %w", err)
@@ -128,7 +128,7 @@ func (v *schemaValidator) Validate(data []byte) error {
 		return fmt.Errorf("adapter validate: parse json: %w", err)
 	}
 	if err := v.schema.Validate(doc); err != nil {
-		return fmt.Errorf("adapter validate: %w: %v", adept.ErrAdapterInvalid, err)
+		return fmt.Errorf("adapter validate: %w: %w", adept.ErrAdapterInvalid, err)
 	}
 	return nil
 }
@@ -177,7 +177,7 @@ func normalizeYAMLNode(v any) (any, error) {
 }
 
 type loader struct {
-	validator AdapterValidator
+	validator Validator
 	writer    fsutil.Writer
 	linker    fsutil.Linker
 }

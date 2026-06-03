@@ -34,10 +34,10 @@ import (
 // the .adeptability subdir.
 type Project interface {
 	Root() string
-	BaseDir() string                 // <root>/.adeptability
-	SkillsDir() string               // <root>/.adeptability/skills
-	BaseSnapshotsDir() string        // <root>/.adeptability/base
-	ConfigPath() string              // <root>/.adeptability/config.json
+	BaseDir() string          // <root>/.adeptability
+	SkillsDir() string        // <root>/.adeptability/skills
+	BaseSnapshotsDir() string // <root>/.adeptability/base
+	ConfigPath() string       // <root>/.adeptability/config.json
 	BaseDirForSkill(id string) string
 
 	// Config loads the project config. Missing file = empty config.

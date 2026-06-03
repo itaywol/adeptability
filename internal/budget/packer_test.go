@@ -199,9 +199,9 @@ func TestPack_DeterministicOrderByIDAndSize(t *testing.T) {
 	p := NewPacker()
 	// Mixed sizes and ids — verify the documented (len asc, id asc) order.
 	parts := []Part{
-		{SkillID: "zeta", Bytes: []byte("xxxx"), Priority: 0},  // 4
-		{SkillID: "alpha", Bytes: []byte("xx"), Priority: 0},   // 2
-		{SkillID: "mid", Bytes: []byte("xxxx"), Priority: 0},   // 4
+		{SkillID: "zeta", Bytes: []byte("xxxx"), Priority: 0},   // 4
+		{SkillID: "alpha", Bytes: []byte("xx"), Priority: 0},    // 2
+		{SkillID: "mid", Bytes: []byte("xxxx"), Priority: 0},    // 4
 		{SkillID: "delta", Bytes: []byte("xxxxx"), Priority: 0}, // 5
 	}
 	res, err := p.Pack(parts, 0, 0)

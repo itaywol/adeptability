@@ -2,10 +2,10 @@ package adept
 
 // On-disk layout constants used across packages.
 const (
-	BaseDirName     = ".adeptability"
-	SkillsDirName   = "skills"
-	BaseSnapDir     = "base"
-	StagingDir      = "staging"
+	BaseDirName    = ".adeptability"
+	SkillsDirName  = "skills"
+	BaseSnapDir    = "base"
+	StagingDir     = "staging"
 	SkillFileName  = "SKILL.md"
 	SkillYAMLName  = "skill.yaml"
 	ConfigFileName = "config.json"

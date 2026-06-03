@@ -320,9 +320,7 @@ func configKeyCompletion() cobra.CompletionFunc {
 		}
 		ks := keyNames()
 		out := make([]cobra.Completion, 0, len(ks))
-		for _, k := range ks {
-			out = append(out, cobra.Completion(k))
-		}
+		out = append(out, ks...)
 		return out, cobra.ShellCompDirectiveNoFileComp
 	}
 }
@@ -416,9 +414,7 @@ func llmProviderCompletion(d *Deps) cobra.CompletionFunc {
 			names = d.LLMRegistry.List()
 		}
 		out := make([]cobra.Completion, 0, len(names))
-		for _, n := range names {
-			out = append(out, cobra.Completion(n))
-		}
+		out = append(out, names...)
 		return out, cobra.ShellCompDirectiveNoFileComp
 	}
 }

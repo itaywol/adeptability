@@ -27,12 +27,12 @@ type LibraryRef struct {
 // Per-skill state (hashes, versions) does not live here: the filesystem
 // itself is the source of truth.
 //
-// - Project canonical at <root>/.adeptability/skills/<id>/ is "ours"
-// - Last-synced snapshot at <root>/.adeptability/base/<id>/ is the base
-//   (common ancestor for the 3-way status machine and merge)
-// - Library at $ADEPT_LIBRARY/libs/<name>/skills/<id>/ is the upstream
-//   source. Multiple libraries supported via Libraries[]; project canonical
-//   shadows library skills sharing the same id.
+//   - Project canonical at <root>/.adeptability/skills/<id>/ is "ours"
+//   - Last-synced snapshot at <root>/.adeptability/base/<id>/ is the base
+//     (common ancestor for the 3-way status machine and merge)
+//   - Library at $ADEPT_LIBRARY/libs/<name>/skills/<id>/ is the upstream
+//     source. Multiple libraries supported via Libraries[]; project canonical
+//     shadows library skills sharing the same id.
 type Config struct {
 	Schema    int          `json:"schema"`
 	Harnesses []string     `json:"harnesses,omitempty"`

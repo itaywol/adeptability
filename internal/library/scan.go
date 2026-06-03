@@ -93,8 +93,10 @@ func (s *scanner) Scan(roots []string) ([]ScanResult, error) {
 			seen[abs] = struct{}{}
 			res, parseErr := s.classify(abs)
 			if parseErr != nil {
-				results = append(results, ScanResult{SourcePath: abs, Status: adept.StatusDiverged})
-				return nil
+				// An unreadable/unparseable copy cannot be confirmed equal to
+				// the library, so report it as diverged and keep scanning
+				// rather than aborting the whole walk.
+				res = ScanResult{SourcePath: abs, Status: adept.StatusDiverged}
 			}
 			results = append(results, res)
 			return nil
@@ -138,11 +140,20 @@ func (s *scanner) classify(path string) (ScanResult, error) {
 	}
 	libSkill, err := s.lib.GetSkill(skill.ID)
 	if err != nil {
-		return res, nil
+		// The library copy exists (HasSkill was true) but cannot be
+		// read/parsed. We cannot confirm it is equal to the on-disk source,
+		// so mark it diverged rather than emitting an empty Status that would
+		// render as a blank, misleading status row. This matches the
+		// parse-failure branch in Scan.
+		res.Status = adept.StatusDiverged
+		return res, nil //nolint:nilerr // unreadable library copy is reported as diverged, not a hard error
 	}
 	libHash, err := s.hasher.HashSkill(libSkill)
 	if err != nil {
-		return res, nil
+		// The library copy parsed but could not be hashed; equality is
+		// indeterminable. Treat as diverged for the same reason.
+		res.Status = adept.StatusDiverged
+		return res, nil //nolint:nilerr // unhashable library copy is reported as diverged, not a hard error
 	}
 	res.LibraryHash = libHash
 	if digest == libHash {
@@ -161,25 +172,25 @@ func sidecarsFor(skillPath string) []adept.SkillFile {
 	var out []adept.SkillFile
 	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return nil
+			return nil //nolint:nilerr // unreadable sidecar entry is skipped, not a hard error
 		}
 		if d.IsDir() {
 			return nil
 		}
 		rel, relErr := filepath.Rel(dir, path)
 		if relErr != nil {
-			return nil
+			return nil //nolint:nilerr // sidecar with no relative path is skipped, not a hard error
 		}
 		if rel == adept.SkillFileName {
 			return nil
 		}
 		data, readErr := os.ReadFile(path)
 		if readErr != nil {
-			return nil
+			return nil //nolint:nilerr // unreadable sidecar file is skipped, not a hard error
 		}
 		info, infoErr := d.Info()
 		if infoErr != nil {
-			return nil
+			return nil //nolint:nilerr // sidecar with no stat info is skipped, not a hard error
 		}
 		out = append(out, adept.SkillFile{
 			RelPath: filepath.ToSlash(rel),

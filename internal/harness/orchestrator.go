@@ -191,16 +191,25 @@ func (o *orchestrator) syncHarness(
 	resolvedMode := mode
 	for _, out := range outputs {
 		absPath := filepath.Join(p.Root(), out.Path)
+		// skipMain guards only the main-file write. A byte-identical main
+		// file must NOT short-circuit the sidecar loop below: sidecars carry
+		// their own on-disk bytes and can drift independently of the main
+		// rendered file, so each is checked separately and repaired when
+		// drifted. (Previously a `continue` here skipped sidecar repair
+		// entirely whenever the main file matched.)
+		skipMain := false
 		if !opts.Force && !opts.DryRun {
 			same, _ := o.bytesAlreadyOnDisk(absPath, out.Bytes)
 			if same {
-				res.Skipped = append(res.Skipped, out.Path)
-				continue
+				skipMain = true
 			}
 		}
-		if opts.DryRun {
+		switch {
+		case skipMain:
+			res.Skipped = append(res.Skipped, out.Path)
+		case opts.DryRun:
 			res.Written = append(res.Written, out.Path)
-		} else {
+		default:
 			written, flipped, err := o.write(p.Root(), absPath, out, resolvedMode)
 			if err != nil {
 				return res, resolvedMode, err
@@ -223,6 +232,16 @@ func (o *orchestrator) syncHarness(
 			if mode == 0 {
 				mode = 0o644
 			}
+			// Per-sidecar skip: only rewrite the sidecar when its own bytes
+			// drifted (or --force). This mirrors the main-file skip so an
+			// unchanged sidecar isn't needlessly rewritten, but a drifted
+			// one is always repaired even when the main file matched.
+			if !opts.Force {
+				if same, _ := o.bytesAlreadyOnDisk(sideAbs, side.Bytes); same {
+					res.Skipped = append(res.Skipped, sideOutRel)
+					continue
+				}
+			}
 			sideOut := adept.RenderOutput{Path: sideOutRel, Bytes: side.Bytes, Mode: mode}
 			written, flipped, err := o.write(p.Root(), sideAbs, sideOut, resolvedMode)
 			if err != nil {
@@ -237,9 +256,15 @@ func (o *orchestrator) syncHarness(
 		}
 	}
 	// Validate drift after writing (or for dry-run: against the desired set).
-	if drift, err := adapter.Validate(p.Root(), outputs); err == nil {
-		res.Drift = drift
+	// A failed drift computation must NOT be presented as "no drift": surface
+	// it to the caller, consistent with Status (which propagates the same
+	// Validate error). Previously the error was swallowed and res.Drift was
+	// left as an empty (all-synced-looking) zero report.
+	drift, err := adapter.Validate(p.Root(), outputs)
+	if err != nil {
+		return res, resolvedMode, fmt.Errorf("validate: %w", err)
 	}
+	res.Drift = drift
 	sort.Strings(res.Written)
 	sort.Strings(res.Skipped)
 	sort.Strings(res.Dropped)
@@ -314,12 +339,39 @@ func (o *orchestrator) write(projectRoot, absPath string, out adept.RenderOutput
 	if err := o.writer.AtomicWrite(staging, out.Bytes, fileMode); err != nil {
 		return false, false, fmt.Errorf("stage %q: %w", staging, err)
 	}
-	if err := o.writer.RemoveAll(absPath); err != nil {
-		return false, false, fmt.Errorf("clear target %q: %w", absPath, err)
-	}
-	used, err := o.linker.SymlinkOrCopy(staging, absPath, false)
+	// Build the replacement at a temp sibling FIRST, then atomically rename
+	// it over absPath. This avoids the previous destroy-then-recreate window
+	// where a failure between RemoveAll(absPath) and SymlinkOrCopy left the
+	// user-visible harness file missing with no rollback. A relative symlink
+	// created at the sibling resolves identically after the rename (same
+	// parent dir), and the copy fallback uses AtomicWrite under the hood.
+	tmpPath := absPath + ".adept-tmp"
+	// Defensive: clear any leftover temp from a prior crash.
+	_ = o.writer.RemoveAll(tmpPath)
+	used, err := o.linker.SymlinkOrCopy(staging, tmpPath, false)
 	if err != nil {
+		_ = o.writer.RemoveAll(tmpPath)
 		return false, false, fmt.Errorf("symlink %q: %w", absPath, err)
+	}
+	if err := os.Rename(tmpPath, absPath); err != nil {
+		// Rename will not replace an existing directory; in that (conflict)
+		// case clear the target and retry so we still converge. The temp
+		// replacement is already fully built, so the window is minimal and
+		// recoverable: on a second failure we restore from staging.
+		if rmErr := o.writer.RemoveAll(absPath); rmErr != nil {
+			_ = o.writer.RemoveAll(tmpPath)
+			return false, false, fmt.Errorf("clear target %q: %w", absPath, rmErr)
+		}
+		if rnErr := os.Rename(tmpPath, absPath); rnErr != nil {
+			// Last resort: restore the rendered bytes directly so the
+			// harness file is never left absent.
+			if restoreErr := o.writer.AtomicWrite(absPath, out.Bytes, fileMode); restoreErr != nil {
+				_ = o.writer.RemoveAll(tmpPath)
+				return false, false, fmt.Errorf("replace target %q: %w", absPath, rnErr)
+			}
+			_ = o.writer.RemoveAll(tmpPath)
+			return true, true, nil
+		}
 	}
 	if used == adept.ModeCopy {
 		return true, true, nil

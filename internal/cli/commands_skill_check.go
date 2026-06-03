@@ -12,16 +12,16 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/itaywol/adeptability/internal/library"
-	gh "github.com/itaywol/adeptability/internal/registry/github"
 	"github.com/itaywol/adeptability/internal/registry"
+	gh "github.com/itaywol/adeptability/internal/registry/github"
 	"github.com/itaywol/adeptability/internal/scan"
 )
 
 // newSkillCheckCmd is `adept skill check <target>`. Target shapes:
 //
-//   <skill-id>                       — project canonical
-//   library:<name>:<skill-id>        — library-resolved skill
-//   <owner>/<repo>[#ref]/<skill>     — remote skills.sh / GitHub skill
+//	<skill-id>                       — project canonical
+//	library:<name>:<skill-id>        — library-resolved skill
+//	<owner>/<repo>[#ref]/<skill>     — remote skills.sh / GitHub skill
 //
 // Phase 2.1 runs regex-only static rules. Phase 2.2 layers an LLM
 // intent pass on top of the same Finding shape so output formats stay
@@ -79,16 +79,29 @@ func newSkillCheckCmd(d *Deps) *cobra.Command {
 		default:
 			return fmt.Errorf("unknown --format %q (want table|markdown|json)", format)
 		}
+		// Both critical and high findings are real safety signals, not
+		// tool failures: surface them via the ErrScanFindings sentinel
+		// (which maps to exit 2 through ErrDirty) so a CI gate can tell
+		// "a finding was reported" apart from "the scanner crashed"
+		// (target not found, network error, bad --format → exit 1).
 		switch report.Worst() {
 		case scan.SeverityCritical:
-			return ErrDirty // exit 2 — distinct from generic-error 1
+			return fmt.Errorf("scan: critical-severity findings present: %w", ErrScanFindings)
 		case scan.SeverityHigh:
-			return fmt.Errorf("scan: high-severity findings present")
+			return fmt.Errorf("scan: high-severity findings present: %w", ErrScanFindings)
 		}
 		return nil
 	}
 	return c
 }
+
+// ErrScanFindings is returned by `skill check` when the scan surfaces
+// blocking (high or critical) findings. It wraps ErrDirty so
+// ExitFromError maps it to exit code 2 — distinct from the generic
+// exit 1 used for operational failures (target not found, parse errors,
+// unknown --format). Callers/CI can therefore distinguish "findings
+// present" from "the tool itself failed".
+var ErrScanFindings = fmt.Errorf("scan findings present: %w", ErrDirty)
 
 // resolveCheckTarget loads the SKILL.md (and known sidecars) for one of
 // the three target shapes. Remote targets fetch and discard a tarball
@@ -186,11 +199,11 @@ func readTarget(name, dir string) (scan.Target, error) {
 		}
 		rel, err := filepath.Rel(dir, path)
 		if err != nil {
-			return nil
+			return err
 		}
 		b, err := os.ReadFile(path)
 		if err != nil {
-			return nil
+			return err
 		}
 		side[filepath.ToSlash(rel)] = b
 		return nil

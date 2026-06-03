@@ -33,6 +33,13 @@ var (
 	adeptEndRE   = regexp.MustCompile(`<!--\s*adeptability:end\s+id=[a-z0-9_][a-z0-9_-]{0,49}\s*-->`)
 )
 
+// skillIDValidRE is the anchored form of adept.SkillIDPattern used to reject
+// (rather than merely sanitize) ids recovered from untrusted on-disk
+// frontmatter. An id that escapes this pattern — e.g. one containing path
+// separators or ".." — must never reach project.InstallSkill, which joins it
+// into a filesystem path without containment checks.
+var skillIDValidRE = regexp.MustCompile(adept.SkillIDPattern)
+
 // Import reverse-renders a synthetic adapter's on-disk state into canonical
 // skills. Behavior depends on the adapter Kind:
 //
@@ -248,6 +255,11 @@ func (a *syntheticAdapter) findOutputMatches(projectRoot, wildcard string) ([]ma
 		return nil, fmt.Errorf("synthetic %s: %w: multiple %s tokens in output %q", a.spec.ID, adept.ErrAdapterInvalid, wildcard, tmpl)
 	}
 	idx := strings.Index(tmpl, wildcard)
+	if idx < 0 {
+		// Unreachable: strings.Contains above guarantees the wildcard is
+		// present. Guard anyway so the slice expressions cannot panic.
+		return nil, fmt.Errorf("synthetic %s: %w: missing %s token in output %q", a.spec.ID, adept.ErrAdapterInvalid, wildcard, tmpl)
+	}
 	prefix := tmpl[:idx]
 	suffix := tmpl[idx+len(wildcard):]
 	// We need a fixed directory to walk. Strip back to the last "/" before the
@@ -350,16 +362,18 @@ func (a *syntheticAdapter) skillFromFrontmatter(front []byte, fallbackID string)
 		Activation: adept.ActivationAgent,
 	}
 	if len(front) == 0 {
+		skill.ID = a.safeSkillID(skill.ID, fallbackID)
 		if skill.Description == "" {
-			skill.Description = fmt.Sprintf("Imported from %s %s", a.spec.ID, fallbackID)
+			skill.Description = fmt.Sprintf("Imported from %s %s", a.spec.ID, skill.ID)
 		}
 		return skill
 	}
 	parsed := map[string]any{}
 	if err := yaml.Unmarshal(front, &parsed); err != nil {
 		// Soft-fail on malformed frontmatter: keep defaults, leave a sane id.
+		skill.ID = a.safeSkillID(skill.ID, fallbackID)
 		if skill.Description == "" {
-			skill.Description = fmt.Sprintf("Imported from %s %s", a.spec.ID, fallbackID)
+			skill.Description = fmt.Sprintf("Imported from %s %s", a.spec.ID, skill.ID)
 		}
 		return skill
 	}
@@ -367,6 +381,7 @@ func (a *syntheticAdapter) skillFromFrontmatter(front []byte, fallbackID string)
 	included := includeSet(a.spec.Frontmatter.Include)
 	inverse := a.inverseRename()
 
+	activationExplicit := false
 	for harnessKey, v := range parsed {
 		canonical := inverse[harnessKey]
 		if canonical == "" {
@@ -377,17 +392,28 @@ func (a *syntheticAdapter) skillFromFrontmatter(front []byte, fallbackID string)
 				continue
 			}
 		}
+		if canonical == "activation" {
+			if _, ok := v.(string); ok {
+				activationExplicit = true
+			}
+		}
 		assignSkillField(skill, canonical, v)
 	}
 
-	if skill.ID == "" {
-		skill.ID = fallbackID
-	}
-	// Infer activation when canonical fields imply it but no explicit
-	// `activation:` key was recovered. This handles forward configs that only
-	// include `globs:` in the frontmatter and rely on the canonical default.
-	if skill.Activation == "" || skill.Activation == adept.ActivationAgent {
-		if len(skill.Globs) > 0 {
+	// Sanitize/validate the recovered id before it can reach a filesystem
+	// path. A frontmatter `id:` like "../../../tmp/pwned" must never be used
+	// verbatim as a skill directory (project.writeSkillFiles joins it without
+	// a containment check). Coerce illegal ids through sanitizeSkillID, then
+	// fall back to the (also-sanitized) capture token, and finally a constant.
+	skill.ID = a.safeSkillID(skill.ID, fallbackID)
+
+	// Infer activation only when no explicit `activation:` key was recovered
+	// from the frontmatter. An explicitly-declared `activation: agent` that
+	// also carries `globs:` must round-trip as agent, not be silently rewritten
+	// to globs. This handles forward configs that only include `globs:` in the
+	// frontmatter and rely on the canonical default.
+	if !activationExplicit && len(skill.Globs) > 0 {
+		if skill.Activation == "" || skill.Activation == adept.ActivationAgent {
 			skill.Activation = adept.ActivationGlobs
 		}
 	}
@@ -398,6 +424,28 @@ func (a *syntheticAdapter) skillFromFrontmatter(front []byte, fallbackID string)
 		skill.Description = fmt.Sprintf("Imported from %s %s", a.spec.ID, skill.ID)
 	}
 	return skill
+}
+
+// safeSkillID returns a skill id guaranteed to satisfy adept.SkillIDPattern.
+// It prefers the recovered id, coercing it through sanitizeSkillID when it
+// fails the pattern (so e.g. path separators / ".." are stripped), then falls
+// back to the sanitized capture token, and finally a constant. This is the
+// last line of defense before an id reaches project.InstallSkill, which joins
+// it into a filesystem path without containment checks.
+func (a *syntheticAdapter) safeSkillID(recovered, fallbackID string) string {
+	if recovered != "" && skillIDValidRE.MatchString(recovered) {
+		return recovered
+	}
+	if s := sanitizeSkillID(recovered); s != "" && skillIDValidRE.MatchString(s) {
+		return s
+	}
+	if fallbackID != "" && skillIDValidRE.MatchString(fallbackID) {
+		return fallbackID
+	}
+	if s := sanitizeSkillID(fallbackID); s != "" && skillIDValidRE.MatchString(s) {
+		return s
+	}
+	return "imported"
 }
 
 // inverseRename returns the harness-key → canonical-key map. Explicit

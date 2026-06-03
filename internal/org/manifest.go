@@ -1,6 +1,7 @@
 // Package org reads and validates org manifests (org.yaml) that pin the set
-// of skills a project must adopt. Manifests live either in a remote library
-// (TODO: v0.2) or in a local file; in v0.1 only the file client is shipped.
+// of skills a project must adopt. Manifests are loaded from a remote library
+// over HTTP (NewHTTPClient, with ETag caching) or from a local file
+// (NewFileClient).
 package org
 
 import (
@@ -77,7 +78,7 @@ func (p *parser) Parse(data []byte) (*Manifest, error) {
 		return nil, fmt.Errorf("org parse: parse json: %w", err)
 	}
 	if err := p.schema.Validate(doc); err != nil {
-		return nil, fmt.Errorf("org parse: %w: %v", adept.ErrAdapterInvalid, err)
+		return nil, fmt.Errorf("org parse: %w: %w", adept.ErrAdapterInvalid, err)
 	}
 	var raw2 rawManifest
 	if err := yaml.Unmarshal(data, &raw2); err != nil {
@@ -88,10 +89,10 @@ func (p *parser) Parse(data []byte) (*Manifest, error) {
 		Name:    raw2.Name,
 	}
 	for _, r := range raw2.Skills.Required {
-		m.Required = append(m.Required, SkillRef{ID: r.ID})
+		m.Required = append(m.Required, SkillRef(r))
 	}
 	for _, r := range raw2.Skills.Optional {
-		m.Optional = append(m.Optional, SkillRef{ID: r.ID})
+		m.Optional = append(m.Optional, SkillRef(r))
 	}
 	return m, nil
 }

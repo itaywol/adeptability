@@ -14,9 +14,9 @@ type stubProvider struct {
 	err  error
 }
 
-func (s *stubProvider) Name() string                             { return "stub" }
-func (s *stubProvider) DefaultModel() string                     { return "stub-1" }
-func (s *stubProvider) Available(context.Context) error          { return nil }
+func (s *stubProvider) Name() string                    { return "stub" }
+func (s *stubProvider) DefaultModel() string            { return "stub-1" }
+func (s *stubProvider) Available(context.Context) error { return nil }
 func (s *stubProvider) Evaluate(context.Context, llm.Request) (llm.Response, error) {
 	if s.err != nil {
 		return llm.Response{}, s.err

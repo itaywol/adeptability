@@ -250,7 +250,9 @@ func (r *skillListRenderable) Plain(w io.Writer) error {
 	// Warn after the table so it survives piping.
 	for _, row := range r.Rows {
 		if len(row.Shadowed) > 0 {
-			fmt.Fprintf(w, "  warn: %s shadowed by library:%s — also in: %s\n",
+			// row.Source already carries the "library:" prefix (set at
+			// list build time), so don't prepend a second literal one.
+			fmt.Fprintf(w, "  warn: %s shadowed by %s — also in: %s\n",
 				row.ID, row.Source, strings.Join(row.Shadowed, ", "))
 		}
 	}
@@ -311,7 +313,7 @@ func projectSkillCompletion(d *Deps) cobra.CompletionFunc {
 		}
 		out := make([]cobra.Completion, 0, len(skills))
 		for _, s := range skills {
-			out = append(out, cobra.Completion(s.ID))
+			out = append(out, s.ID)
 		}
 		return out, cobra.ShellCompDirectiveNoFileComp
 	}

@@ -2,9 +2,9 @@
 // `adept skill install` flow. We avoid the official go-github dep — we
 // only need three operations:
 //
-//   1. Resolve a branch/tag to a commit SHA          (skill install)
-//   2. Fetch a tarball of the repo at a specific SHA (skill install)
-//   3. Read repo metadata (stars, license, default)  (skill info)
+//  1. Resolve a branch/tag to a commit SHA          (skill install)
+//  2. Fetch a tarball of the repo at a specific SHA (skill install)
+//  3. Read repo metadata (stars, license, default)  (skill info)
 //
 // All calls are unauthenticated by default. When $GITHUB_TOKEN is set we
 // include it as a bearer header so private repos and higher rate limits
@@ -16,13 +16,55 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"path"
+	"regexp"
 	"strings"
 	"time"
 )
+
+// Bounds on tarball extraction. The tar Size header is attacker-controlled
+// (a remote, user-named GitHub repo), so we never pre-allocate from it and
+// instead stream against these caps.
+const (
+	maxSkillFileSize  = 32 << 20  // 32 MiB per file
+	maxSkillTotalSize = 256 << 20 // 256 MiB across the whole skill dir
+)
+
+// ownerRepoRe and refRe constrain the path segments we interpolate into
+// GitHub API URLs. owner/repo follow GitHub's allowed charset; ref is a
+// conservative git ref/sha charset that forbids spaces, leading '-', and
+// '..' traversal-shaped sequences.
+var (
+	ownerRepoRe = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
+	refRe       = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_./-]*$`)
+)
+
+// validateOwnerRepo rejects owner/repo segments that are empty, contain a
+// path separator, or fall outside GitHub's allowed charset before they are
+// interpolated into an API URL path.
+func validateOwnerRepo(owner, repo string) error {
+	if !ownerRepoRe.MatchString(owner) || owner == "." || owner == ".." {
+		return fmt.Errorf("invalid repo owner %q", owner)
+	}
+	if !ownerRepoRe.MatchString(repo) || repo == "." || repo == ".." {
+		return fmt.Errorf("invalid repo name %q", repo)
+	}
+	return nil
+}
+
+// validateRef rejects refs/SHAs that are malformed or traversal-shaped
+// before they are interpolated into an API URL path.
+func validateRef(ref string) error {
+	if !refRe.MatchString(ref) || strings.Contains(ref, "..") {
+		return fmt.Errorf("invalid ref %q", ref)
+	}
+	return nil
+}
 
 // Client wraps the small surface of the GitHub REST API we need.
 type Client interface {
@@ -89,6 +131,9 @@ func (c *client) authedRequest(ctx context.Context, method, url string) (*http.R
 // branches, tags, and SHA prefixes — returning the canonical SHA in the
 // payload. When ref is empty we first pull the repo's default_branch.
 func (c *client) ResolveRef(ctx context.Context, owner, repo, ref string) (string, error) {
+	if err := validateOwnerRepo(owner, repo); err != nil {
+		return "", err
+	}
 	if ref == "" {
 		meta, err := c.RepoInfo(ctx, owner, repo)
 		if err != nil {
@@ -98,6 +143,9 @@ func (c *client) ResolveRef(ctx context.Context, owner, repo, ref string) (strin
 		if ref == "" {
 			ref = "main"
 		}
+	}
+	if err := validateRef(ref); err != nil {
+		return "", err
 	}
 	url := fmt.Sprintf("%s/repos/%s/%s/commits/%s", c.base, owner, repo, ref)
 	req, err := c.authedRequest(ctx, http.MethodGet, url)
@@ -128,6 +176,12 @@ func (c *client) ResolveRef(ctx context.Context, owner, repo, ref string) (strin
 // a gzipped tar where every entry is prefixed with a repo-name+sha
 // directory; ExtractSkillDir below strips that prefix.
 func (c *client) FetchTarball(ctx context.Context, owner, repo, sha string) (io.ReadCloser, error) {
+	if err := validateOwnerRepo(owner, repo); err != nil {
+		return nil, err
+	}
+	if err := validateRef(sha); err != nil {
+		return nil, err
+	}
 	url := fmt.Sprintf("%s/repos/%s/%s/tarball/%s", c.base, owner, repo, sha)
 	req, err := c.authedRequest(ctx, http.MethodGet, url)
 	if err != nil {
@@ -147,6 +201,9 @@ func (c *client) FetchTarball(ctx context.Context, owner, repo, sha string) (io.
 // RepoInfo wraps /repos/{owner}/{repo} plus a follow-up /license call so
 // we can show the license name in `skill info`.
 func (c *client) RepoInfo(ctx context.Context, owner, repo string) (RepoMeta, error) {
+	if err := validateOwnerRepo(owner, repo); err != nil {
+		return RepoMeta{}, err
+	}
 	url := fmt.Sprintf("%s/repos/%s/%s", c.base, owner, repo)
 	req, err := c.authedRequest(ctx, http.MethodGet, url)
 	if err != nil {
@@ -197,13 +254,22 @@ func ExtractSkillDir(r io.Reader, skillName string, candidatePaths []string) (fi
 	defer gz.Close()
 	tr := tar.NewReader(gz)
 	files = map[string][]byte{}
+	var total int64
 	for {
 		hdr, err := tr.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
 			return nil, "", fmt.Errorf("read tarball entry: %w", err)
+		}
+		// Only accept regular files; skip dirs, symlinks, devices, etc.
+		// (a symlink/hardlink entry could otherwise redirect a later
+		// write outside the skill dir). tar.TypeRegA is deprecated; legacy
+		// archives encode a regular file as the NUL byte (0), so accept that
+		// explicitly instead of referencing the deprecated constant.
+		if hdr.Typeflag != tar.TypeReg && hdr.Typeflag != 0 {
+			continue
 		}
 		// Strip the top-level wrapper dir.
 		rel := hdr.Name
@@ -227,18 +293,36 @@ func ExtractSkillDir(r io.Reader, skillName string, candidatePaths []string) (fi
 		if matched == "" {
 			continue
 		}
-		if hdr.Typeflag == tar.TypeDir {
-			continue
+		// Reject path-traversal / absolute entries: `inner` is later
+		// joined onto the install dir, and filepath.Join cleans `..`,
+		// which would let a crafted entry escape the skill directory.
+		clean := path.Clean(inner)
+		if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") || strings.HasPrefix(clean, "/") {
+			return nil, "", fmt.Errorf("unsafe tarball entry %q escapes skill dir", hdr.Name)
 		}
+		inner = clean
 		// First match wins per layout; reject mixed layouts.
 		if matchedPath != "" && matchedPath != matched {
 			continue
 		}
 		matchedPath = matched
-		// Read the file body — bounded by tar entry size.
-		buf := make([]byte, hdr.Size)
-		if _, err := io.ReadFull(tr, buf); err != nil {
+		// Read the file body bounded by a per-file cap and an aggregate
+		// budget. We never pre-allocate from hdr.Size (attacker-
+		// controlled) — instead we stream against an io.LimitReader and
+		// detect overflow by reading one byte past the cap.
+		if hdr.Size < 0 || hdr.Size > maxSkillFileSize {
+			return nil, "", fmt.Errorf("tarball file %s exceeds %d byte limit", hdr.Name, maxSkillFileSize)
+		}
+		buf, err := io.ReadAll(io.LimitReader(tr, maxSkillFileSize+1))
+		if err != nil {
 			return nil, "", fmt.Errorf("read tarball file %s: %w", hdr.Name, err)
+		}
+		if int64(len(buf)) > maxSkillFileSize {
+			return nil, "", fmt.Errorf("tarball file %s exceeds %d byte limit", hdr.Name, maxSkillFileSize)
+		}
+		total += int64(len(buf))
+		if total > maxSkillTotalSize {
+			return nil, "", fmt.Errorf("tarball skill dir exceeds %d byte total limit", maxSkillTotalSize)
 		}
 		files[inner] = buf
 	}

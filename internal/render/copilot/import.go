@@ -14,7 +14,10 @@ import (
 	"github.com/itaywol/adeptability/pkg/adept"
 )
 
-var copilotBeginRE = regexp.MustCompile(`<!--\s*adeptability:begin\s+id=([a-z0-9_][a-z0-9_-]{0,49})\s+hash=([a-f0-9]{8})\s*-->`)
+var (
+	copilotBeginRE = regexp.MustCompile(`<!--\s*adeptability:begin\s+id=([a-z0-9_][a-z0-9_-]{0,49})\s+hash=([a-f0-9]{8})\s*-->`)
+	copilotEndRE   = regexp.MustCompile(`<!--\s*adeptability:end\s+id=([a-z0-9_][a-z0-9_-]{0,49})\s*-->`)
+)
 
 // Import walks .github/instructions/*.instructions.md. Each bucket file
 // carries an `applyTo` frontmatter (canonical activation: globs OR always).
@@ -72,7 +75,10 @@ func (a *Adapter) Import(_ context.Context, projectRoot string) ([]adept.Importe
 		for _, m := range markers {
 			id := body[m[2]:m[3]]
 			afterMarker := body[m[1]:]
-			endIdx := strings.Index(afterMarker, "<!-- adeptability:end")
+			// Match the end marker by id, not by first occurrence, so a section
+			// with a missing :end does not absorb the next section's content
+			// (which would also be imported a second time on its own).
+			endIdx := matchingEndIndex(afterMarker, id)
 			if endIdx < 0 {
 				return nil, fmt.Errorf("copilot import: unterminated section for %q in %s", id, bucket)
 			}
@@ -107,8 +113,23 @@ func (a *Adapter) Import(_ context.Context, projectRoot string) ([]adept.Importe
 	return out, nil
 }
 
+// matchingEndIndex returns the byte offset within s of the first
+// `adeptability:end` marker whose captured id equals id, or -1 if none.
+func matchingEndIndex(s, id string) int {
+	for _, em := range copilotEndRE.FindAllStringSubmatchIndex(s, -1) {
+		// em: [fullStart, fullEnd, idStart, idEnd]
+		if s[em[2]:em[3]] == id {
+			return em[0]
+		}
+	}
+	return -1
+}
+
 func splitApplyTo(raw []byte) (string, string, error) {
-	s := string(raw)
+	// Normalize CRLF to LF before scanning so files saved with Windows line
+	// endings still match the `---\n` fences; otherwise the applyTo
+	// frontmatter is silently dropped and a glob-scoped rule becomes global.
+	s := strings.ReplaceAll(string(raw), "\r\n", "\n")
 	if !strings.HasPrefix(s, "---\n") {
 		return "**", s, nil
 	}

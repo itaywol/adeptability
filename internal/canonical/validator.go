@@ -21,6 +21,11 @@ type schemaValidator struct {
 	idPattern *regexp.Regexp
 }
 
+// idPatternRE is the compiled form of the compile-time constant
+// adept.SkillIDPattern. MustCompile at package init is correct because the
+// pattern is a constant and any compilation failure is a programming error.
+var idPatternRE = regexp.MustCompile(adept.SkillIDPattern)
+
 // NewValidator compiles the embedded skill.schema.json once. Returns an error
 // if the embedded schema is malformed (should never happen at runtime).
 func NewValidator() (Validator, error) {
@@ -37,11 +42,7 @@ func NewValidator() (Validator, error) {
 	if err != nil {
 		return nil, fmt.Errorf("validator: compile embedded schema: %w", err)
 	}
-	idRE, err := regexp.Compile(adept.SkillIDPattern)
-	if err != nil {
-		return nil, fmt.Errorf("validator: compile id pattern: %w", err)
-	}
-	return &schemaValidator{schema: sch, idPattern: idRE}, nil
+	return &schemaValidator{schema: sch, idPattern: idPatternRE}, nil
 }
 
 func (v *schemaValidator) Validate(s *adept.Skill) error {
@@ -50,10 +51,10 @@ func (v *schemaValidator) Validate(s *adept.Skill) error {
 	}
 	doc, err := skillToSchemaDoc(s)
 	if err != nil {
-		return fmt.Errorf("validate: %w: %v", adept.ErrSkillInvalid, err)
+		return fmt.Errorf("validate: %w: %w", adept.ErrSkillInvalid, err)
 	}
 	if err := v.schema.Validate(doc); err != nil {
-		return fmt.Errorf("validate: %w: %v", adept.ErrSkillInvalid, err)
+		return fmt.Errorf("validate: %w: %w", adept.ErrSkillInvalid, err)
 	}
 	// Cross-check the id pattern explicitly: schemas may diverge from the
 	// const exposed by pkg/adept.SkillIDPattern. This is defense in depth.

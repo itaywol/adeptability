@@ -13,8 +13,10 @@ package library
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/itaywol/adeptability/internal/canonical"
 	"github.com/itaywol/adeptability/internal/fsutil"
@@ -102,16 +104,25 @@ func (m *multi) Resolve(id string) (*adept.Skill, string, []string, error) {
 		if !n.Library.HasSkill(id) {
 			continue
 		}
-		s, err := n.Library.GetSkill(id)
-		if err != nil {
-			return nil, "", nil, fmt.Errorf("library %s: %w", n.Name, err)
-		}
-		if winner == nil {
-			winner = s
-			winnerName = n.Name
+		// Once a winner is locked in, every later library that carries the
+		// id is merely shadowed: its metadata is discarded by the caller, so
+		// do NOT call GetSkill on it. This avoids wasted I/O and, crucially,
+		// stops a corrupt copy in a lower-priority (losing) library from
+		// poisoning resolution of the perfectly valid winner — preserving the
+		// documented first-match-wins contract.
+		if winner != nil {
+			shadowed = append(shadowed, n.Name)
 			continue
 		}
-		shadowed = append(shadowed, n.Name)
+		s, err := n.Library.GetSkill(id)
+		if err != nil {
+			// The first matching library is corrupt. Skip it and keep
+			// looking for a readable copy in a lower-priority library rather
+			// than aborting the whole resolution.
+			continue
+		}
+		winner = s
+		winnerName = n.Name
 	}
 	if winner == nil {
 		return nil, "", nil, fmt.Errorf("library lookup %q: %w", id, adept.ErrSkillNotFound)
@@ -120,15 +131,17 @@ func (m *multi) Resolve(id string) (*adept.Skill, string, []string, error) {
 }
 
 func (m *multi) ListAll() ([]Resolution, error) {
-	// Build the unique id set in stable order.
+	// Build the unique id set in stable order. We enumerate skill ids by
+	// probing the on-disk directory layout rather than via Library.ListSkills,
+	// because the latter parses every SKILL.md and aborts on the first corrupt
+	// one — that would let a single malformed skill hide every other valid
+	// skill across all libraries. Enumeration here is tolerant: a directory
+	// that carries a SKILL.md contributes its id regardless of whether the
+	// file parses; corrupt copies are weeded out later by Resolve.
 	seen := map[string]struct{}{}
 	for _, n := range m.libs {
-		skills, err := n.Library.ListSkills()
-		if err != nil {
-			return nil, fmt.Errorf("library %s: list: %w", n.Name, err)
-		}
-		for _, s := range skills {
-			seen[s.ID] = struct{}{}
+		for _, id := range listSkillDirIDs(n.Library.SkillsDir()) {
+			seen[id] = struct{}{}
 		}
 	}
 	ids := make([]string, 0, len(seen))
@@ -141,9 +154,38 @@ func (m *multi) ListAll() ([]Resolution, error) {
 	for _, id := range ids {
 		skill, source, shadowed, err := m.Resolve(id)
 		if err != nil {
-			return nil, err
+			// Every library copy of this id failed to parse/read. Skip it
+			// rather than aborting the whole listing so that one bad skill
+			// does not hide every other valid skill.
+			continue
 		}
 		out = append(out, Resolution{Skill: skill, Source: source, Shadowed: shadowed})
 	}
 	return out, nil
+}
+
+// listSkillDirIDs returns the ids of skill directories directly under
+// skillsDir that contain a SKILL.md, without parsing the files. It is
+// deliberately tolerant: any I/O error (including a missing skills dir)
+// yields the ids gathered so far rather than an error, so listing degrades
+// gracefully instead of aborting.
+func listSkillDirIDs(skillsDir string) []string {
+	entries, err := os.ReadDir(skillsDir)
+	if err != nil {
+		return nil
+	}
+	ids := make([]string, 0, len(entries))
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		if strings.HasPrefix(e.Name(), ".") {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(skillsDir, e.Name(), adept.SkillFileName)); err != nil {
+			continue
+		}
+		ids = append(ids, e.Name())
+	}
+	return ids
 }

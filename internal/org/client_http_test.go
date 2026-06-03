@@ -46,7 +46,10 @@ func (d *recordingDoer) Do(req *http.Request) (*http.Response, error) {
 func (d *recordingDoer) enqueue(resp *http.Response, err error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	d.queue = append(d.queue, resp)
+	// The queued response is owned by the caller, which defers resp.Body.Close()
+	// at the call site; closing it here would be premature. The bodyclose linter
+	// cannot trace closure through the queue, so suppress the false positive.
+	d.queue = append(d.queue, resp) //nolint:bodyclose // closed by the caller
 	d.queueErr = append(d.queueErr, err)
 }
 
@@ -81,7 +84,9 @@ func TestHTTPClient_FetchSuccess(t *testing.T) {
 	parser := newTestParser(t)
 	cache := NewFileETagCache(t.TempDir())
 	doer := &recordingDoer{}
-	doer.enqueue(cannedResponse(200, validManifest, map[string]string{"ETag": `"v1"`}), nil)
+	resp := cannedResponse(200, validManifest, map[string]string{"ETag": `"v1"`})
+	defer resp.Body.Close()
+	doer.enqueue(resp, nil)
 
 	c := NewHTTPClient("https://example.com/org/", parser, doer, cache)
 	m, err := c.Fetch(context.Background())
@@ -105,9 +110,13 @@ func TestHTTPClient_FetchUses304CachedBody(t *testing.T) {
 	cache := NewFileETagCache(t.TempDir())
 	doer := &recordingDoer{}
 	// First call: 200 + ETag.
-	doer.enqueue(cannedResponse(200, validManifest, map[string]string{"ETag": `"v1"`}), nil)
+	resp200 := cannedResponse(200, validManifest, map[string]string{"ETag": `"v1"`})
+	defer resp200.Body.Close()
+	doer.enqueue(resp200, nil)
 	// Second call: 304 (no body).
-	doer.enqueue(cannedResponse(304, "", map[string]string{"ETag": `"v1"`}), nil)
+	resp304 := cannedResponse(304, "", map[string]string{"ETag": `"v1"`})
+	defer resp304.Body.Close()
+	doer.enqueue(resp304, nil)
 
 	c := NewHTTPClient("https://example.com/org", parser, doer, cache)
 	_, err := c.Fetch(context.Background())
@@ -124,7 +133,9 @@ func TestHTTPClient_FetchUses304CachedBody(t *testing.T) {
 func TestHTTPClient_304WithoutCacheBodyFails(t *testing.T) {
 	parser := newTestParser(t)
 	doer := &recordingDoer{}
-	doer.enqueue(cannedResponse(304, "", nil), nil)
+	resp := cannedResponse(304, "", nil)
+	defer resp.Body.Close()
+	doer.enqueue(resp, nil)
 
 	// No cache → cannot satisfy 304.
 	c := NewHTTPClient("https://example.com/org", parser, doer, nil)
@@ -136,7 +147,9 @@ func TestHTTPClient_304WithoutCacheBodyFails(t *testing.T) {
 func TestHTTPClient_ParseError(t *testing.T) {
 	parser := newTestParser(t)
 	doer := &recordingDoer{}
-	doer.enqueue(cannedResponse(200, "not: : yaml", nil), nil)
+	resp := cannedResponse(200, "not: : yaml", nil)
+	defer resp.Body.Close()
+	doer.enqueue(resp, nil)
 
 	c := NewHTTPClient("https://example.com/org", parser, doer, nil)
 	_, err := c.Fetch(context.Background())
@@ -157,7 +170,9 @@ func TestHTTPClient_NetworkError(t *testing.T) {
 func TestHTTPClient_Non2xxStatus(t *testing.T) {
 	parser := newTestParser(t)
 	doer := &recordingDoer{}
-	doer.enqueue(cannedResponse(404, "no such org", nil), nil)
+	resp := cannedResponse(404, "no such org", nil)
+	defer resp.Body.Close()
+	doer.enqueue(resp, nil)
 
 	c := NewHTTPClient("https://example.com/org", parser, doer, nil)
 	_, err := c.Fetch(context.Background())
@@ -191,7 +206,9 @@ func TestHTTPClient_NilDoer(t *testing.T) {
 func TestHTTPClient_AppliesDefaultTimeout(t *testing.T) {
 	parser := newTestParser(t)
 	doer := &recordingDoer{}
-	doer.enqueue(cannedResponse(200, validManifest, nil), nil)
+	resp := cannedResponse(200, validManifest, nil)
+	defer resp.Body.Close()
+	doer.enqueue(resp, nil)
 
 	c := NewHTTPClient("https://example.com/org", parser, doer, nil)
 	// Caller context has no deadline.
@@ -207,7 +224,9 @@ func TestHTTPClient_AppliesDefaultTimeout(t *testing.T) {
 func TestHTTPClient_CachePutFailureSwallowed(t *testing.T) {
 	parser := newTestParser(t)
 	doer := &recordingDoer{}
-	doer.enqueue(cannedResponse(200, validManifest, map[string]string{"ETag": `"v1"`}), nil)
+	resp := cannedResponse(200, validManifest, map[string]string{"ETag": `"v1"`})
+	defer resp.Body.Close()
+	doer.enqueue(resp, nil)
 
 	cache := &failingCache{}
 	c := NewHTTPClient("https://example.com/org", parser, doer, cache)

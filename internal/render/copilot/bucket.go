@@ -19,8 +19,15 @@ import (
 
 // BucketKey identifies a Copilot bucket. Two values are reserved:
 //   - "always" — for activation=always skills.
-//   - "bucket-<sha8>" — for activation=globs skills, hashed over sorted globs.
+//   - "bucket-<sha16>" — for activation=globs skills, hashed over sorted globs.
 type BucketKey string
+
+// globHashHexLen is the number of sha256 hex characters retained in a
+// glob-bucket key. 16 hex chars (64 bits) keeps the key short while making
+// collisions between distinct glob sets astronomically unlikely; an 8-char
+// (32-bit) key collides at the birthday bound around ~77k distinct sets, and a
+// collision there is a hard render error rather than two separate buckets.
+const globHashHexLen = 16
 
 // AlwaysKey is the bucket key for activation=always skills.
 const AlwaysKey BucketKey = "always"
@@ -119,7 +126,8 @@ func normalizeGlobs(in []string) []string {
 }
 
 // bucketKeyForGlobs hashes the sorted globs with sha256 and takes the first
-// 8 hex chars to form "bucket-<sha8>".
+// globHashHexLen hex chars to form "bucket-<sha16>". The NUL separator keeps
+// the hash injective over the glob slice (so {"a","bc"} and {"ab","c"} differ).
 func bucketKeyForGlobs(sorted []string) BucketKey {
 	h := sha256.New()
 	for i, g := range sorted {
@@ -129,7 +137,7 @@ func bucketKeyForGlobs(sorted []string) BucketKey {
 		h.Write([]byte(g))
 	}
 	sum := h.Sum(nil)
-	return BucketKey(fmt.Sprintf("bucket-%s", hex.EncodeToString(sum)[:8]))
+	return BucketKey(fmt.Sprintf("bucket-%s", hex.EncodeToString(sum)[:globHashHexLen]))
 }
 
 // bucketPath returns the relative on-disk path for a bucket file.

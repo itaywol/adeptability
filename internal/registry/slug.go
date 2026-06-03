@@ -49,10 +49,8 @@ func ParseSlug(raw string) (Slug, error) {
 	repo := repoTail
 	ref := ""
 	for _, sep := range []string{"#", "@"} {
-		if idx := strings.Index(repoTail, sep); idx >= 0 {
-			repo = repoTail[:idx]
-			ref = repoTail[idx+1:]
-			break
+		if before, after, found := strings.Cut(repoTail, sep); found {
+			repo, ref = before, after
 		}
 	}
 	if owner == "" || repo == "" || skill == "" {
@@ -74,7 +72,7 @@ func (s Slug) String() string {
 // extracting the skill. Order matters: first match wins.
 func (s Slug) CandidateLayouts() []string {
 	return []string{
-		s.Skill,            // <repo>/<skill>/SKILL.md
+		s.Skill,             // <repo>/<skill>/SKILL.md
 		"skills/" + s.Skill, // <repo>/skills/<skill>/SKILL.md
 	}
 }

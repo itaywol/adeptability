@@ -25,7 +25,7 @@ func (a *Adapter) Import(_ context.Context, projectRoot string) ([]adept.Importe
 		}
 		return nil, fmt.Errorf("cursor import: %w", err)
 	}
-	var out []adept.ImportedSkill
+	out := make([]adept.ImportedSkill, 0, len(entries))
 	for _, e := range entries {
 		name := e.Name()
 		if !strings.HasSuffix(name, ".mdc") || e.IsDir() {

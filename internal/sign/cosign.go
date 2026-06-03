@@ -145,7 +145,7 @@ func (v *CosignVerifier) Verify(ctx context.Context, blob, sig, cert []byte) err
 	}
 	out, err := v.runner.Run(ctx, v.binary, args...)
 	if err != nil {
-		return fmt.Errorf("%w: %s: %v", ErrCosignVerifyFailed, trimOutput(out), err)
+		return fmt.Errorf("%w: %s: %w", ErrCosignVerifyFailed, trimOutput(out), err)
 	}
 	return nil
 }

@@ -11,6 +11,14 @@ import (
 	"github.com/itaywol/adeptability/pkg/adept"
 )
 
+// PathUnknown means the path could not be classified because Lstat
+// failed with an error other than fs.ErrNotExist (e.g. permission denied
+// on a parent component, a non-directory parent, or a symlink loop). The
+// entry may well exist on disk, so consumers must NOT treat it as absent:
+// drift classifies it as a Conflict (it is != PathMissing) and adapters
+// skip it rather than overwriting a live-but-unreadable path.
+const PathUnknown PathType = "unknown"
+
 // Linker manages symlinks, with a copy fallback for filesystems that don't
 // support them.
 type Linker interface {
@@ -74,6 +82,13 @@ func (l *linker) SymlinkOrCopy(target, linkPath string, isDir bool) (adept.Harne
 	}
 	// Fall back to copy.
 	if isDir {
+		// Clear any pre-existing destination first so the copy is a
+		// faithful mirror of target. CopyDir overwrites files it finds
+		// in src but never prunes files present only in dst, so without
+		// this a stale entry from a prior copy would survive.
+		if err := l.w.RemoveAll(linkPath); err != nil {
+			return "", fmt.Errorf("fsutil: clear copy dest %s: %w", linkPath, err)
+		}
 		if err := l.w.CopyDir(target, linkPath); err != nil {
 			return "", err
 		}
@@ -107,7 +122,14 @@ func (l *linker) PathType(path string) PathType {
 		if errors.Is(err, fs.ErrNotExist) {
 			return PathMissing
 		}
-		return PathMissing
+		// A real Lstat failure (EACCES on a parent, ENOTDIR, ELOOP,
+		// name-too-long, …) means the path may well exist but is
+		// unstattable. Collapsing it to PathMissing makes drift report
+		// "safe to create" and lets adapters overwrite a live entry.
+		// Surface it as PathUnknown so callers treat it as "present /
+		// not safe to clobber" (drift.go default -> Conflict; adapter
+		// `!= PathMissing` guards skip it).
+		return PathUnknown
 	}
 	mode := info.Mode()
 	switch {
