@@ -323,7 +323,10 @@ func appendToFile(path, extra string) error {
 func gitInit(t *testing.T, dir string) {
 	t.Helper()
 	for _, args := range [][]string{
-		{"init"},
+		// Force the default branch to main so `library add` / `init --from`
+		// (which clone with --ref main) work regardless of the host git's
+		// init.defaultBranch (CI runners default to master).
+		{"init", "-b", "main"},
 		{"add", "."},
 		{"-c", "user.email=t@e", "-c", "user.name=t", "commit", "-m", "init"},
 	} {

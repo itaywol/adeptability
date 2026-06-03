@@ -32,7 +32,13 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: latest
+          # Build from source with the setup-go toolchain (go1.25). The
+          # prebuilt "latest" binary is built with an older Go and refuses a
+          # config targeting a newer Go ("language version used to build
+          # golangci-lint is lower than the targeted Go version"). v1.64.8 is
+          # the last v1 release and matches the v1-format .golangci.yml.
+          version: v1.64.8
+          install-mode: goinstall
           args: --timeout=5m
 
   test:
