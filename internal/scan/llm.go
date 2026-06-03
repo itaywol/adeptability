@@ -232,7 +232,7 @@ func mergeStaticWithLLM(static Report, reply llmReply) Report {
 	// recognized severity ABOVE everything we already have, inject a
 	// synthetic finding so Worst()/the install gate actually reflect it
 	// instead of silently dropping the model's top-level judgment.
-	if sev, ok := ParseSeverity(string(reply.OverallRisk)); ok && severityRank(sev) > severityRank(out.Worst()) {
+	if sev, ok := ParseSeverity(string(reply.OverallRisk)); ok && SeverityRank(sev) > SeverityRank(out.Worst()) {
 		issue := strings.TrimSpace(reply.Summary)
 		if issue == "" {
 			issue = "LLM judged the skill's overall risk higher than any individual finding"
@@ -255,7 +255,7 @@ func mergeStaticWithLLM(static Report, reply llmReply) Report {
 
 func sortBySeverityDesc(r *Report) {
 	for i := 1; i < len(r.Findings); i++ {
-		for j := i; j > 0 && severityRank(r.Findings[j].Severity) > severityRank(r.Findings[j-1].Severity); j-- {
+		for j := i; j > 0 && SeverityRank(r.Findings[j].Severity) > SeverityRank(r.Findings[j-1].Severity); j-- {
 			r.Findings[j-1], r.Findings[j] = r.Findings[j], r.Findings[j-1]
 		}
 	}

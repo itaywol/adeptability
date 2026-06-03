@@ -114,7 +114,7 @@ func TestParseSeverity(t *testing.T) {
 
 // Fail-closed: an unknown non-empty severity ranks as most severe.
 func TestSeverityRankFailsClosed(t *testing.T) {
-	require.Equal(t, 4, severityRank(Severity("bogus")))
-	require.Equal(t, 0, severityRank(SeverityClean))
-	require.Equal(t, 0, severityRank(Severity("")))
+	require.Equal(t, 4, SeverityRank(Severity("bogus")))
+	require.Equal(t, 0, SeverityRank(SeverityClean))
+	require.Equal(t, 0, SeverityRank(Severity("")))
 }

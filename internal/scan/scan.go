@@ -216,8 +216,8 @@ func (s *Scanner) Scan(target Target) Report {
 	}
 	// Stable ordering: severity desc, then ID asc.
 	sort.Slice(out.Findings, func(i, j int) bool {
-		oi := severityRank(out.Findings[i].Severity)
-		oj := severityRank(out.Findings[j].Severity)
+		oi := SeverityRank(out.Findings[i].Severity)
+		oj := SeverityRank(out.Findings[j].Severity)
 		if oi != oj {
 			return oi > oj
 		}
@@ -226,7 +226,11 @@ func (s *Scanner) Scan(target Target) Report {
 	return out
 }
 
-func severityRank(s Severity) int {
+// SeverityRank maps a severity to a monotonic integer (critical=4 .. clean=0)
+// so callers can compare and order findings. An unknown, non-empty severity
+// fails closed at the most-severe rank so a typo or attacker-supplied value
+// can never silently lower a gate.
+func SeverityRank(s Severity) int {
 	switch s {
 	case SeverityCritical:
 		return 4

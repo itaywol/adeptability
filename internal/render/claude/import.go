@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/itaywol/adeptability/internal/canonical"
+	"github.com/itaywol/adeptability/internal/render/common"
 	"github.com/itaywol/adeptability/pkg/adept"
 )
 
@@ -89,7 +90,7 @@ func (a *Adapter) Import(_ context.Context, projectRoot string) ([]adept.Importe
 		}
 		skill.Body = body
 
-		files, err := collectSidecars(filepath.Join(base, id))
+		files, err := common.CollectSidecars(filepath.Join(base, id))
 		if err != nil {
 			return nil, err
 		}
@@ -117,56 +118,4 @@ func frontmatterRegion(raw []byte) string {
 		return rest[:end]
 	}
 	return ""
-}
-
-// collectSidecars walks a harness skill directory and returns every file other
-// than SKILL.md. Symlinks are dereferenced because the on-disk content is what
-// the user expects to import.
-func collectSidecars(dir string) ([]adept.SkillFile, error) {
-	var out []adept.SkillFile
-	walkErr := filepath.WalkDir(dir, func(path string, d os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if path == dir {
-			return nil
-		}
-		base := filepath.Base(path)
-		if strings.HasPrefix(base, ".") {
-			if d.IsDir() {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if d.IsDir() {
-			return nil
-		}
-		rel, err := filepath.Rel(dir, path)
-		if err != nil {
-			return err
-		}
-		rel = filepath.ToSlash(rel)
-		if rel == adept.SkillFileName {
-			return nil
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return fmt.Errorf("read sidecar %s: %w", path, err)
-		}
-		info, err := d.Info()
-		if err != nil {
-			return err
-		}
-		out = append(out, adept.SkillFile{
-			RelPath: rel,
-			Mode:    info.Mode().Perm(),
-			Bytes:   data,
-		})
-		return nil
-	})
-	if walkErr != nil {
-		return nil, walkErr
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].RelPath < out[j].RelPath })
-	return out, nil
 }

@@ -74,25 +74,5 @@ func installBlocks(d *Deps, p project.Project, report scan.Report) bool {
 				"value", cfg.Scan.BlockSeverity)
 		}
 	}
-	return severityRank(report.Worst()) >= severityRank(threshold)
-}
-
-// severityRank mirrors internal/scan but is exposed here so this
-// package doesn't reach into scan's unexported helper. Unknown but
-// non-empty severities rank as the most severe (4) so the gate fails
-// closed rather than treating a stray value as "clean".
-func severityRank(s scan.Severity) int {
-	switch s {
-	case scan.SeverityCritical:
-		return 4
-	case scan.SeverityHigh:
-		return 3
-	case scan.SeverityMedium:
-		return 2
-	case scan.SeverityLow:
-		return 1
-	case scan.SeverityClean, "":
-		return 0
-	}
-	return 4
+	return scan.SeverityRank(report.Worst()) >= scan.SeverityRank(threshold)
 }

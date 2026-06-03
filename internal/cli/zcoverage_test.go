@@ -153,14 +153,14 @@ func TestInstallBlocks(t *testing.T) {
 // and asserts unknown/empty severities fail closed (unknown -> 4, empty -> 0).
 func TestSeverityRank_Ordering(t *testing.T) {
 	t.Parallel()
-	require.Greater(t, severityRank(scan.SeverityCritical), severityRank(scan.SeverityHigh))
-	require.Greater(t, severityRank(scan.SeverityHigh), severityRank(scan.SeverityMedium))
-	require.Greater(t, severityRank(scan.SeverityMedium), severityRank(scan.SeverityLow))
-	require.Greater(t, severityRank(scan.SeverityLow), severityRank(scan.SeverityClean))
-	require.Equal(t, 0, severityRank(scan.SeverityClean))
-	require.Equal(t, 0, severityRank(scan.Severity("")))
+	require.Greater(t, scan.SeverityRank(scan.SeverityCritical), scan.SeverityRank(scan.SeverityHigh))
+	require.Greater(t, scan.SeverityRank(scan.SeverityHigh), scan.SeverityRank(scan.SeverityMedium))
+	require.Greater(t, scan.SeverityRank(scan.SeverityMedium), scan.SeverityRank(scan.SeverityLow))
+	require.Greater(t, scan.SeverityRank(scan.SeverityLow), scan.SeverityRank(scan.SeverityClean))
+	require.Equal(t, 0, scan.SeverityRank(scan.SeverityClean))
+	require.Equal(t, 0, scan.SeverityRank(scan.Severity("")))
 	// Unknown but non-empty fails closed to the most-severe rank.
-	require.Equal(t, 4, severityRank(scan.Severity("weird")))
+	require.Equal(t, 4, scan.SeverityRank(scan.Severity("weird")))
 }
 
 // ---------- verify_locks.go: hashFiles / hashSkillDir ----------

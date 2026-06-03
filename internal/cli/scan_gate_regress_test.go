@@ -82,8 +82,8 @@ func TestInstallBlocksRegress_ValidThreshold(t *testing.T) {
 
 // severityRank in this package must also fail closed for unknown values.
 func TestSeverityRankRegress_FailsClosed(t *testing.T) {
-	require.Equal(t, 4, severityRank(scan.Severity("nonsense")))
-	require.Equal(t, 0, severityRank(scan.SeverityClean))
+	require.Equal(t, 4, scan.SeverityRank(scan.Severity("nonsense")))
+	require.Equal(t, 0, scan.SeverityRank(scan.SeverityClean))
 }
 
 // Regression: ErrScanFindings must map to exit code 2 (via ErrDirty),
