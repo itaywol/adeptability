@@ -1,5 +1,5 @@
 ---
-id: valid_frontmatter_skill
+id: valid-frontmatter-skill
 description: A valid skill driven by frontmatter
 activation: always
 tags:

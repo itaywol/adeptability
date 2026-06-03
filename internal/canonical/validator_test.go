@@ -19,11 +19,42 @@ func TestValidator_Valid(t *testing.T) {
 	t.Parallel()
 	v := newTestValidator(t)
 	s := &adept.Skill{
-		ID:          "ok_skill",
+		ID:          "ok-skill",
 		Description: "fine",
 		Activation:  adept.ActivationAgent,
 	}
 	require.NoError(t, v.Validate(s))
+}
+
+func TestValidator_HarnessOverrideValid(t *testing.T) {
+	t.Parallel()
+	v := newTestValidator(t)
+	s := &adept.Skill{
+		ID:          "ok-skill",
+		Description: "fine",
+		Activation:  adept.ActivationAgent,
+		Model:       "claude-opus-4-8",
+		Harness: map[string]map[string]any{
+			"claude-code": {"effort": "high", "allowed-tools": []any{"Bash"}},
+		},
+	}
+	require.NoError(t, v.Validate(s))
+}
+
+func TestValidator_HarnessOverrideCannotHijackIdentity(t *testing.T) {
+	t.Parallel()
+	v := newTestValidator(t)
+	for _, key := range []string{"id", "name", "description"} {
+		s := &adept.Skill{
+			ID:          "ok-skill",
+			Description: "fine",
+			Activation:  adept.ActivationAgent,
+			Harness:     map[string]map[string]any{"claude-code": {key: "hijack"}},
+		}
+		err := v.Validate(s)
+		require.Error(t, err, "override of identity field %q must be rejected", key)
+		require.ErrorIs(t, err, adept.ErrSkillInvalid)
+	}
 }
 
 func TestValidator_NilSkill(t *testing.T) {
@@ -50,7 +81,7 @@ func TestValidator_MissingDescription(t *testing.T) {
 	t.Parallel()
 	v := newTestValidator(t)
 	s := &adept.Skill{
-		ID: "good_id",
+		ID: "good-id",
 	}
 	err := v.Validate(s)
 	require.Error(t, err)
@@ -61,7 +92,7 @@ func TestValidator_GlobsActivationRequiresGlobs(t *testing.T) {
 	t.Parallel()
 	v := newTestValidator(t)
 	s := &adept.Skill{
-		ID:          "ok_skill",
+		ID:          "ok-skill",
 		Description: "x",
 		Activation:  adept.ActivationGlobs,
 	}
@@ -77,7 +108,7 @@ func TestValidator_DescriptionTooLong(t *testing.T) {
 	t.Parallel()
 	v := newTestValidator(t)
 	s := &adept.Skill{
-		ID:          "ok_skill",
+		ID:          "ok-skill",
 		Description: strings.Repeat("x", 281),
 	}
 	err := v.Validate(s)

@@ -59,26 +59,20 @@ func shouldScanOnInstall(cfg *adept.Config, prov interface{ Name() string }) boo
 // installBlocks returns true when report.Worst() reaches or exceeds the
 // configured block threshold (default "critical"). Used by `skill
 // install` to gate writes.
+//
+// An invalid or mis-cased Scan.BlockSeverity must NOT silently disable
+// or invert the gate: such values are rejected (logged) and the gate
+// falls back to the strictest meaningful default, SeverityCritical, so
+// a typo can never weaken the safety boundary.
 func installBlocks(d *Deps, p project.Project, report scan.Report) bool {
 	threshold := scan.SeverityCritical
 	if cfg, err := p.Config(); err == nil && cfg.Scan != nil && cfg.Scan.BlockSeverity != "" {
-		threshold = scan.Severity(cfg.Scan.BlockSeverity)
+		if sev, ok := scan.ParseSeverity(cfg.Scan.BlockSeverity); ok {
+			threshold = sev
+		} else if d != nil && d.Log != nil {
+			d.Log.Warn("invalid scan.blockSeverity; defaulting to critical",
+				"value", cfg.Scan.BlockSeverity)
+		}
 	}
-	return severityRank(report.Worst()) >= severityRank(threshold)
-}
-
-// severityRank mirrors internal/scan but is exposed here so this
-// package doesn't reach into scan's unexported helper.
-func severityRank(s scan.Severity) int {
-	switch s {
-	case scan.SeverityCritical:
-		return 4
-	case scan.SeverityHigh:
-		return 3
-	case scan.SeverityMedium:
-		return 2
-	case scan.SeverityLow:
-		return 1
-	}
-	return 0
+	return scan.SeverityRank(report.Worst()) >= scan.SeverityRank(threshold)
 }

@@ -66,10 +66,22 @@ func TestFrontmatterBuilder_EmptyKey(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestFrontmatterBuilder_StructuredValuesEncode(t *testing.T) {
+	t.Parallel()
+	// Structured values (maps/slices) now encode via yaml so per-harness
+	// override blocks can carry them.
+	out, err := common.NewFrontmatterBuilder().Build([]common.Field{
+		{Key: "k", Value: map[string]any{"a": "b"}},
+	})
+	require.NoError(t, err)
+	require.Contains(t, out, "a: b")
+}
+
 func TestFrontmatterBuilder_UnsupportedType(t *testing.T) {
 	t.Parallel()
+	// A channel cannot be yaml-encoded, so it still surfaces an error.
 	_, err := common.NewFrontmatterBuilder().Build([]common.Field{
-		{Key: "k", Value: map[string]string{"a": "b"}},
+		{Key: "k", Value: make(chan int)},
 	})
 	require.Error(t, err)
 }

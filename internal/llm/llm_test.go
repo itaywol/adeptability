@@ -13,10 +13,12 @@ type fakeProvider struct {
 	avail error
 }
 
-func (f *fakeProvider) Name() string                                          { return f.name }
-func (f *fakeProvider) DefaultModel() string                                  { return "test-model" }
-func (f *fakeProvider) Available(context.Context) error                       { return f.avail }
-func (f *fakeProvider) Evaluate(context.Context, Request) (Response, error)   { return Response{Text: "ok"}, nil }
+func (f *fakeProvider) Name() string                    { return f.name }
+func (f *fakeProvider) DefaultModel() string            { return "test-model" }
+func (f *fakeProvider) Available(context.Context) error { return f.avail }
+func (f *fakeProvider) Evaluate(context.Context, Request) (Response, error) {
+	return Response{Text: "ok"}, nil
+}
 
 func TestRegistry_Get_KnownProvider(t *testing.T) {
 	reg := NewRegistry(&fakeProvider{name: "alpha"}, &fakeProvider{name: "beta"})

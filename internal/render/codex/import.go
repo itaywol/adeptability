@@ -47,17 +47,20 @@ func (a *Adapter) Import(_ context.Context, projectRoot string) ([]adept.Importe
 		}, nil
 	}
 
-	var out []adept.ImportedSkill
+	out := make([]adept.ImportedSkill, 0, len(markers))
 	for _, m := range markers {
 		// m: [fullStart, fullEnd, idStart, idEnd, hashStart, hashEnd]
 		bodyStart := m[1]
 		id := s[m[2]:m[3]]
-		// Find the matching end marker for this id.
-		endMatch := endRE.FindStringIndex(s[bodyStart:])
-		if endMatch == nil {
+		// Find the end marker whose captured id equals this section's id.
+		// Matching by id (not by first occurrence) prevents a section with a
+		// missing :end from greedily absorbing the next section's content and
+		// causing that section to be imported twice.
+		endOffset := matchingEndOffset(s[bodyStart:], id)
+		if endOffset < 0 {
 			return nil, fmt.Errorf("codex import: unterminated section for %q", id)
 		}
-		body := strings.TrimSpace(s[bodyStart : bodyStart+endMatch[0]])
+		body := strings.TrimSpace(s[bodyStart : bodyStart+endOffset])
 		// The renderer prepends `## <description>` to each section. Try to
 		// recover the description from the first non-empty line.
 		desc := ""
@@ -85,4 +88,18 @@ func (a *Adapter) Import(_ context.Context, projectRoot string) ([]adept.Importe
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Skill.ID < out[j].Skill.ID })
 	return out, nil
+}
+
+// matchingEndOffset returns the byte offset within s of the first
+// `adeptability:end` marker whose captured id equals id, or -1 if none.
+// Matching by id (rather than the first end marker found) ensures a section
+// whose own :end was deleted does not silently swallow following sections.
+func matchingEndOffset(s, id string) int {
+	for _, em := range endRE.FindAllStringSubmatchIndex(s, -1) {
+		// em: [fullStart, fullEnd, idStart, idEnd]
+		if s[em[2]:em[3]] == id {
+			return em[0]
+		}
+	}
+	return -1
 }

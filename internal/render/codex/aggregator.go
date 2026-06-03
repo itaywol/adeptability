@@ -73,7 +73,7 @@ func buildTruncationManifest(dropped []budget.Part, budgetB int) string {
 	}
 	sort.Strings(ids)
 	return fmt.Sprintf(
-		"<!-- adeptability: omitted %d skill(s) due to %dKiB budget. Run `adept apply --diet` to fit. Dropped: %s -->",
+		"<!-- adeptability: omitted %d skill(s) due to %dKiB budget. Trim or split skills to fit. Dropped: %s -->",
 		len(dropped),
 		budgetB/1024,
 		strings.Join(ids, ","),

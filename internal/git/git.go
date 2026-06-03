@@ -82,7 +82,8 @@ func (r *execRunner) Run(ctx context.Context, dir string, args ...string) (Resul
 		res.ExitCode = cmd.ProcessState.ExitCode()
 	}
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
 			// Command ran, returned non-zero. Surface that as an error so
 			// callers can decide, but with res populated.
 			return res, fmt.Errorf("git %s: exit %d: %s",

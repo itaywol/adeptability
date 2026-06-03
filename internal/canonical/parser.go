@@ -35,7 +35,7 @@ func (p *parser) ParseSkillYAML(data []byte) (*adept.Skill, error) {
 	}
 	s := &adept.Skill{}
 	if err := yaml.Unmarshal(data, s); err != nil {
-		return nil, fmt.Errorf("parse skill.yaml: %w: %v", adept.ErrSkillInvalid, err)
+		return nil, fmt.Errorf("parse skill.yaml: %w: %w", adept.ErrSkillInvalid, err)
 	}
 	// vercel-labs/skills (and most harness-native SKILL.md) writes `name:`
 	// where adept canonical writes `id:`. Accept either — directory name
@@ -77,7 +77,7 @@ func (p *parser) ParseFrontmatter(skillMD []byte) (*adept.Skill, string, error) 
 	// Search for the closing "\n---\n" or "\n---" at EOF.
 	closer := []byte("\n---\n")
 	endIdx := bytes.Index(rest, closer)
-	bodyStart := -1
+	var bodyStart int
 	if endIdx >= 0 {
 		bodyStart = endIdx + len(closer)
 	} else {

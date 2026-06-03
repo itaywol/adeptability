@@ -235,12 +235,19 @@ func (m *merger) mergeOne(rel string, base, ours, theirs *fileEntry) (ResultFile
 			return ResultFile{RelPath: rel, Mode: base.mode, Deleted: true}, false, nil
 		}
 		// We deleted, they changed → conflict, keep their version
-		// inside the conflict envelope.
+		// inside the conflict envelope. The file existed in base (this
+		// branch requires base != nil), so pass the real ancestor bytes
+		// through; emitting nil would falsely render "(absent in base)"
+		// and lose the content the user needs to resolve the conflict.
+		baseBytes, err := base.load()
+		if err != nil {
+			return ResultFile{}, false, err
+		}
 		theirBytes, err := theirs.load()
 		if err != nil {
 			return ResultFile{}, false, err
 		}
-		body := m.renderDeleteModifyConflict(rel, "ours", "theirs", nil, theirBytes)
+		body := m.renderDeleteModifyConflict(rel, "ours", "theirs", baseBytes, theirBytes)
 		return ResultFile{RelPath: rel, Bytes: body, Mode: theirs.mode, Conflict: true}, true, nil
 	case base != nil && theirs == nil && ours != nil:
 		same, err := sameContent(base, ours)
@@ -250,11 +257,15 @@ func (m *merger) mergeOne(rel string, base, ours, theirs *fileEntry) (ResultFile
 		if same {
 			return ResultFile{RelPath: rel, Mode: base.mode, Deleted: true}, false, nil
 		}
+		baseBytes, err := base.load()
+		if err != nil {
+			return ResultFile{}, false, err
+		}
 		ourBytes, err := ours.load()
 		if err != nil {
 			return ResultFile{}, false, err
 		}
-		body := m.renderDeleteModifyConflict(rel, "theirs", "ours", nil, ourBytes)
+		body := m.renderDeleteModifyConflict(rel, "theirs", "ours", baseBytes, ourBytes)
 		return ResultFile{RelPath: rel, Bytes: body, Mode: ours.mode, Conflict: true}, true, nil
 	}
 

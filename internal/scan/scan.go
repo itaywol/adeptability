@@ -46,13 +46,13 @@ const (
 type Category string
 
 const (
-	CategoryPromptInjection     Category = "prompt-injection"
-	CategoryMaliciousCode       Category = "malicious-code"
-	CategoryExcessivePerms      Category = "excessive-permissions"
-	CategorySecretExposure      Category = "secret-exposure"
-	CategorySupplyChain         Category = "supply-chain"
-	CategoryURLAnalysis         Category = "url-analysis"
-	CategoryFrontmatter         Category = "frontmatter"
+	CategoryPromptInjection Category = "prompt-injection"
+	CategoryMaliciousCode   Category = "malicious-code"
+	CategoryExcessivePerms  Category = "excessive-permissions"
+	CategorySecretExposure  Category = "secret-exposure"
+	CategorySupplyChain     Category = "supply-chain"
+	CategoryURLAnalysis     Category = "url-analysis"
+	CategoryFrontmatter     Category = "frontmatter"
 )
 
 // Finding is one structured issue. ID is a stable opaque identifier
@@ -130,6 +130,20 @@ type Rule struct {
 	Match       func(stripped string) (evidence string, ok bool)
 }
 
+// rmRootPattern matches a recursive+force rm targeting the filesystem
+// root or a well-known system/home subtree. It is deliberately tolerant:
+//
+//   - either flag order (-rf or -fr) and combined short flags (-Rf,
+//     -rfv, ...) — the flag group just has to contain both r and f.
+//   - intervening flags such as `--no-preserve-root` between the rm
+//     flags and the path.
+//   - destruction of bare `/`, `/*`, or known critical roots
+//     (/bin /etc /usr /var /home /root /boot /lib /sys ...), not just `/`.
+//
+// This closes the evasion gaps where `rm -fr /`, `rm -rf --no-preserve-root /`,
+// and `rm -rf /etc` previously slipped past the narrower `-[rR]f?\s+/` form.
+const rmRootPattern = `(?i)\brm\s+(?:--?[\w-]+\s+)*-[a-z]*(?:r[a-z]*f|f[a-z]*r)[a-z]*(?:\s+--?[\w-]+)*\s+/(?:bin|etc|usr|var|home|root|boot|lib|lib64|sys|proc|dev|opt|sbin)?(?:\s|$|\*|/)`
+
 // NewScanner constructs a Scanner with the default rule set. Phase 2.2
 // adds extension points for user-provided LLM-derived rules; for now the
 // set is fixed.
@@ -142,7 +156,17 @@ func NewScanner() *Scanner {
 // "high-confidence script danger" rules — the body rules are tuned for
 // prose markdown and would over-fire on bash.
 func (s *Scanner) Scan(target Target) Report {
-	stripped := stripFences(string(target.Body))
+	raw := string(target.Body)
+	stripped, balanced := stripFences(raw)
+	// Scan-evasion guard: an unterminated/unbalanced fence makes
+	// stripFences swallow everything after the lone opener, hiding any
+	// dangerous prose or prompt injection placed below it. When fences
+	// are unbalanced we cannot trust the stripped view, so we scan the
+	// raw body instead — usage-example false positives are an acceptable
+	// trade against silently dropping a payload.
+	if !balanced {
+		stripped = raw
+	}
 	out := Report{Target: target.Name}
 	for _, rule := range s.Rules {
 		if rule.Match == nil {
@@ -192,8 +216,8 @@ func (s *Scanner) Scan(target Target) Report {
 	}
 	// Stable ordering: severity desc, then ID asc.
 	sort.Slice(out.Findings, func(i, j int) bool {
-		oi := severityRank(out.Findings[i].Severity)
-		oj := severityRank(out.Findings[j].Severity)
+		oi := SeverityRank(out.Findings[i].Severity)
+		oj := SeverityRank(out.Findings[j].Severity)
 		if oi != oj {
 			return oi > oj
 		}
@@ -202,7 +226,11 @@ func (s *Scanner) Scan(target Target) Report {
 	return out
 }
 
-func severityRank(s Severity) int {
+// SeverityRank maps a severity to a monotonic integer (critical=4 .. clean=0)
+// so callers can compare and order findings. An unknown, non-empty severity
+// fails closed at the most-severe rank so a typo or attacker-supplied value
+// can never silently lower a gate.
+func SeverityRank(s Severity) int {
 	switch s {
 	case SeverityCritical:
 		return 4
@@ -212,8 +240,33 @@ func severityRank(s Severity) int {
 		return 2
 	case SeverityLow:
 		return 1
+	case SeverityClean, "":
+		return 0
 	}
-	return 0
+	// Unknown but non-empty severity: fail closed. Treating it as the
+	// lowest rank (0) would let a typo or attacker-supplied value
+	// silently disable the gate, so we rank it as the most severe.
+	return 4
+}
+
+// ParseSeverity normalizes an arbitrary (e.g. config- or LLM-supplied)
+// severity string to one of the known Severity values. The match is
+// case-insensitive and whitespace-trimmed. ok is false when the input
+// does not name a known severity; callers should fail closed on !ok.
+func ParseSeverity(s string) (Severity, bool) {
+	switch Severity(strings.ToLower(strings.TrimSpace(s))) {
+	case SeverityClean:
+		return SeverityClean, true
+	case SeverityLow:
+		return SeverityLow, true
+	case SeverityMedium:
+		return SeverityMedium, true
+	case SeverityHigh:
+		return SeverityHigh, true
+	case SeverityCritical:
+		return SeverityCritical, true
+	}
+	return "", false
 }
 
 func looksLikeScript(path string) bool {
@@ -240,9 +293,12 @@ func snippet(s string) string {
 }
 
 // stripFences removes fenced code blocks. Prose rules run on what
-// remains so usage examples (`` ```bash curl X | sh ``` ``) do not
-// false-fire.
-func stripFences(body string) string {
+// remains so usage examples (“ ```bash curl X | sh ``` “) do not
+// false-fire. The returned bool is false when the fences are
+// unbalanced (an opener with no matching close): in that case the
+// caller must NOT trust the stripped output, because an unterminated
+// fence would otherwise hide all subsequent content from the rules.
+func stripFences(body string) (string, bool) {
 	var out strings.Builder
 	scanner := bufio.NewScanner(strings.NewReader(body))
 	scanner.Buffer(make([]byte, 0, 1<<20), 1<<20)
@@ -260,7 +316,8 @@ func stripFences(body string) string {
 		out.WriteString(line)
 		out.WriteByte('\n')
 	}
-	return out.String()
+	// inFence still true at EOF ⇒ an opener was never closed.
+	return out.String(), !inFence
 }
 
 // DefaultRules is the canonical static rule set. Patterns target prose
@@ -281,123 +338,123 @@ func DefaultRules() []Rule {
 		// ── Malicious code ───────────────────────────────────────────
 		{
 			ID: "SKILL-SEC-001", Category: CategoryMaliciousCode, Severity: SeverityCritical, Confidence: ConfidenceHigh,
-			Issue: "asks the agent to pipe a remote download into a shell",
-			Risk:  "remote code execution from any controlled URL",
+			Issue:       "asks the agent to pipe a remote download into a shell",
+			Risk:        "remote code execution from any controlled URL",
 			Remediation: "remove the curl|sh pattern; reference signed binaries or vetted package managers",
-			Match: mk(`(?i)\b(curl|wget)\b[^|\n]{0,200}\|\s*(sh|bash|zsh)\b`),
+			Match:       mk(`(?i)\b(curl|wget)\b[^|\n]{0,200}\|\s*(sh|bash|zsh)\b`),
 		},
 		{
 			ID: "SKILL-SEC-002", Category: CategoryMaliciousCode, Severity: SeverityCritical, Confidence: ConfidenceHigh,
-			Issue: "asks the agent to recursively delete a root path",
-			Risk:  "destruction of host filesystem",
+			Issue:       "asks the agent to recursively delete a root path",
+			Risk:        "destruction of host filesystem",
 			Remediation: "scope deletion to the project tree or use the agent's safer file APIs",
-			Match: mk(`(?i)\brm\s+-[rR]f?\s+/(?:\s|$|\*)`),
+			Match:       mk(rmRootPattern),
 		},
 		{
 			ID: "SKILL-SEC-003", Category: CategoryMaliciousCode, Severity: SeverityHigh, Confidence: ConfidenceHigh,
-			Issue: "asks the agent to escalate privileges via sudo",
-			Risk:  "agent runs commands as root",
+			Issue:       "asks the agent to escalate privileges via sudo",
+			Risk:        "agent runs commands as root",
 			Remediation: "drop sudo; document the requirement and let the user grant it",
-			Match: mk(`(?i)\bsudo\b`),
+			Match:       mk(`(?i)\bsudo\b`),
 		},
 		{
 			ID: "SKILL-SEC-004", Category: CategoryMaliciousCode, Severity: SeverityHigh, Confidence: ConfidenceHigh,
-			Issue: "asks the agent to chmod 777 or mark files executable",
-			Risk:  "broad permission grants",
+			Issue:       "asks the agent to chmod 777 or mark files executable",
+			Risk:        "broad permission grants",
 			Remediation: "specify exact permission bits or use the host package manager",
-			Match: mk(`(?i)\bchmod\s+(?:777|\+x)\b`),
+			Match:       mk(`(?i)\bchmod\s+(?:777|\+x)\b`),
 		},
 		{
 			ID: "SKILL-SEC-005", Category: CategoryMaliciousCode, Severity: SeverityHigh, Confidence: ConfidenceMedium,
-			Issue: "calls exec/eval/os.system at runtime",
-			Risk:  "dynamic code execution surface",
+			Issue:       "calls exec/eval/os.system at runtime",
+			Risk:        "dynamic code execution surface",
 			Remediation: "call the function directly without string evaluation",
-			Match: mk(`(?i)\bexec\(|\beval\(|\bos\.system\(`),
+			Match:       mk(`(?i)\bexec\(|\beval\(|\bos\.system\(`),
 		},
 		{
 			ID: "SKILL-SEC-006", Category: CategoryMaliciousCode, Severity: SeverityHigh, Confidence: ConfidenceMedium,
-			Issue: "decodes binary payloads from base64/xxd (obfuscation pattern)",
-			Risk:  "hides intent behind encoded payloads",
+			Issue:       "decodes binary payloads from base64/xxd (obfuscation pattern)",
+			Risk:        "hides intent behind encoded payloads",
 			Remediation: "inline plaintext content or document the source",
-			Match: mk(`(?i)\bbase64\s+-d\b|\bxxd\s+-r\b`),
+			Match:       mk(`(?i)\bbase64\s+-d\b|\bxxd\s+-r\b`),
 		},
 		{
 			ID: "SKILL-SEC-007", Category: CategoryMaliciousCode, Severity: SeverityMedium, Confidence: ConfidenceHigh,
-			Issue: "opens a listening network socket",
-			Risk:  "agent exposes a service",
+			Issue:       "opens a listening network socket",
+			Risk:        "agent exposes a service",
 			Remediation: "remove or restrict to local loopback with explicit user consent",
-			Match: mk(`(?i)\b(nc|netcat)\s+-l\b`),
+			Match:       mk(`(?i)\b(nc|netcat)\s+-l\b`),
 		},
 		{
 			ID: "SKILL-SEC-008", Category: CategoryMaliciousCode, Severity: SeverityHigh, Confidence: ConfidenceHigh,
-			Issue: "invokes dd (raw disk writes)",
-			Risk:  "data loss / drive corruption",
+			Issue:       "invokes dd (raw disk writes)",
+			Risk:        "data loss / drive corruption",
 			Remediation: "use higher-level file APIs",
-			Match: mk(`(?i)\bdd\s+if=`),
+			Match:       mk(`(?i)\bdd\s+if=`),
 		},
 
 		// ── Secret exposure ──────────────────────────────────────────
 		{
 			ID: "SKILL-SEC-101", Category: CategorySecretExposure, Severity: SeverityHigh, Confidence: ConfidenceMedium,
-			Issue: "references credential files or known secret env vars",
-			Risk:  "agent reads or exfiltrates secrets",
+			Issue:       "references credential files or known secret env vars",
+			Risk:        "agent reads or exfiltrates secrets",
 			Remediation: "instruct the agent to ask the user instead of reading files directly",
-			Match: mk(`(?i)~/\.ssh/|AWS_SECRET_ACCESS_KEY|GITHUB_TOKEN|OPENAI_API_KEY|ANTHROPIC_API_KEY|GOOGLE_API_KEY|SLACK_(?:BOT|USER)_TOKEN|\.env(?:\.local)?\b`),
+			Match:       mk(`(?i)~/\.ssh/|AWS_SECRET_ACCESS_KEY|GITHUB_TOKEN|OPENAI_API_KEY|ANTHROPIC_API_KEY|GOOGLE_API_KEY|SLACK_(?:BOT|USER)_TOKEN|\.env(?:\.local)?\b`),
 		},
 		{
 			ID: "SKILL-SEC-102", Category: CategorySecretExposure, Severity: SeverityMedium, Confidence: ConfidenceMedium,
-			Issue: "captures environment variables into a file or output",
-			Risk:  "agent writes secrets to disk or stdout",
+			Issue:       "captures environment variables into a file or output",
+			Risk:        "agent writes secrets to disk or stdout",
 			Remediation: "remove the env dump; rely on the harness's secret injection",
-			Match: mk(`(?i)\benv\b.{0,40}>(?:>?)\s*\S+|printenv\s+>`),
+			Match:       mk(`(?i)\benv\b.{0,40}>(?:>?)\s*\S+|printenv\s+>`),
 		},
 
 		// ── Prompt injection ─────────────────────────────────────────
 		{
 			ID: "SKILL-SEC-201", Category: CategoryPromptInjection, Severity: SeverityHigh, Confidence: ConfidenceMedium,
-			Issue: "instructs the agent to ignore previous instructions",
-			Risk:  "classic prompt-injection vector",
+			Issue:       "instructs the agent to ignore previous instructions",
+			Risk:        "classic prompt-injection vector",
 			Remediation: "remove the override phrasing",
-			Match: mk(`(?i)\bignore (?:all )?(?:previous|prior|earlier) (?:instructions|prompts|rules)\b`),
+			Match:       mk(`(?i)\bignore (?:all )?(?:previous|prior|earlier) (?:instructions|prompts|rules)\b`),
 		},
 		{
 			ID: "SKILL-SEC-202", Category: CategoryPromptInjection, Severity: SeverityHigh, Confidence: ConfidenceMedium,
-			Issue: "instructs the agent to reveal its system prompt or hidden context",
-			Risk:  "exfiltrates parent system instructions",
+			Issue:       "instructs the agent to reveal its system prompt or hidden context",
+			Risk:        "exfiltrates parent system instructions",
 			Remediation: "remove the reveal/print-system-prompt directive",
-			Match: mk(`(?i)\b(?:reveal|print|leak|dump|exfiltrate)\b.{0,30}\b(?:system|hidden|developer)\b.{0,30}\b(?:prompt|instructions|message)`),
+			Match:       mk(`(?i)\b(?:reveal|print|leak|dump|exfiltrate)\b.{0,30}\b(?:system|hidden|developer)\b.{0,30}\b(?:prompt|instructions|message)`),
 		},
 		{
 			ID: "SKILL-SEC-203", Category: CategoryPromptInjection, Severity: SeverityMedium, Confidence: ConfidenceLow,
-			Issue: "uses jailbreak phrasing (DAN, do anything now, role-play override)",
-			Risk:  "intent to bypass safety alignment",
+			Issue:       "uses jailbreak phrasing (DAN, do anything now, role-play override)",
+			Risk:        "intent to bypass safety alignment",
 			Remediation: "rewrite to describe the legitimate task without persona switching",
-			Match: mk(`(?i)\b(do anything now|DAN mode|developer mode|jailbreak|act as if you have no rules)\b`),
+			Match:       mk(`(?i)\b(do anything now|DAN mode|developer mode|jailbreak|act as if you have no rules)\b`),
 		},
 
 		// ── URL analysis ─────────────────────────────────────────────
 		{
 			ID: "SKILL-SEC-301", Category: CategoryURLAnalysis, Severity: SeverityMedium, Confidence: ConfidenceMedium,
-			Issue: "references a URL shortener",
-			Risk:  "destination URL hidden behind a shortener",
+			Issue:       "references a URL shortener",
+			Risk:        "destination URL hidden behind a shortener",
 			Remediation: "use the canonical destination URL so reviewers can vet it",
-			Match: mk(`(?i)\bhttps?://(?:bit\.ly|t\.co|tinyurl\.com|goo\.gl|ow\.ly|is\.gd|buff\.ly|adf\.ly|cutt\.ly)/\S+`),
+			Match:       mk(`(?i)\bhttps?://(?:bit\.ly|t\.co|tinyurl\.com|goo\.gl|ow\.ly|is\.gd|buff\.ly|adf\.ly|cutt\.ly)/\S+`),
 		},
 		{
 			ID: "SKILL-SEC-302", Category: CategoryURLAnalysis, Severity: SeverityMedium, Confidence: ConfidenceMedium,
-			Issue: "fetches remote content with raw IP addresses",
-			Risk:  "no DNS auditability; commonly used in exfiltration",
+			Issue:       "fetches remote content with raw IP addresses",
+			Risk:        "no DNS auditability; commonly used in exfiltration",
 			Remediation: "use a named domain or remove the network step",
-			Match: mk(`\bhttps?://\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b`),
+			Match:       mk(`\bhttps?://\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b`),
 		},
 
 		// ── Supply chain ─────────────────────────────────────────────
 		{
 			ID: "SKILL-SEC-401", Category: CategorySupplyChain, Severity: SeverityMedium, Confidence: ConfidenceMedium,
-			Issue: "installs from arbitrary git URLs at runtime",
-			Risk:  "pulls unvetted code",
+			Issue:       "installs from arbitrary git URLs at runtime",
+			Risk:        "pulls unvetted code",
 			Remediation: "pin to a tag or SHA via package manager",
-			Match: mk(`(?i)\b(?:pip|uv)\s+install\s+git\+|npm\s+(?:i|install)\s+git\+|go\s+install\s+\S+@latest`),
+			Match:       mk(`(?i)\b(?:pip|uv)\s+install\s+git\+|npm\s+(?:i|install)\s+git\+|go\s+install\s+\S+@latest`),
 		},
 	}
 }
@@ -407,8 +464,8 @@ func DefaultRules() []Rule {
 var scriptRules = []Rule{
 	{
 		ID: "SKILL-SEC-001", Category: CategoryMaliciousCode, Severity: SeverityCritical, Confidence: ConfidenceHigh,
-		Issue: "script pipes a remote download into a shell",
-		Risk:  "remote code execution from controlled URL",
+		Issue:       "script pipes a remote download into a shell",
+		Risk:        "remote code execution from controlled URL",
 		Remediation: "fetch via vetted package manager",
 		Match: func(s string) (string, bool) {
 			r := regexp.MustCompile(`(?i)(curl|wget)\b[^|\n]{0,200}\|\s*(sh|bash|zsh)\b`)
@@ -421,11 +478,11 @@ var scriptRules = []Rule{
 	},
 	{
 		ID: "SKILL-SEC-002", Category: CategoryMaliciousCode, Severity: SeverityCritical, Confidence: ConfidenceHigh,
-		Issue: "script removes a root path",
-		Risk:  "destruction of host filesystem",
+		Issue:       "script removes a root path",
+		Risk:        "destruction of host filesystem",
 		Remediation: "scope deletion to a known path",
 		Match: func(s string) (string, bool) {
-			r := regexp.MustCompile(`(?i)\brm\s+-[rR]f?\s+/(?:\s|$|\*)`)
+			r := regexp.MustCompile(rmRootPattern)
 			loc := r.FindStringIndex(s)
 			if loc == nil {
 				return "", false
@@ -435,8 +492,8 @@ var scriptRules = []Rule{
 	},
 	{
 		ID: "SKILL-SEC-103", Category: CategorySecretExposure, Severity: SeverityHigh, Confidence: ConfidenceHigh,
-		Issue: "script reads ssh/credential files",
-		Risk:  "credential theft surface",
+		Issue:       "script reads ssh/credential files",
+		Risk:        "credential theft surface",
 		Remediation: "use the harness's secret API instead of reading from disk",
 		Match: func(s string) (string, bool) {
 			r := regexp.MustCompile(`(?i)~/\.ssh/|~/\.aws/credentials|/root/\.docker/config\.json|kubectl\s+config\s+view`)
@@ -449,33 +506,62 @@ var scriptRules = []Rule{
 	},
 }
 
+// extractFrontmatter returns the YAML frontmatter block (the text
+// between the opening and closing delimiters) when the body actually
+// begins with a frontmatter block. It requires the opening delimiter to
+// be a line that is EXACTLY "---" (trimmed) and a later line that is
+// EXACTLY "---" to close it. This rejects markdown thematic breaks like
+// "------" or "----" at the top of a prose document, which the previous
+// HasPrefix("---") + Index("---") logic mistook for an empty frontmatter
+// block and then false-flagged as "missing description".
+func extractFrontmatter(body string) (string, bool) {
+	lines := strings.Split(body, "\n")
+	i := 0
+	// Skip leading blank lines before the opening delimiter.
+	for i < len(lines) && strings.TrimSpace(lines[i]) == "" {
+		i++
+	}
+	if i >= len(lines) || strings.TrimSpace(lines[i]) != "---" {
+		return "", false
+	}
+	start := i + 1
+	for j := start; j < len(lines); j++ {
+		if strings.TrimSpace(lines[j]) == "---" {
+			return strings.Join(lines[start:j], "\n"), true
+		}
+	}
+	return "", false
+}
+
 // scanFrontmatter parses the YAML frontmatter (best-effort) and reports
 // validation issues. It does not validate against the canonical schema;
 // the canonical loader does that on install. The intent here is to
 // catch over-permissioned skills and missing description before the
 // agent ever runs them.
 func scanFrontmatter(t Target) []Finding {
-	body := string(t.Body)
-	if !strings.HasPrefix(strings.TrimSpace(body), "---") {
+	fm, ok := extractFrontmatter(string(t.Body))
+	if !ok {
 		return nil
 	}
-	end := strings.Index(body[3:], "---")
-	if end < 0 {
-		return nil
-	}
-	fm := body[3 : 3+end]
 	var out []Finding
 	if !strings.Contains(fm, "description:") {
 		out = append(out, Finding{
 			ID: "SKILL-FM-001", Category: CategoryFrontmatter, Severity: SeverityMedium, Confidence: ConfidenceHigh,
 			Location: "SKILL.md:1", Issue: "missing description in frontmatter",
-			Risk: "harness cannot decide when to activate the skill",
+			Risk:        "harness cannot decide when to activate the skill",
 			Remediation: "add a one-line description that mentions the activation triggers",
 		})
 	}
-	// allowed-tools: * is the textbook over-broad permission.
+	// allowed-tools: * is the textbook over-broad permission. Catch the
+	// inline scalar, the inline-flow-array, AND the YAML block-sequence
+	// form:
+	//   allowed-tools: '*'
+	//   allowed-tools: ['*']
+	//   allowed-tools:
+	//     - '*'
 	if regexp.MustCompile(`(?m)^allowed-tools:\s*['\"]?\*['\"]?\s*$`).MatchString(fm) ||
-		regexp.MustCompile(`(?m)^allowed-tools:\s*\[\s*['\"]?\*['\"]?\s*\]\s*$`).MatchString(fm) {
+		regexp.MustCompile(`(?m)^allowed-tools:\s*\[\s*['\"]?\*['\"]?\s*\]\s*$`).MatchString(fm) ||
+		allowedToolsBlockListStar(fm) {
 		out = append(out, Finding{
 			ID: "SKILL-PERM-001", Category: CategoryExcessivePerms, Severity: SeverityHigh, Confidence: ConfidenceHigh,
 			Location: "SKILL.md:1", Issue: "allowed-tools is unrestricted (*)",
@@ -493,6 +579,21 @@ func scanFrontmatter(t Target) []Finding {
 		})
 	}
 	return out
+}
+
+// allowedToolsBlockListStar reports whether `allowed-tools:` is followed
+// by a YAML block-sequence whose first item is the `*` wildcard, e.g.
+//
+//	allowed-tools:
+//	  - '*'
+//
+// The regex requires the wildcard item to immediately follow the key
+// (optionally after blank lines) so a `- '*'` belonging to some other
+// key does not trigger a false positive.
+var allowedToolsBlockStarRE = regexp.MustCompile(`(?m)^allowed-tools:\s*$(?:\s*\n)*\s*-\s*['"]?\*['"]?\s*$`)
+
+func allowedToolsBlockListStar(fm string) bool {
+	return allowedToolsBlockStarRE.MatchString(fm)
 }
 
 // FormatTable renders r as a compact tab-separated table.

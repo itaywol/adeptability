@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/itaywol/adeptability/internal/render/common"
 	"github.com/itaywol/adeptability/pkg/adept"
 )
 
@@ -23,7 +24,7 @@ func (a *Adapter) Import(_ context.Context, projectRoot string) ([]adept.Importe
 		}
 		return nil, fmt.Errorf("opencode import: %w", err)
 	}
-	var out []adept.ImportedSkill
+	out := make([]adept.ImportedSkill, 0, len(entries))
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
@@ -38,7 +39,7 @@ func (a *Adapter) Import(_ context.Context, projectRoot string) ([]adept.Importe
 			return nil, err
 		}
 		desc, body := splitOpenCodeMarkdown(string(raw), id)
-		files, err := collectSidecars(filepath.Join(base, id))
+		files, err := common.CollectSidecars(filepath.Join(base, id))
 		if err != nil {
 			return nil, err
 		}
@@ -61,7 +62,7 @@ func (a *Adapter) Import(_ context.Context, projectRoot string) ([]adept.Importe
 // document where the first line is `# <id>` and the next non-empty line is
 // the description.
 func splitOpenCodeMarkdown(s, id string) (string, string) {
-	lines := strings.SplitN(s, "\n", -1)
+	lines := strings.Split(s, "\n")
 	desc := ""
 	bodyStart := 0
 	if len(lines) > 0 && strings.HasPrefix(lines[0], "# ") {
@@ -84,53 +85,4 @@ func splitOpenCodeMarkdown(s, id string) (string, string) {
 		desc = "Imported from OpenCode " + id
 	}
 	return desc, strings.Join(lines[bodyStart:], "\n")
-}
-
-func collectSidecars(dir string) ([]adept.SkillFile, error) {
-	var out []adept.SkillFile
-	walkErr := filepath.WalkDir(dir, func(path string, d os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if path == dir {
-			return nil
-		}
-		base := filepath.Base(path)
-		if strings.HasPrefix(base, ".") {
-			if d.IsDir() {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if d.IsDir() {
-			return nil
-		}
-		rel, err := filepath.Rel(dir, path)
-		if err != nil {
-			return err
-		}
-		rel = filepath.ToSlash(rel)
-		if rel == adept.SkillFileName {
-			return nil
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		info, err := d.Info()
-		if err != nil {
-			return err
-		}
-		out = append(out, adept.SkillFile{
-			RelPath: rel,
-			Mode:    info.Mode().Perm(),
-			Bytes:   data,
-		})
-		return nil
-	})
-	if walkErr != nil {
-		return nil, walkErr
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].RelPath < out[j].RelPath })
-	return out, nil
 }

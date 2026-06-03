@@ -37,6 +37,21 @@ type Skill struct {
 	Tags         []string          `yaml:"tags,omitempty"           json:"tags,omitempty"`
 	Metadata     map[string]string `yaml:"metadata,omitempty"       json:"metadata,omitempty"`
 
+	// Model is a promoted, optional model hint. Only harnesses that understand
+	// a per-skill model (currently Claude Code) emit it; others ignore it. It
+	// is promoted to a top-level field because it is the single most commonly
+	// wanted per-skill knob with no analog elsewhere.
+	Model string `yaml:"model,omitempty" json:"model,omitempty"`
+
+	// Harness holds per-harness frontmatter/option overrides keyed by harness
+	// id (e.g. "claude-code", "cursor"). Each renderer merges its own entry
+	// over the fields it derives from the canonical skill, last-wins. Keys a
+	// harness has no concept of are ignored, so the map degrades safely. The
+	// canonical identity fields (id/name/description) cannot be overridden;
+	// the schema rejects that. The block round-trips verbatim through the
+	// canonical writer but is intentionally NOT reconstructed on import.
+	Harness map[string]map[string]any `yaml:"harness,omitempty" json:"harness,omitempty"`
+
 	Body  string      `yaml:"-" json:"-"`
 	Files []SkillFile `yaml:"-" json:"-"`
 }

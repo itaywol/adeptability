@@ -18,10 +18,10 @@ import (
 // Default endpoint + version. Override the endpoint via the LLMConfig
 // `endpoint` field for Anthropic-compatible proxies.
 const (
-	defaultEndpoint     = "https://api.anthropic.com/v1/messages"
-	defaultAPIVersion   = "2023-06-01"
-	defaultModel        = "claude-haiku-4-5-20251001"
-	envAPIKey           = "ANTHROPIC_API_KEY"
+	defaultEndpoint   = "https://api.anthropic.com/v1/messages"
+	defaultAPIVersion = "2023-06-01"
+	defaultModel      = "claude-haiku-4-5-20251001"
+	envAPIKey         = "ANTHROPIC_API_KEY"
 )
 
 // Provider implements llm.Provider against Anthropic's Messages API.
@@ -46,9 +46,13 @@ func New(hc *http.Client, endpoint, model string) *Provider {
 	return &Provider{http: hc, endpoint: endpoint, model: model}
 }
 
-func (p *Provider) Name() string         { return "anthropic" }
+// Name returns the provider identifier ("anthropic").
+func (p *Provider) Name() string { return "anthropic" }
+
+// DefaultModel returns the model this provider sends requests to.
 func (p *Provider) DefaultModel() string { return p.model }
 
+// Available reports whether the Anthropic API key env var is set.
 func (p *Provider) Available(ctx context.Context) error {
 	if os.Getenv(envAPIKey) == "" {
 		return fmt.Errorf("anthropic: %s not set in environment", envAPIKey)
@@ -57,7 +61,7 @@ func (p *Provider) Available(ctx context.Context) error {
 }
 
 // Evaluate POSTs to /v1/messages with the canonical anthropic-version
-// header and Bearer auth. JSONMode flips the `system` prompt prefix so
+// header and x-api-key auth. JSONMode flips the `system` prompt prefix so
 // the model is steered to emit raw JSON; the wire format remains text.
 func (p *Provider) Evaluate(ctx context.Context, req llm.Request) (llm.Response, error) {
 	key := os.Getenv(envAPIKey)
@@ -101,7 +105,9 @@ func (p *Provider) Evaluate(ctx context.Context, req llm.Request) (llm.Response,
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		errBody, _ := io.ReadAll(res.Body)
+		// Bound the error-body read: the endpoint is user-configurable,
+		// so a misbehaving server could return an arbitrarily large body.
+		errBody, _ := io.ReadAll(io.LimitReader(res.Body, 8<<10))
 		return llm.Response{}, fmt.Errorf("anthropic http %d: %s", res.StatusCode, string(errBody))
 	}
 	var decoded struct {

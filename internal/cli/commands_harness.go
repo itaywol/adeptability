@@ -175,9 +175,7 @@ func enabledHarnessCompletion(d *Deps) cobra.CompletionFunc {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
 		out := make([]cobra.Completion, 0, len(cfg.Harnesses))
-		for _, h := range cfg.Harnesses {
-			out = append(out, cobra.Completion(h))
-		}
+		out = append(out, cfg.Harnesses...)
 		return out, cobra.ShellCompDirectiveNoFileComp
 	}
 }
@@ -203,7 +201,7 @@ func harnessCompletion(d *Deps, allow func(enabled map[string]bool, id string) b
 		for _, a := range d.Registry.List() {
 			id := a.Spec().ID
 			if allow(enabled, id) {
-				out = append(out, cobra.Completion(id))
+				out = append(out, id)
 			}
 		}
 		return out, cobra.ShellCompDirectiveNoFileComp

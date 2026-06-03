@@ -66,7 +66,7 @@ func TestScan_Sort_SeverityDescending(t *testing.T) {
 	r := mustScan(body)
 	require.NotEmpty(t, r.Findings)
 	for i := 1; i < len(r.Findings); i++ {
-		require.True(t, severityRank(r.Findings[i-1].Severity) >= severityRank(r.Findings[i].Severity),
+		require.True(t, SeverityRank(r.Findings[i-1].Severity) >= SeverityRank(r.Findings[i].Severity),
 			"findings must be ordered by severity desc")
 	}
 }

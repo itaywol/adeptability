@@ -44,7 +44,10 @@ func New(hc *http.Client, endpoint, model string) *Provider {
 	return &Provider{http: hc, endpoint: strings.TrimRight(endpoint, "/"), model: model}
 }
 
-func (p *Provider) Name() string         { return "ollama" }
+// Name returns the provider identifier ("ollama").
+func (p *Provider) Name() string { return "ollama" }
+
+// DefaultModel returns the model this provider sends requests to.
 func (p *Provider) DefaultModel() string { return p.model }
 
 // Available pings /api/tags. A fast probe — fails fast when the local
@@ -103,7 +106,9 @@ func (p *Provider) Evaluate(ctx context.Context, req llm.Request) (llm.Response,
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		errBody, _ := io.ReadAll(res.Body)
+		// Bound the error-body read: the endpoint is user-configurable,
+		// so a misbehaving server could return an arbitrarily large body.
+		errBody, _ := io.ReadAll(io.LimitReader(res.Body, 8<<10))
 		return llm.Response{}, fmt.Errorf("ollama http %d: %s", res.StatusCode, string(errBody))
 	}
 	var decoded struct {
@@ -111,10 +116,10 @@ func (p *Provider) Evaluate(ctx context.Context, req llm.Request) (llm.Response,
 			Role    string `json:"role"`
 			Content string `json:"content"`
 		} `json:"message"`
-		Model              string `json:"model"`
-		DoneReason         string `json:"done_reason"`
-		PromptEvalCount    int    `json:"prompt_eval_count"`
-		EvalCount          int    `json:"eval_count"`
+		Model           string `json:"model"`
+		DoneReason      string `json:"done_reason"`
+		PromptEvalCount int    `json:"prompt_eval_count"`
+		EvalCount       int    `json:"eval_count"`
 	}
 	if err := json.NewDecoder(res.Body).Decode(&decoded); err != nil {
 		return llm.Response{}, fmt.Errorf("ollama decode: %w", err)

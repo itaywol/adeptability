@@ -5,12 +5,20 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
 	"github.com/itaywol/adeptability/internal/canonical"
+	"github.com/itaywol/adeptability/internal/render/common"
 	"github.com/itaywol/adeptability/pkg/adept"
 )
+
+// disableModelInvocationRE matches a `disable-model-invocation: true`
+// frontmatter line, anchored to its own line (case-insensitive). It is applied
+// only to the frontmatter region, never the markdown body, so prose or code
+// fences that mention the key cannot flip activation to manual.
+var disableModelInvocationRE = regexp.MustCompile(`(?im)^\s*disable-model-invocation:\s*true\s*$`)
 
 // Import walks <skills-container>/<id>/SKILL.md under projectRoot,
 // reverse-maps the frontmatter back to canonical skills, and collects
@@ -29,7 +37,7 @@ func (a *Adapter) Import(_ context.Context, projectRoot string) ([]adept.Importe
 		return nil, fmt.Errorf("%s import: read %s: %w", a.r.spec.ID, base, err)
 	}
 	parser := canonical.NewParser()
-	var out []adept.ImportedSkill
+	out := make([]adept.ImportedSkill, 0, len(entries))
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
@@ -51,12 +59,15 @@ func (a *Adapter) Import(_ context.Context, projectRoot string) ([]adept.Importe
 		if skill.Activation == "" {
 			skill.Activation = adept.ActivationAgent
 		}
-		if strings.Contains(strings.ToLower(string(raw)), "disable-model-invocation: true") {
+		// `disable-model-invocation: true` encodes manual mode. Inspect only
+		// the frontmatter region (anchored, per line) so a body that documents
+		// the key does not flip activation to manual.
+		if disableModelInvocationRE.MatchString(frontmatterRegion(raw)) {
 			skill.Activation = adept.ActivationManual
 		}
 		skill.Body = body
 
-		files, err := collectSidecars(filepath.Join(base, id))
+		files, err := common.CollectSidecars(filepath.Join(base, id))
 		if err != nil {
 			return nil, err
 		}
@@ -70,53 +81,18 @@ func (a *Adapter) Import(_ context.Context, projectRoot string) ([]adept.Importe
 	return out, nil
 }
 
-// collectSidecars walks a harness skill directory and returns every file
-// other than SKILL.md.
-func collectSidecars(dir string) ([]adept.SkillFile, error) {
-	var out []adept.SkillFile
-	walkErr := filepath.WalkDir(dir, func(path string, d os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if path == dir {
-			return nil
-		}
-		name := filepath.Base(path)
-		if strings.HasPrefix(name, ".") {
-			if d.IsDir() {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if d.IsDir() {
-			return nil
-		}
-		rel, err := filepath.Rel(dir, path)
-		if err != nil {
-			return err
-		}
-		rel = filepath.ToSlash(rel)
-		if rel == adept.SkillFileName {
-			return nil
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return fmt.Errorf("read sidecar %s: %w", path, err)
-		}
-		info, err := d.Info()
-		if err != nil {
-			return err
-		}
-		out = append(out, adept.SkillFile{
-			RelPath: rel,
-			Mode:    info.Mode().Perm(),
-			Bytes:   data,
-		})
-		return nil
-	})
-	if walkErr != nil {
-		return nil, walkErr
+// frontmatterRegion returns the YAML frontmatter block of a SKILL.md document
+// (the text between the opening and closing `---` fences), CRLF-normalized. If
+// the document has no recognizable frontmatter the empty string is returned so
+// callers never accidentally scan the markdown body.
+func frontmatterRegion(raw []byte) string {
+	s := strings.ReplaceAll(string(raw), "\r\n", "\n")
+	if !strings.HasPrefix(s, "---\n") {
+		return ""
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].RelPath < out[j].RelPath })
-	return out, nil
+	rest := s[len("---\n"):]
+	if end := strings.Index(rest, "\n---"); end >= 0 {
+		return rest[:end]
+	}
+	return ""
 }

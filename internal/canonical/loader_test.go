@@ -29,7 +29,7 @@ func TestLoader_ValidYAML(t *testing.T) {
 	l := newTestLoader(t)
 	s, err := l.LoadSkillDir("testdata/valid-yaml")
 	require.NoError(t, err)
-	require.Equal(t, "valid_yaml_skill", s.ID)
+	require.Equal(t, "valid-yaml-skill", s.ID)
 	require.NotEmpty(t, s.Body)
 	require.Empty(t, s.Files)
 }
@@ -39,7 +39,7 @@ func TestLoader_ValidFrontmatter(t *testing.T) {
 	l := newTestLoader(t)
 	s, err := l.LoadSkillDir("testdata/valid-frontmatter")
 	require.NoError(t, err)
-	require.Equal(t, "valid_frontmatter_skill", s.ID)
+	require.Equal(t, "valid-frontmatter-skill", s.ID)
 	require.Equal(t, adept.ActivationAlways, s.Activation)
 	require.Contains(t, s.Body, "# Frontmatter Skill")
 }
@@ -120,12 +120,12 @@ func TestLoader_StripsRedundantFrontmatterWhenYAMLPresent(t *testing.T) {
 	l := newTestLoader(t)
 	tmp := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(tmp, adept.SkillYAMLName), []byte(
-		"id: yaml_first\ndescription: yaml wins\n"), 0o644))
+		"id: yaml-first\ndescription: yaml wins\n"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(tmp, adept.SkillFileName), []byte(
 		"---\nid: other\ndescription: ignored\n---\n# Real body\n"), 0o644))
 	s, err := l.LoadSkillDir(tmp)
 	require.NoError(t, err)
-	require.Equal(t, "yaml_first", s.ID)
+	require.Equal(t, "yaml-first", s.ID)
 	require.Contains(t, s.Body, "# Real body")
 	require.NotContains(t, s.Body, "ignored")
 }

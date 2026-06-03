@@ -17,8 +17,8 @@ import (
 
 	"github.com/itaywol/adeptability/internal/locks"
 	"github.com/itaywol/adeptability/internal/project"
-	gh "github.com/itaywol/adeptability/internal/registry/github"
 	"github.com/itaywol/adeptability/internal/registry"
+	gh "github.com/itaywol/adeptability/internal/registry/github"
 	"github.com/itaywol/adeptability/internal/registry/skillssh"
 	"github.com/itaywol/adeptability/internal/scan"
 	"github.com/itaywol/adeptability/pkg/adept"
@@ -27,17 +27,6 @@ import (
 // scanner is the package-level scanner instance. Stateless, so safe to
 // share across commands.
 var scanner = scan.NewScanner()
-
-// countSeverity returns how many of report's findings carry sev.
-func countSeverity(r scan.Report, sev scan.Severity) int {
-	n := 0
-	for _, f := range r.Findings {
-		if f.Severity == sev {
-			n++
-		}
-	}
-	return n
-}
 
 // ---------- skill install <slug> ----------
 
@@ -122,8 +111,13 @@ func newSkillInstallCmd(d *Deps) *cobra.Command {
 		// block install on its own.
 		report = maybeRunLLMReview(ctx, d, target, report)
 
-		// Preview.
-		printInstallPreview(w, slug, sha, meta, installs, matched, sortKeys(files), report)
+		// In --json mode the preview/confirm are human-only and would
+		// corrupt machine-readable stdout, so suppress them and treat the
+		// run as non-interactive (require --yes; never block on a prompt).
+		jsonMode := d.Flags != nil && d.Flags.JSON
+		if !jsonMode {
+			printInstallPreview(w, slug, sha, meta, installs, matched, sortKeys(files), report)
+		}
 
 		// The blocking severity is configurable (default critical).
 		// Lower severities pass through unless the user has tightened
@@ -131,7 +125,11 @@ func newSkillInstallCmd(d *Deps) *cobra.Command {
 		if blocks := installBlocks(d, p, report); blocks && !allowUnsafe {
 			return fmt.Errorf("install aborted by safety scan; review findings and pass --allow-unsafe to override")
 		}
-		if !yes && !confirm(cmd.InOrStdin(), w, "proceed with install?") {
+		if jsonMode {
+			if !yes {
+				return fmt.Errorf("install in --json mode is non-interactive; pass --yes to confirm")
+			}
+		} else if !yes && !confirm(cmd.InOrStdin(), w, "proceed with install?") {
 			fmt.Fprintln(w, "install cancelled")
 			return nil
 		}
@@ -174,10 +172,44 @@ func newSkillInstallCmd(d *Deps) *cobra.Command {
 			return err
 		}
 
-		fmt.Fprintf(w, "installed %s @ %s (%s)\n", skillObj.ID, shortSHA(sha), slug)
-		return nil
+		return d.Print(w, &skillInstallRenderable{
+			ID:        skillObj.ID,
+			Slug:      slug.String(),
+			SHA:       sha,
+			Path:      matched,
+			Files:     sortKeys(files),
+			ScanWorst: string(report.Worst()),
+		})
 	}
 	return c
+}
+
+// skillInstallRenderable is the post-install result. In --json mode it is
+// the only thing written to stdout (preview/confirm are suppressed); in
+// plain mode it prints the familiar one-line summary.
+type skillInstallRenderable struct {
+	ID        string
+	Slug      string
+	SHA       string
+	Path      string
+	Files     []string
+	ScanWorst string
+}
+
+func (r *skillInstallRenderable) JSON() any {
+	return map[string]any{
+		"id":        r.ID,
+		"slug":      r.Slug,
+		"sha":       r.SHA,
+		"path":      r.Path,
+		"files":     r.Files,
+		"scanWorst": r.ScanWorst,
+	}
+}
+
+func (r *skillInstallRenderable) Plain(w io.Writer) error {
+	_, err := fmt.Fprintf(w, "installed %s @ %s (%s)\n", r.ID, shortSHA(r.SHA), r.Slug)
+	return err
 }
 
 // ---------- skill update [<id>] ----------
@@ -208,7 +240,6 @@ func newSkillUpdateCmd(d *Deps) *cobra.Command {
 		}
 		ctx := cmd.Context()
 		w := cmd.OutOrStdout()
-		anyChange := false
 		for _, id := range ids {
 			entry, ok := lock.Get(id)
 			if !ok {
@@ -250,9 +281,10 @@ func newSkillUpdateCmd(d *Deps) *cobra.Command {
 			entry.ContentHash = hashFiles(files)
 			entry.InstalledAt = time.Now().UTC()
 			lock.Set(id, entry)
-			anyChange = true
-		}
-		if anyChange {
+			// Persist after each successful id so a later per-id error
+			// (ResolveRef/FetchTarball/Extract) can't leave already-
+			// rewritten on-disk skills pointing at the old SHA/hash in
+			// the lockfile.
 			if err := locks.Save(lockPath(p), lock); err != nil {
 				return err
 			}
@@ -304,14 +336,14 @@ type skillInfoRenderable struct {
 
 func (r *skillInfoRenderable) JSON() any {
 	return map[string]any{
-		"slug":     r.Slug,
-		"sha":      r.SHA,
-		"repo":     r.Meta.HTMLURL,
-		"stars":    r.Meta.Stars,
-		"forks":    r.Meta.Forks,
-		"license":  r.Meta.License,
-		"pushedAt": r.Meta.PushedAt,
-		"installs": r.Installs,
+		"slug":          r.Slug,
+		"sha":           r.SHA,
+		"repo":          r.Meta.HTMLURL,
+		"stars":         r.Meta.Stars,
+		"forks":         r.Meta.Forks,
+		"license":       r.Meta.License,
+		"pushedAt":      r.Meta.PushedAt,
+		"installs":      r.Installs,
 		"defaultBranch": r.Meta.DefaultBranch,
 	}
 }
@@ -438,7 +470,18 @@ func writeExternalSkillAt(dst string, files map[string][]byte) error {
 		return err
 	}
 	for rel, body := range files {
-		path := filepath.Join(dst, filepath.FromSlash(rel))
+		// Defense in depth against tar-slip: even though ExtractSkillDir
+		// already rejects traversal entries, the file keys are
+		// attacker-controlled, so verify the cleaned relative path stays
+		// inside dst before writing. filepath.Join cleans `..`, which
+		// could otherwise place the write outside the skill dir.
+		clean := filepath.Clean(filepath.FromSlash(rel))
+		if clean == "." || clean == ".." ||
+			strings.HasPrefix(clean, ".."+string(filepath.Separator)) ||
+			filepath.IsAbs(clean) {
+			return fmt.Errorf("unsafe skill file path %q", rel)
+		}
+		path := filepath.Join(dst, clean)
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			return err
 		}
@@ -563,9 +606,7 @@ func lockedSkillCompletion(d *Deps) cobra.CompletionFunc {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
 		out := make([]cobra.Completion, 0, len(l.External))
-		for _, id := range l.IDs() {
-			out = append(out, cobra.Completion(id))
-		}
+		out = append(out, l.IDs()...)
 		return out, cobra.ShellCompDirectiveNoFileComp
 	}
 }

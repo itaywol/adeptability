@@ -60,6 +60,16 @@ func (r *Renderer) Render(ctx context.Context, in adept.RenderInput) (adept.Rend
 	if err != nil {
 		return adept.RenderOutput{}, fmt.Errorf("cursor render %q: %w", s.ID, err)
 	}
+	// Per-harness overrides merge last (e.g. a power user pinning alwaysApply).
+	// Derived description/globs/alwaysApply stay the default unless overridden.
+	hid := in.Harness.ID
+	if hid == "" {
+		hid = Spec().ID
+	}
+	fields, err = common.MergeOverride(fields, s.Harness[hid])
+	if err != nil {
+		return adept.RenderOutput{}, fmt.Errorf("cursor render %q: %w", s.ID, err)
+	}
 
 	front, err := r.fm.Build(fields)
 	if err != nil {
@@ -109,9 +119,13 @@ func fieldsFor(s *adept.Skill) ([]common.Field, error) {
 		if len(s.Globs) == 0 {
 			return nil, fmt.Errorf("%w: skill %q activation=globs requires globs", adept.ErrSkillInvalid, s.ID)
 		}
+		// Cursor's .mdc frontmatter expects `globs` as a bare comma-separated
+		// string (no brackets, no quotes, no spaces). A YAML flow sequence
+		// like `[a, b]` is parsed by Cursor as a single malformed pattern, so
+		// the auto-attach rule never matches. Join into the scalar form.
 		return []common.Field{
 			{Key: "description", Value: desc, Quote: strings.ContainsAny(desc, ":#")},
-			{Key: "globs", Value: s.Globs},
+			{Key: "globs", Value: strings.Join(s.Globs, ",")},
 			{Key: "alwaysApply", Value: false},
 		}, nil
 	case adept.ActivationAgent, "":

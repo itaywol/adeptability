@@ -170,14 +170,17 @@ func autoAdopt(ctx context.Context, d *Deps, p project.Project) ([]string, error
 }
 
 // truncate cuts a string to n runes, appending an ellipsis when truncated.
+// It operates on runes (not bytes) so a multi-byte UTF-8 sequence is never
+// split mid-rune into an invalid/garbled glyph.
 func truncate(s string, n int) string {
-	if len(s) <= n {
+	r := []rune(s)
+	if len(r) <= n {
 		return s
 	}
 	if n <= 1 {
 		return "…"
 	}
-	return strings.TrimSpace(s[:n-1]) + "…"
+	return strings.TrimSpace(string(r[:n-1])) + "…"
 }
 
 func containsString(xs []string, x string) bool {

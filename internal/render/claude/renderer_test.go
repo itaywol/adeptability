@@ -121,3 +121,22 @@ func TestRenderer_Sidecars(t *testing.T) {
 	require.Len(t, out.Sidecars, 2)
 	require.Equal(t, "scripts/helper.sh", out.Sidecars[0].RelPath)
 }
+
+func TestRenderer_AppliesHarnessOverrideAndModel(t *testing.T) {
+	t.Parallel()
+	skill := &adept.Skill{
+		ID:          "ov",
+		Description: "a skill",
+		Activation:  adept.ActivationAgent,
+		Model:       "base-model",
+		Harness: map[string]map[string]any{
+			"claude-code": {"model": "override-model", "effort": "high"},
+		},
+	}
+	out, err := claude.New().Render(context.Background(), adept.RenderInput{Skill: skill, Harness: claude.Spec()})
+	require.NoError(t, err)
+	s := string(out.Bytes)
+	require.Contains(t, s, "model: override-model", "override replaces the promoted model")
+	require.NotContains(t, s, "base-model")
+	require.Contains(t, s, "effort: high", "new override key is appended")
+}

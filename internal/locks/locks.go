@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"sort"
 	"time"
 )
@@ -115,9 +116,13 @@ func Load(path string) (*Lock, error) {
 	return out, nil
 }
 
-// Save writes lock to path atomically (temp + rename). The caller is
-// responsible for ensuring the parent directory exists; locks lives next
-// to config.json under .adeptability/, which init() always creates.
+// Save writes lock to path atomically (temp + rename). It creates the
+// parent directory if missing and uses a unique per-writer temp file
+// (os.CreateTemp) so two concurrent writers never share a temp path and
+// clobber each other's partial write. Note: atomic rename guarantees the
+// final file is never torn, but it does NOT serialize a read-modify-write
+// across processes — callers needing lost-update safety must take an
+// advisory file lock around Load/Set/Save.
 func Save(path string, lock *Lock) error {
 	if lock == nil {
 		return fmt.Errorf("save lockfile %s: nil lock", path)
@@ -132,15 +137,46 @@ func Save(path string, lock *Lock) error {
 		return fmt.Errorf("marshal lockfile: %w", err)
 	}
 	data = append(data, '\n')
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("ensure lockfile dir %s: %w", dir, err)
+	}
+	tmpf, err := os.CreateTemp(dir, "adept.lock-*.json")
+	if err != nil {
+		return fmt.Errorf("create tmp lockfile: %w", err)
+	}
+	tmp := tmpf.Name()
+	// Best-effort cleanup of the temp file on any failure before rename.
+	defer func() { _ = os.Remove(tmp) }()
+	if _, err := tmpf.Write(data); err != nil {
+		_ = tmpf.Close()
 		return fmt.Errorf("write tmp lockfile: %w", err)
 	}
-	if err := os.Rename(tmp, path); err != nil {
-		_ = os.Remove(tmp)
+	if err := tmpf.Close(); err != nil {
+		return fmt.Errorf("close tmp lockfile: %w", err)
+	}
+	if err := os.Chmod(tmp, 0o644); err != nil {
+		return fmt.Errorf("chmod tmp lockfile: %w", err)
+	}
+	if err := renameWithRetry(tmp, path); err != nil {
 		return fmt.Errorf("rename lockfile: %w", err)
 	}
 	return nil
+}
+
+// renameWithRetry replaces newpath with oldpath, retrying briefly. On Windows
+// an atomic rename over an existing file can transiently fail with "Access is
+// denied" when a concurrent writer is replacing the same target; a bounded
+// retry lets the writers serialize. On POSIX the first attempt succeeds.
+func renameWithRetry(oldpath, newpath string) error {
+	var err error
+	for i := 0; i < 20; i++ {
+		if err = os.Rename(oldpath, newpath); err == nil {
+			return nil
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	return err
 }
 
 // Set upserts an entry by skill id and returns the same Lock for chaining.

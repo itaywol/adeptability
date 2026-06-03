@@ -210,7 +210,7 @@ func configuredLibraryCompletion(d *Deps) cobra.CompletionFunc {
 		}
 		out := make([]cobra.Completion, 0, len(cfg.Libraries))
 		for _, l := range cfg.Libraries {
-			out = append(out, cobra.Completion(l.Name))
+			out = append(out, l.Name)
 		}
 		return out, cobra.ShellCompDirectiveNoFileComp
 	}

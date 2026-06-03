@@ -199,8 +199,9 @@ func readIgnore(path string) ([]string, error) {
 		}
 		return nil, fmt.Errorf("hash: read %s: %w", path, err)
 	}
-	var patterns []string
-	for _, line := range strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n") {
+	lines := strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n")
+	patterns := make([]string, 0, len(lines))
+	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			continue

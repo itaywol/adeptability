@@ -42,6 +42,30 @@ func TestRenderCanonical_RoundTripsThroughParser(t *testing.T) {
 	require.Equal(t, in.Metadata, parsed.Metadata)
 }
 
+func TestRenderCanonical_RoundTripsModelAndHarness(t *testing.T) {
+	t.Parallel()
+	in := &adept.Skill{
+		ID:          "db-migrations",
+		Description: "Guides safe migrations.",
+		Activation:  adept.ActivationAgent,
+		Model:       "claude-opus-4-8",
+		Harness: map[string]map[string]any{
+			"claude-code": {"effort": "high", "user-invocable": false},
+			"cursor":      {"alwaysApply": true},
+		},
+		Body: "# Body\n",
+	}
+	got, err := RenderCanonical(in)
+	require.NoError(t, err)
+	require.Contains(t, string(got), "model:")
+	require.Contains(t, string(got), "harness:")
+
+	parsed, _, err := NewParser().ParseFrontmatter(got)
+	require.NoError(t, err)
+	require.Equal(t, in.Model, parsed.Model)
+	require.Equal(t, in.Harness, parsed.Harness, "harness override block must round-trip verbatim")
+}
+
 func TestRenderCanonical_EscapesQuotes(t *testing.T) {
 	t.Parallel()
 	in := &adept.Skill{

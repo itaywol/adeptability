@@ -39,8 +39,8 @@ func TestBucketer_GlobsSkill(t *testing.T) {
 	if !strings.HasPrefix(string(spec.Key), "bucket-") {
 		t.Fatalf("expected bucket- prefix, got %q", spec.Key)
 	}
-	if len(spec.Key) != len("bucket-")+8 {
-		t.Fatalf("expected 8 hex chars suffix, got %q", spec.Key)
+	if len(spec.Key) != len("bucket-")+globHashHexLen {
+		t.Fatalf("expected %d hex chars suffix, got %q", globHashHexLen, spec.Key)
 	}
 	// Sorted globs are in the applyTo string.
 	if spec.ApplyTo != "**/*.ts,src/**" {

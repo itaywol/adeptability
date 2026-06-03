@@ -3,42 +3,55 @@ package main_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 )
 
+// adeptBin returns the path the e2e binary is built to. `go build` appends
+// `.exe` on Windows, so the test binary path must too — otherwise the build
+// stat and exec both miss the file.
+func adeptBin(dir string) string {
+	name := "adept"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	return filepath.Join(dir, name)
+}
+
 // TestE2E exercises the v0.4 UX-refactor surface end-to-end:
 //
-//   adept init [--from <url>] [--ref <branch>] [--name <local>] [--mode symlink|copy]
-//   adept status
-//   adept sync       [--harness <id>] [--force] [--dry-run]
-//   adept sync-from  [--harness <id>] [--all] [--force] [--dry-run]
-//   adept diff       [--harness <id>]
-//   adept harness    {add,remove,list}
-//   adept skill      {add [--from <path>] [--edit], edit, remove, list}
-//   adept library    {add <name> --from <url>, remove [--purge], list}
+//	adept init [--from <url>] [--ref <branch>] [--name <local>] [--mode symlink|copy]
+//	adept status
+//	adept sync       [--harness <id>] [--force] [--dry-run]
+//	adept sync-from  [--harness <id>] [--all] [--force] [--dry-run]
+//	adept diff       [--harness <id>]
+//	adept harness    {add,remove,list}
+//	adept skill      {add [--from <path>] [--edit], edit, remove, list}
+//	adept library    {add <name> --from <url>, remove [--purge], list}
 //
 // Covers the four user flows the rewrite was scoped around:
 //
-//   1. init on an empty project
-//   2. init in a project that already has harness files (auto-adopts)
-//   3. add a second harness post-init via `harness add`
-//   4. multi-library: `library add <name> --from <url>` stacks libraries;
-//      `skill list` shows union; project shadows library; first-wins on
-//      cross-library collisions.
+//  1. init on an empty project
+//  2. init in a project that already has harness files (auto-adopts)
+//  3. add a second harness post-init via `harness add`
+//  4. multi-library: `library add <name> --from <url>` stacks libraries;
+//     `skill list` shows union; project shadows library; first-wins on
+//     cross-library collisions.
 func TestE2E(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping e2e under -short")
 	}
 
 	repoRoot := findRepoRoot(t)
-	binPath := filepath.Join(t.TempDir(), "adept")
+	binPath := adeptBin(t.TempDir())
 	buildBinary(t, repoRoot, binPath)
 
 	libRoot := filepath.Join(t.TempDir(), "lib")
@@ -57,7 +70,8 @@ func TestE2E(t *testing.T) {
 		cmd.Stderr = &errBuf
 		err := cmd.Run()
 		code := 0
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
 			code = exitErr.ExitCode()
 		} else if err != nil {
 			t.Fatalf("run adept %v: %v\nstderr: %s", args, err, errBuf.String())
@@ -321,7 +335,10 @@ func appendToFile(path, extra string) error {
 func gitInit(t *testing.T, dir string) {
 	t.Helper()
 	for _, args := range [][]string{
-		{"init"},
+		// Force the default branch to main so `library add` / `init --from`
+		// (which clone with --ref main) work regardless of the host git's
+		// init.defaultBranch (CI runners default to master).
+		{"init", "-b", "main"},
 		{"add", "."},
 		{"-c", "user.email=t@e", "-c", "user.name=t", "commit", "-m", "init"},
 	} {

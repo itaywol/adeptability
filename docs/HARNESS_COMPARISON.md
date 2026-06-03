@@ -9,7 +9,6 @@ budgets. This document shows what gets written and why.
 ```yaml
 # skill.yaml
 id: pr-review
-version: 1
 description: Apply before opening a PR. Tests, security, performance.
 activation: agent
 allowed-tools: [Read, Grep]
@@ -87,7 +86,7 @@ markdown.
 ### Codex → `AGENTS.md` (aggregated)
 
 ```markdown
-<!-- adeptability:begin id=pr-review version=1 -->
+<!-- adeptability:begin id=pr-review hash=a1b2c3d4 -->
 ## Apply before opening a PR. Tests, security, performance.
 
 ## Tests
@@ -97,13 +96,13 @@ markdown.
 <!-- adeptability:end id=pr-review -->
 ```
 
-When multiple skills are enabled, sections concatenate in a stable order
-(version desc, then size asc). If total exceeds **32 KiB** (Codex's
-`project_doc_max_bytes`), the smallest-priority skills drop and a
-truncation manifest appears at the top:
+When multiple skills are enabled, they are packed by priority descending then
+byte size ascending, and emitted in skill-id order. If the total exceeds
+**32 KiB** (Codex's `project_doc_max_bytes`), the lowest-priority skills drop
+and a truncation manifest appears at the top:
 
 ```markdown
-<!-- adeptability: omitted 2 skill(s) due to 32KiB budget. Dropped: legacy-style,old-runbook -->
+<!-- adeptability: omitted 2 skill(s) due to 32KiB budget. Trim or split skills to fit. Dropped: legacy-style,old-runbook -->
 ```
 
 **Why correct**: Codex has *no per-skill concept*. It reads one or more
@@ -141,10 +140,10 @@ ignored entirely.
 
 | Canonical activation | Claude              | Cursor                | OpenCode | Codex             | Copilot              |
 |----------------------|---------------------|-----------------------|----------|-------------------|----------------------|
-| `always`             | description-only    | `alwaysApply: true`   | body     | aggregated body   | `applyTo: "**"`      |
-| `globs: [...]`       | desc + glob hint    | `globs:` + `alwaysApply:false` | body | aggregated body   | bucketed by globs    |
-| `agent`              | description-only    | description-only      | body     | aggregated body   | *skipped* (Copilot has no agent mode) |
-| `manual`             | `disable-model-invocation:true` | desc + `@id` hint | body | aggregated body   | *skipped*            |
+| `always`             | description-only    | `alwaysApply: true`   | `# id` + desc + body | aggregated body   | `applyTo: "**"`      |
+| `globs: [...]`       | desc + glob hint    | `globs:` + `alwaysApply:false` | `# id` + desc + body | aggregated body   | bucketed by globs    |
+| `agent`              | description-only    | description-only      | `# id` + desc + body | aggregated body   | *skipped* (Copilot has no agent mode) |
+| `manual`             | `disable-model-invocation:true` | desc + `@id` hint | `# id` + desc + body | aggregated body   | *skipped*            |
 
 ## Sidecars
 
