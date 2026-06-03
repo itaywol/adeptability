@@ -1,0 +1,56 @@
+name: Bug report
+description: Something in adept doesn't work as documented.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. For **security vulnerabilities**, do not file here —
+        see [SECURITY.md](https://github.com/itaywol/adeptability/blob/main/SECURITY.md).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+      placeholder: |
+        $ adept sync
+        ...
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Minimal commands/state. A failing example is worth a thousand words.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: adept version
+      description: Output of `adept --version`.
+      placeholder: "v0.x.y (commit …, built …)"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Linux
+        - macOS
+        - Windows
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: harnesses
+    attributes:
+      label: Harnesses enabled
+      description: e.g. claude-code, cursor, codex — from `adept harness list`.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Re-run with `--log-level debug` and paste relevant output.
+      render: shell

@@ -1,0 +1,12 @@
+# Code owners are requested for review automatically on every PR.
+# https://docs.github.com/articles/about-code-owners
+
+# Default owner for everything in the repo.
+*       @itaywol
+
+# Public contracts, schemas, release & CI plumbing — change with extra care.
+/pkg/adept/                @itaywol
+/pkg/adeptschema/          @itaywol
+/.github/                  @itaywol
+/.goreleaser.yaml          @itaywol
+/release-please-config.json @itaywol
