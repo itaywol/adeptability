@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -135,8 +136,12 @@ func TestCollectSidecars(t *testing.T) {
 	for _, f := range files {
 		byRel[f.RelPath] = f
 	}
-	require.Equal(t, os.FileMode(0o755), byRel["scripts/run.sh"].Mode.Perm())
-	require.Equal(t, os.FileMode(0o644), byRel["docs/ref.md"].Mode.Perm())
+	// Windows does not preserve Unix permission bits (a written file reads back
+	// 0666), so only assert exact modes off Windows.
+	if runtime.GOOS != "windows" {
+		require.Equal(t, os.FileMode(0o755), byRel["scripts/run.sh"].Mode.Perm())
+		require.Equal(t, os.FileMode(0o644), byRel["docs/ref.md"].Mode.Perm())
+	}
 	require.Equal(t, "#!/bin/sh\necho hi\n", string(byRel["scripts/run.sh"].Bytes))
 
 	// Forward-slash separators even though the OS may use backslashes natively.
@@ -347,7 +352,10 @@ func TestAdapter_Import_RoundTripWithRender(t *testing.T) {
 			for i, f := range tt.skill.Files {
 				require.Equal(t, f.RelPath, imp.Files[i].RelPath)
 				require.Equal(t, f.Bytes, imp.Files[i].Bytes)
-				require.Equal(t, f.Mode.Perm(), imp.Files[i].Mode.Perm())
+				// Windows does not preserve Unix permission bits.
+				if runtime.GOOS != "windows" {
+					require.Equal(t, f.Mode.Perm(), imp.Files[i].Mode.Perm())
+				}
 			}
 		})
 	}

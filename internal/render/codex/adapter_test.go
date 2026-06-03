@@ -3,6 +3,7 @@ package codex
 import (
 	"context"
 	"io/fs"
+	"path/filepath"
 	"sync"
 	"testing"
 
@@ -21,10 +22,15 @@ func newFakeReader() *fakeReader {
 	return &fakeReader{files: map[string][]byte{}, dirs: map[string]struct{}{}}
 }
 
+// normPath maps OS-native lookup paths (the code under test builds them with
+// filepath.Join, so they use `\` on Windows) onto the forward-slash keys the
+// tests populate, so the fake reader is separator-agnostic.
+func normPath(p string) string { return filepath.ToSlash(filepath.Clean(p)) }
+
 func (w *fakeReader) ReadFile(path string) ([]byte, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	b, ok := w.files[path]
+	b, ok := w.files[normPath(path)]
 	if !ok {
 		return nil, fs.ErrNotExist
 	}
@@ -34,10 +40,10 @@ func (w *fakeReader) ReadFile(path string) ([]byte, error) {
 func (w *fakeReader) Exists(path string) (bool, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if _, ok := w.files[path]; ok {
+	if _, ok := w.files[normPath(path)]; ok {
 		return true, nil
 	}
-	if _, ok := w.dirs[path]; ok {
+	if _, ok := w.dirs[normPath(path)]; ok {
 		return true, nil
 	}
 	return false, nil
@@ -46,7 +52,7 @@ func (w *fakeReader) Exists(path string) (bool, error) {
 func (w *fakeReader) mkdir(p string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	w.dirs[p] = struct{}{}
+	w.dirs[normPath(p)] = struct{}{}
 }
 
 func TestDetect_AgentsFile(t *testing.T) {
