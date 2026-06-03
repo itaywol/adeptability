@@ -222,7 +222,7 @@ A skill is a directory under `.adeptability/skills/<id>/` containing a single `S
 
 ```markdown
 ---
-id: pr-review                  # ^[a-z0-9_][a-z0-9_-]{0,49}$
+id: pr-review                  # ^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$
 description: Use before opening a PR. Tests, security, performance.
 activation: agent              # always | globs | agent | manual
 globs: []                      # required if activation=globs
@@ -231,6 +231,13 @@ targets: []                    # nil = all enabled harnesses
 tags: [review, quality]
 metadata:
   owner: platform-eng
+model: claude-opus-4-8         # optional model hint (Claude consumes it; others ignore)
+harness:                       # optional per-harness, per-skill overrides
+  claude-code:
+    effort: high
+    user-invocable: false
+  cursor:
+    alwaysApply: false
 ---
 # PR Review Checklist
 
@@ -240,6 +247,19 @@ metadata:
 ```
 
 The schema is published at `pkg/adeptschema/skill.schema.json` and validated on every load.
+
+### Per-skill, per-harness configuration
+
+Most skills need none of this. When a harness has a knob with no canonical
+equivalent — Claude's `effort`/`user-invocable`/`model`, a Cursor-only
+`alwaysApply` — set it once in the `harness:` block keyed by harness id. Each
+renderer merges its own entry **last** over the fields it derives from the
+canonical skill (last-wins; new keys appended), and a harness simply ignores
+keys it does not understand, so the override degrades safely. The block is
+schema-validated (it cannot override the identity fields `id`/`name`/
+`description`) and round-trips through the canonical writer. `model` is
+promoted to a top-level field because it is the one knob commonly wanted with
+no analog elsewhere. Today Claude Code and Cursor consume overrides.
 
 ## Harness Support
 

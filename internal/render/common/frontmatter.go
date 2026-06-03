@@ -5,6 +5,7 @@ package common
 import (
 	"bytes"
 	"fmt"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -99,6 +100,70 @@ func toNode(v any, quote bool) (*yaml.Node, error) {
 		}
 		return seq, nil
 	default:
-		return nil, fmt.Errorf("unsupported value type %T", v)
+		// Arbitrary values (e.g. per-harness overrides decoded from YAML as
+		// float64, []interface{}, or map[string]interface{}) are serialized via
+		// yaml.v3. The typed cases above stay for Quote support and flow-style
+		// slices.
+		return encodeArbitrary(v)
 	}
+}
+
+// encodeArbitrary yaml-encodes any value into a node. yaml.v3 panics on values
+// it cannot represent (chan, func, …) instead of returning an error, so the
+// panic is recovered and surfaced as an error — the renderer never crashes on
+// a malformed override value.
+func encodeArbitrary(v any) (node *yaml.Node, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			node, err = nil, fmt.Errorf("unsupported value type %T: %v", v, r)
+		}
+	}()
+	raw, err := yaml.Marshal(v)
+	if err != nil {
+		return nil, fmt.Errorf("unsupported value type %T: %w", v, err)
+	}
+	var doc yaml.Node
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		return nil, fmt.Errorf("unsupported value type %T: %w", v, err)
+	}
+	if doc.Kind == yaml.DocumentNode && len(doc.Content) == 1 {
+		return doc.Content[0], nil
+	}
+	return &doc, nil
+}
+
+// MergeOverride applies a per-harness override map onto a renderer's derived
+// fields: a key that already exists replaces that field's value (last-wins);
+// a new key is appended. Override keys are applied in sorted order so output
+// is deterministic regardless of map iteration order. A nil/empty override is
+// a no-op. The identity fields (id/name/description) are guarded by the schema
+// before render, so this function does not re-check them.
+func MergeOverride(fields []Field, override map[string]any) ([]Field, error) {
+	if len(override) == 0 {
+		return fields, nil
+	}
+	keys := make([]string, 0, len(override))
+	for k := range override {
+		if k == "" {
+			return nil, fmt.Errorf("frontmatter override: empty key")
+		}
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		v := override[k]
+		replaced := false
+		for i := range fields {
+			if fields[i].Key == k {
+				fields[i].Value = v
+				fields[i].Quote = false
+				replaced = true
+				break
+			}
+		}
+		if !replaced {
+			fields = append(fields, Field{Key: k, Value: v})
+		}
+	}
+	return fields, nil
 }

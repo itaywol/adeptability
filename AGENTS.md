@@ -69,7 +69,11 @@ internal/{fsutil,locks,hash,config,project,log,budget,org}/  supporting primitiv
    answer to "did this change". Do not introduce version numbers as a sync signal.
 4. **Canonical layout:** a skill is a directory `<root>/skills/<id>/` with one `SKILL.md`
    (YAML frontmatter + markdown body) plus optional sidecars (`scripts/`, `references/`,
-   `assets/`). The directory name is the authoritative id.
+   `assets/`). The directory name is the authoritative id. Skill ids use the
+   harness-compatible charset `^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$` (no underscore).
+   Per-skill, per-harness overrides live in an optional `harness:` map (keyed by harness id)
+   plus a promoted `model` field; renderers merge their entry last via `common.MergeOverride`,
+   and the schema forbids overriding identity fields. Currently consumed by claude-code and cursor.
 5. **Harness models differ — renderers must respect them:** per-skill (Claude, OpenCode),
    single-file (Cursor — drops sidecars), and aggregator (Codex/Copilot — concatenate into
    one file with section markers under a byte budget). Aggregators must parse their own

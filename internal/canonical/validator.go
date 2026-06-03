@@ -95,6 +95,20 @@ func skillToSchemaDoc(s *adept.Skill) (any, error) {
 		}
 		doc["metadata"] = md
 	}
+	if s.Model != "" {
+		doc["model"] = s.Model
+	}
+	if len(s.Harness) > 0 {
+		hd := map[string]any{}
+		for harness, override := range s.Harness {
+			ov := map[string]any{}
+			for k, v := range override {
+				ov[k] = v
+			}
+			hd[harness] = ov
+		}
+		doc["harness"] = hd
+	}
 	// Round-trip through JSON to convert numeric types into json.Number to
 	// match jsonschema/v6 expectations.
 	raw, err := json.Marshal(doc)

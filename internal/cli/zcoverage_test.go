@@ -308,9 +308,9 @@ func TestValidateSkillID(t *testing.T) {
 		{"trail-", false},      // trailing dash
 		{"Bad", false},         // uppercase
 		{"-lead", false},       // leading dash
-		{"a/b", false},       // slash
-		{"a b", false},       // space
-		{"dotted.id", false}, // dot
+		{"a/b", false},         // slash
+		{"a b", false},         // space
+		{"dotted.id", false},   // dot
 		{strings.Repeat("a", 50), true},
 		{strings.Repeat("a", 51), false},
 	}

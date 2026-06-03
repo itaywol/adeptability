@@ -60,6 +60,16 @@ func (r *Renderer) Render(ctx context.Context, in adept.RenderInput) (adept.Rend
 	if err != nil {
 		return adept.RenderOutput{}, fmt.Errorf("cursor render %q: %w", s.ID, err)
 	}
+	// Per-harness overrides merge last (e.g. a power user pinning alwaysApply).
+	// Derived description/globs/alwaysApply stay the default unless overridden.
+	hid := in.Harness.ID
+	if hid == "" {
+		hid = Spec().ID
+	}
+	fields, err = common.MergeOverride(fields, s.Harness[hid])
+	if err != nil {
+		return adept.RenderOutput{}, fmt.Errorf("cursor render %q: %w", s.ID, err)
+	}
 
 	front, err := r.fm.Build(fields)
 	if err != nil {

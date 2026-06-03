@@ -66,8 +66,23 @@ func (r *Renderer) Render(ctx context.Context, in adept.RenderInput) (adept.Rend
 	if len(s.AllowedTools) > 0 {
 		fields = append(fields, common.Field{Key: "allowed-tools", Value: s.AllowedTools})
 	}
+	if s.Model != "" {
+		fields = append(fields, common.Field{Key: "model", Value: s.Model})
+	}
 	if s.Activation == adept.ActivationManual {
 		fields = append(fields, common.Field{Key: "disable-model-invocation", Value: true})
+	}
+	// Per-harness overrides are merged last so an author can tune Claude-only
+	// knobs (effort, user-invocable, a tighter allowed-tools, …) or replace a
+	// derived value. Unknown keys are simply emitted; Claude ignores any it
+	// does not understand.
+	hid := in.Harness.ID
+	if hid == "" {
+		hid = Spec().ID
+	}
+	fields, err := common.MergeOverride(fields, s.Harness[hid])
+	if err != nil {
+		return adept.RenderOutput{}, fmt.Errorf("claude render %q: %w", s.ID, err)
 	}
 
 	front, err := r.fm.Build(fields)

@@ -43,6 +43,25 @@
     "metadata": {
       "type": "object",
       "additionalProperties": { "type": "string" }
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "harness": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z0-9_][a-z0-9_-]{0,49}$" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": true,
+        "not": {
+          "anyOf": [
+            { "required": ["id"] },
+            { "required": ["name"] },
+            { "required": ["description"] }
+          ]
+        }
+      }
     }
   },
   "allOf": [

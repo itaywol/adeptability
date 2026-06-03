@@ -125,3 +125,16 @@ func TestRenderer_NilSkill(t *testing.T) {
 	_, err := cursor.New().Render(context.Background(), adept.RenderInput{Skill: nil})
 	require.ErrorIs(t, err, adept.ErrSkillInvalid)
 }
+
+func TestRenderer_AppliesHarnessOverride(t *testing.T) {
+	t.Parallel()
+	skill := &adept.Skill{
+		ID:          "ov",
+		Description: "agent skill",
+		Activation:  adept.ActivationAgent,
+		Harness:     map[string]map[string]any{"cursor": {"alwaysApply": true}},
+	}
+	out, err := cursor.New().Render(context.Background(), adept.RenderInput{Skill: skill, Harness: cursor.Spec()})
+	require.NoError(t, err)
+	require.Contains(t, string(out.Bytes), "alwaysApply: true", "per-harness override must be applied")
+}
