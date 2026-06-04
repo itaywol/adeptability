@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.2](https://github.com/itaywol/adeptability/compare/v1.0.1...v1.0.2) (2026-06-04)
+
+
+### Bug Fixes
+
+* **ci:** grant attestations: write to release-please reusable job ([#10](https://github.com/itaywol/adeptability/issues/10)) ([83042ef](https://github.com/itaywol/adeptability/commit/83042ef04a7af4dd8ae9f8ae10ed9ea684265b26))
+* **ci:** use id-token: write in release-please reusable job ([#9](https://github.com/itaywol/adeptability/issues/9)) ([112d90c](https://github.com/itaywol/adeptability/commit/112d90cba4b269779566ee6e74aef64ffa0b66c6))
+* correct install.sh URL and document only shipped install channels ([#8](https://github.com/itaywol/adeptability/issues/8)) ([9d4d7e2](https://github.com/itaywol/adeptability/commit/9d4d7e2896e7aa1c6446615f689bc3aabbef9e4d))
+
 ## 1.0.0 (2026-06-03)
 
 
