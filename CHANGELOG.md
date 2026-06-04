@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.3](https://github.com/itaywol/adeptability/compare/v1.0.2...v1.0.3) (2026-06-04)
+
+
+### Bug Fixes
+
+* stop hardcoding v1.0.0 in the manual-download docs ([#12](https://github.com/itaywol/adeptability/issues/12)) ([7e1fa96](https://github.com/itaywol/adeptability/commit/7e1fa96e1eddd23582760b05568af07efa95fa3f))
+
 ## [1.0.2](https://github.com/itaywol/adeptability/compare/v1.0.1...v1.0.2) (2026-06-04)
 
 
