@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 # adeptability installer
-# Usage: curl -fsSL https://itaywol.github.io/adeptability/install.sh | sh
+# Usage: curl -fsSL https://raw.githubusercontent.com/itaywol/adeptability/main/scripts/install.sh | sh
 # Env:
 #   ADEPT_VERSION   override version tag (default: latest)
 #   ADEPT_BIN_DIR   install location (default: /usr/local/bin)
@@ -29,7 +29,7 @@ esac
 
 case "$OS" in
   linux|darwin) ;;
-  *) err "unsupported OS: $OS (use scoop or winget on Windows)" ;;
+  *) err "unsupported OS: $OS (on Windows: 'go install', or grab the release .zip)" ;;
 esac
 
 if [ "$VERSION" = "latest" ]; then

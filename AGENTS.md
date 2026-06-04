@@ -171,9 +171,13 @@ Drop a `<id>.yaml` adapter in `~/.adeptability/adapters/` matching
 - **Versioning:** `release-please` opens/maintains a release PR from Conventional Commits;
   merging it tags `vX.Y.Z`.
 - **Release:** the tag triggers `goreleaser` (cross-compiled archives for darwin/linux/windows
-  × amd64/arm64), `checksums.txt`, SLSA provenance, and cosign signing. Docker publish is
-  opt-in via the `DOCKER_PUBLISH` repo variable.
-- **Distribution:** Homebrew tap + an npm wrapper (`scripts/npm/`, `@itaywol/adeptability`)
-  whose `postinstall` fetches the matching binary.
+  × amd64/arm64), `checksums.txt`, cosign signing, and build-provenance attestation via
+  `actions/attest-build-provenance` (immutable-release safe). Docker publish to GHCR is opt-in
+  via the `DOCKER_PUBLISH` repo variable.
+- **Distribution (live):** GitHub release tarballs, `go install`, the `scripts/install.sh`
+  curl installer, Homebrew tap (`itaywol/homebrew-tap`), and GHCR images.
+- **Distribution (not wired yet):** Scoop, WinGet, and the npm wrapper (`scripts/npm/`,
+  `@itaywol/adeptability`) are unpublished — tracked in the "additional package managers"
+  issue, gated on a thumbs-up before we commit to maintaining them.
 - Do not hand-edit `CHANGELOG.md`, `.release-please-manifest.json`, or version strings;
   release-please owns them.

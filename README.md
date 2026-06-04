@@ -32,16 +32,8 @@ go install github.com/itaywol/adeptability/cmd/adept@latest
 # macOS / Linux (Homebrew)
 brew install itaywol/tap/adeptability
 
-# Windows
-scoop install adeptability
-# or
-winget install itaywol.adeptability
-
 # Any platform (curl)
-curl -fsSL https://itaywol.github.io/adeptability/install.sh | sh
-
-# Node ecosystems
-npm install -g @itaywol/adeptability
+curl -fsSL https://raw.githubusercontent.com/itaywol/adeptability/main/scripts/install.sh | sh
 
 # Containers
 docker run --rm -v "$PWD:/work" -w /work ghcr.io/itaywol/adeptability:latest --help

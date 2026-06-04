@@ -90,11 +90,12 @@ signs:
     certificate: '${artifact}.pem'
     signature: '${artifact}.sig'
 
-# External publishing channels (Docker, Homebrew tap, Scoop, WinGet, npm) are
-# disabled until adeptability is ready for public release. Each block is
-# templated to skip cleanly when the relevant token/secret is unset; flip the
-# corresponding env var on (e.g. HOMEBREW_TAP_GITHUB_TOKEN, DOCKER_PUBLISH=1)
-# in the workflow once the company / personal launch plan is finalized.
+# External publishing channels each skip cleanly when their token/var is unset,
+# so private dogfood builds (no publishers configured) still pass:
+#   - Docker:   pushes when repo var DOCKER_PUBLISH=1
+#   - Homebrew: pushes when HOMEBREW_TAP_GITHUB_TOKEN is set (App token in CI)
+# Scoop, WinGet, and npm are NOT wired yet (no bucket / fork / registry package).
+# Tracked in the "additional package managers" issue, gated on a thumbs-up.
 
 dockers:
   - id: docker-amd64
