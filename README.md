@@ -39,12 +39,13 @@ curl -fsSL https://raw.githubusercontent.com/itaywol/adeptability/main/scripts/i
 docker run --rm -v "$PWD:/work" -w /work ghcr.io/itaywol/adeptability:latest --help
 ```
 
-Or grab a pre-built, cosign-signed binary from the [v1.0.0 release](https://github.com/itaywol/adeptability/releases/latest) — `adeptability_1.0.0_{linux,darwin}_{amd64,arm64}.tar.gz` (and `adeptability_1.0.0_windows_amd64.zip`):
+Or grab a pre-built, cosign-signed binary from the [latest release](https://github.com/itaywol/adeptability/releases/latest) — `adeptability_<version>_{linux,darwin}_{amd64,arm64}.tar.gz` (and `adeptability_<version>_windows_amd64.zip`):
 
 ```bash
-# example: Linux x86_64
+# example: Linux x86_64 (replace VERSION, e.g. 1.0.3)
+VERSION=1.0.3
 curl -fsSL -o adeptability.tar.gz \
-  https://github.com/itaywol/adeptability/releases/download/v1.0.0/adeptability_1.0.0_linux_amd64.tar.gz
+  "https://github.com/itaywol/adeptability/releases/download/v${VERSION}/adeptability_${VERSION}_linux_amd64.tar.gz"
 tar -xzf adeptability.tar.gz
 ./adept --help
 ```
