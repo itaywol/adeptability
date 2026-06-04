@@ -4,6 +4,9 @@ on:
   push:
     tags:
       - 'v*'
+  # Reusable: release-please calls this in its own (user-triggered) run so the
+  # GITHUB_TOKEN recursion guard never strands a release without artifacts.
+  workflow_call:
 
 permissions:
   contents: write
