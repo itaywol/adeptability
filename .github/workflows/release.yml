@@ -12,12 +12,11 @@ permissions:
   contents: write
   packages: write
   id-token: write
+  attestations: write
 
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
-    outputs:
-      hashes: ${{ steps.hash.outputs.hashes }}
     env:
       # Only mint an App token when the App private key is configured, so
       # private dogfood builds (no external publishers) still pass.
@@ -65,24 +64,18 @@ jobs:
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ steps.app-token.outputs.token || secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
           DOCKER_PUBLISH: ${{ vars.DOCKER_PUBLISH }}
           COSIGN_EXPERIMENTAL: 'true'
-      # SLSA provenance needs base64(sha256  name) lines — goreleaser's
-      # checksums.txt is exactly that. Locate it from the artifacts manifest.
-      - name: Generate subject hashes
-        id: hash
+      # Build provenance via GitHub's native attestation API (not a release
+      # asset), so it works with immutable releases. goreleaser's checksums.txt
+      # (sha256<space><space>name) attests every artifact in one shot. Locate it
+      # from the artifacts manifest in case the filename is ever customized.
+      - name: Resolve checksum file
+        id: cksum
         env:
           ARTIFACTS: ${{ steps.goreleaser.outputs.artifacts }}
         run: |
           set -euo pipefail
-          checksum_file=$(echo "$ARTIFACTS" | jq -r '.[] | select(.type=="Checksum") | .path')
-          echo "hashes=$(base64 -w0 < "$checksum_file")" >> "$GITHUB_OUTPUT"
-
-  provenance:
-    needs: goreleaser
-    permissions:
-      actions: read
-      contents: write
-      id-token: write
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
-    with:
-      base64-subjects: ${{ needs.goreleaser.outputs.hashes }}
-      upload-assets: true
+          echo "path=$(echo "$ARTIFACTS" | jq -r '.[] | select(.type=="Checksum") | .path')" >> "$GITHUB_OUTPUT"
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-checksums: ${{ steps.cksum.outputs.path }}
