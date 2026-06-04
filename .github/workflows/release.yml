@@ -18,10 +18,28 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       hashes: ${{ steps.hash.outputs.hashes }}
+    env:
+      # Only mint an App token when the App private key is configured, so
+      # private dogfood builds (no external publishers) still pass.
+      HAS_APP: ${{ secrets.APP_PRIVATE_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      # PAT-free cross-repo writes (Homebrew tap / Scoop bucket): a short-lived
+      # GitHub App installation token, scoped to just the publisher repos.
+      - name: Mint GitHub App token
+        id: app-token
+        if: env.HAS_APP == 'true'
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: |
+            adeptability
+            homebrew-tap
+            scoop-bucket
       - uses: actions/setup-go@v5
         with:
           go-version: '1.25'
@@ -45,7 +63,7 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ steps.app-token.outputs.token || secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
           DOCKER_PUBLISH: ${{ vars.DOCKER_PUBLISH }}
           COSIGN_EXPERIMENTAL: 'true'
       # SLSA provenance needs base64(sha256  name) lines — goreleaser's
