@@ -1,11 +1,17 @@
-# adeptability — write an AI skill once, run it in every coding agent
+<p align="center">
+  <img src="assets/logo.png" alt="adeptability — cross-harness AI skill portability CLI" width="480">
+</p>
 
-[![Release](https://img.shields.io/github/v/release/itaywol/adeptability?logo=github&sort=semver)](https://github.com/itaywol/adeptability/releases/latest)
-[![CI](https://img.shields.io/github/actions/workflow/status/itaywol/adeptability/ci.yml?branch=main&logo=github&label=CI)](https://github.com/itaywol/adeptability/actions/workflows/ci.yml)
-[![Go Reference](https://pkg.go.dev/badge/github.com/itaywol/adeptability.svg)](https://pkg.go.dev/github.com/itaywol/adeptability)
-[![Go Report Card](https://goreportcard.com/badge/github.com/itaywol/adeptability)](https://goreportcard.com/report/github.com/itaywol/adeptability)
-[![Go Version](https://img.shields.io/github/go-mod/go-version/itaywol/adeptability?logo=go)](https://go.dev/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+<h1 align="center">write an AI skill once, run it in every coding agent</h1>
+
+<p align="center">
+  <a href="https://github.com/itaywol/adeptability/releases/latest"><img src="https://img.shields.io/github/v/release/itaywol/adeptability?logo=github&sort=semver" alt="Release"></a>
+  <a href="https://github.com/itaywol/adeptability/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/itaywol/adeptability/ci.yml?branch=main&logo=github&label=CI" alt="CI"></a>
+  <a href="https://pkg.go.dev/github.com/itaywol/adeptability"><img src="https://pkg.go.dev/badge/github.com/itaywol/adeptability.svg" alt="Go Reference"></a>
+  <a href="https://goreportcard.com/report/github.com/itaywol/adeptability"><img src="https://goreportcard.com/badge/github.com/itaywol/adeptability" alt="Go Report Card"></a>
+  <a href="https://go.dev/"><img src="https://img.shields.io/github/go-mod/go-version/itaywol/adeptability?logo=go" alt="Go Version"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
+</p>
 
 **`adept` is a cross-harness AI skill portability CLI** — author an agent skill (a prompt, rule, or procedure) once in one canonical format, then sync it accurately into Claude Code, Cursor, GitHub Copilot, OpenAI Codex, OpenCode, and 45+ other AI coding agents. It handles per-harness frontmatter, activation rules, aggregation, and size budgets for you, and ships a static + LLM **safety scanner**, content-hash drift detection, and 3-way merge so installing skills from `skills.sh` / GitHub stays reproducible and reviewed.
 
