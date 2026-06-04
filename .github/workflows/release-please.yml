@@ -33,10 +33,14 @@ jobs:
   release:
     needs: release-please
     if: needs.release-please.outputs.release_created == 'true'
+    # Must grant every scope release.yml's top-level `permissions` requests — a
+    # reusable workflow's permissions can be equal to or more restrictive than
+    # the caller's, never broader, or the run fails at startup.
     permissions:
       contents: write
       packages: write
       id-token: write
+      attestations: write
       actions: read
     uses: ./.github/workflows/release.yml
     secrets: inherit
