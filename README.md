@@ -1,27 +1,29 @@
-# adeptability
+# adeptability — write an AI skill once, run it in every coding agent
 
-The cross-harness skill portability CLI for AI coding assistants.
+[![Release](https://img.shields.io/github/v/release/itaywol/adeptability?logo=github&sort=semver)](https://github.com/itaywol/adeptability/releases/latest)
+[![CI](https://img.shields.io/github/actions/workflow/status/itaywol/adeptability/ci.yml?branch=main&logo=github&label=CI)](https://github.com/itaywol/adeptability/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/itaywol/adeptability.svg)](https://pkg.go.dev/github.com/itaywol/adeptability)
+[![Go Report Card](https://goreportcard.com/badge/github.com/itaywol/adeptability)](https://goreportcard.com/report/github.com/itaywol/adeptability)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/itaywol/adeptability?logo=go)](https://go.dev/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 
-One canonical library. Every tool gets the right format. Automatically.
+**`adept` is a cross-harness AI skill portability CLI** — author an agent skill (a prompt, rule, or procedure) once in one canonical format, then sync it accurately into Claude Code, Cursor, GitHub Copilot, OpenAI Codex, OpenCode, and 45+ other AI coding agents. It handles per-harness frontmatter, activation rules, aggregation, and size budgets for you, and ships a static + LLM **safety scanner**, content-hash drift detection, and 3-way merge so installing skills from `skills.sh` / GitHub stays reproducible and reviewed.
 
-## Why
+Think of it as a package manager and **dotfiles for AI coding agents**: one source of truth for your agent skills, the right on-disk format everywhere.
 
-Every AI coding assistant — Claude Code, Cursor, GitHub Copilot, OpenAI Codex, OpenCode — uses a different on-disk format for the rules and skills it loads:
-
-- Claude Code expects `.claude/skills/<id>/SKILL.md` with `name`/`description` frontmatter.
-- Cursor expects `.cursor/rules/<id>.mdc` with `description`/`globs`/`alwaysApply`.
-- Copilot expects `.github/instructions/*.instructions.md` with `applyTo` globs.
-- Codex expects a single hierarchical `AGENTS.md` (no per-skill concept) with a 32 KiB cap.
-- OpenCode expects `.opencode/skill/<id>/SKILL.md` (and accepts `AGENTS.md` / `CLAUDE.md` fallbacks).
-
-Maintaining the same procedural knowledge across all of these by hand is impossible to keep consistent. Copying one file into all five paths breaks activation in at least three of them — the frontmatter schemas are mutually incompatible.
-
-`adept` lets you author a skill once in a canonical format, then renders it accurately for every harness in your project — proper frontmatter, proper activation rules, proper aggregation, proper size budgets.
+- **One canonical library, every harness format — automatically.** No more copy-pasting incompatible frontmatter into five different paths.
+- **Safety-scanned skill installs.** Static regex + frontmatter scanner (mirroring getsentry/skill-scanner) plus an optional LLM intent pass; critical findings hard-block by default.
+- **Reproducible & signed.** Content-hashed skills, pinned upstream provenance, cosign-signed release binaries with SLSA provenance — no lockfile gymnastics.
+- **Drift-proof round-trips.** Edit a skill in any harness, `sync-from` back to canonical, re-publish everywhere; a 3-way detector flags divergence.
+- **50+ agents out of the box.** Specialized adapters for Claude Code / Cursor / Codex / Copilot / OpenCode, plus the full vercel-labs/skills agent matrix via a generic adapter — extend with a drop-in YAML file, no recompile.
 
 ## Install
 
 ```bash
-# macOS / Linux
+# Go (any platform)
+go install github.com/itaywol/adeptability/cmd/adept@latest
+
+# macOS / Linux (Homebrew)
 brew install itaywol/tap/adeptability
 
 # Windows
@@ -38,6 +40,30 @@ npm install -g @itaywol/adeptability
 # Containers
 docker run --rm -v "$PWD:/work" -w /work ghcr.io/itaywol/adeptability:latest --help
 ```
+
+Or grab a pre-built, cosign-signed binary from the [v1.0.0 release](https://github.com/itaywol/adeptability/releases/latest) — `adeptability_1.0.0_{linux,darwin}_{amd64,arm64}.tar.gz` (and `adeptability_1.0.0_windows_amd64.zip`):
+
+```bash
+# example: Linux x86_64
+curl -fsSL -o adeptability.tar.gz \
+  https://github.com/itaywol/adeptability/releases/download/v1.0.0/adeptability_1.0.0_linux_amd64.tar.gz
+tar -xzf adeptability.tar.gz
+./adept --help
+```
+
+## Why
+
+Every AI coding assistant — Claude Code, Cursor, GitHub Copilot, OpenAI Codex, OpenCode — uses a different on-disk format for the rules and skills it loads:
+
+- Claude Code expects `.claude/skills/<id>/SKILL.md` with `name`/`description` frontmatter.
+- Cursor expects `.cursor/rules/<id>.mdc` with `description`/`globs`/`alwaysApply`.
+- Copilot expects `.github/instructions/*.instructions.md` with `applyTo` globs.
+- Codex expects a single hierarchical `AGENTS.md` (no per-skill concept) with a 32 KiB cap.
+- OpenCode expects `.opencode/skill/<id>/SKILL.md` (and accepts `AGENTS.md` / `CLAUDE.md` fallbacks).
+
+Maintaining the same procedural knowledge across all of these by hand is impossible to keep consistent. Copying one file into all five paths breaks activation in at least three of them — the frontmatter schemas are mutually incompatible.
+
+`adept` lets you author a skill once in a canonical format, then renders it accurately for every harness in your project — proper frontmatter, proper activation rules, proper aggregation, proper size budgets.
 
 ## Command surface
 
