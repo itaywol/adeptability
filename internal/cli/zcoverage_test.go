@@ -79,6 +79,37 @@ func writeLibrarySkill(t *testing.T, libraryRoot, lib, id, desc string) {
 
 func ptrBool(b bool) *bool { return &b }
 
+// ---------- commands_library.go: seedDefaultSkills ----------
+
+func TestSeedDefaultSkills(t *testing.T) {
+	root := t.TempDir()
+	d := testDeps(t, root, t.TempDir())
+	p := initProject(t, d, root, &adept.Config{})
+
+	// First seed writes every bundled default.
+	first, err := seedDefaultSkills(p)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{"adept-self-improve", "authoring-adept-skills", "using-adept"}, first)
+	for _, id := range first {
+		require.True(t, p.HasSkill(id))
+		require.DirExists(t, filepath.Join(p.BaseSnapshotsDir(), id))
+	}
+
+	// Re-seed is idempotent: nothing already-present is rewritten.
+	second, err := seedDefaultSkills(p)
+	require.NoError(t, err)
+	require.Empty(t, second)
+
+	// A pre-existing skill is left untouched (user content wins).
+	writeProjectSkill(t, p, "using-adept", "user's own override")
+	third, err := seedDefaultSkills(p)
+	require.NoError(t, err)
+	require.NotContains(t, third, "using-adept")
+	body, err := os.ReadFile(filepath.Join(p.SkillsDir(), "using-adept", adept.SkillFileName))
+	require.NoError(t, err)
+	require.Contains(t, string(body), "user's own override")
+}
+
 // ---------- scan_gate.go: shouldScanOnInstall ----------
 
 // nameProvider is the minimal interface shouldScanOnInstall accepts.
