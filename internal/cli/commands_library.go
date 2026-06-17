@@ -5,12 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/itaywol/adeptability/internal/defaultskills"
 	"github.com/itaywol/adeptability/internal/harness"
 	"github.com/itaywol/adeptability/internal/project"
 	"github.com/itaywol/adeptability/pkg/adept"
@@ -30,6 +32,7 @@ import (
 
 func newInitCmd(d *Deps) *cobra.Command {
 	var fromURL, ref, modeStr, libName, gitHook string
+	var noDefaultSkills bool
 	c := &cobra.Command{
 		Use:   "init",
 		Short: "Initialize an adept project (and optionally clone a remote library)",
@@ -44,6 +47,7 @@ func newInitCmd(d *Deps) *cobra.Command {
 	c.Flags().StringVar(&modeStr, "mode", string(adept.ModeSymlink), "harness materialization: symlink|copy")
 	c.Flags().StringVar(&gitHook, "git-hook", "", "install a pre-commit drift hook: fail|fix")
 	c.Flags().Lookup("git-hook").NoOptDefVal = "fail" // bare --git-hook == --git-hook=fail
+	c.Flags().BoolVar(&noDefaultSkills, "no-default-skills", false, "skip seeding the bundled default skills (using-adept, authoring-adept-skills, adept-self-improve)")
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
 		ctx := cmd.Context()
 		w := cmd.OutOrStdout()
@@ -63,6 +67,19 @@ func newInitCmd(d *Deps) *cobra.Command {
 		}
 		if err := d.Writer.EnsureDir(p.BaseSnapshotsDir()); err != nil {
 			return fmt.Errorf("create project base dir: %w", err)
+		}
+
+		// 1b) seed the bundled default skills (idempotent; skips any the
+		// project already has). These make a fresh project immediately useful:
+		// how to drive adept, author a skill, and self-improve.
+		if !noDefaultSkills {
+			seeded, err := seedDefaultSkills(p)
+			if err != nil {
+				return fmt.Errorf("seed default skills: %w", err)
+			}
+			if len(seeded) > 0 {
+				fmt.Fprintf(w, "seeded default skills: %s\n", strings.Join(seeded, ", "))
+			}
 		}
 
 		// 2) load (or create) the project config and stamp mode
@@ -131,6 +148,31 @@ func newInitCmd(d *Deps) *cobra.Command {
 		return nil
 	}
 	return c
+}
+
+// seedDefaultSkills writes adept's bundled default skills into the project
+// canonical, skipping any the project already has. It mirrors
+// writeSkillScaffold: write SKILL.md plus an empty base snapshot dir so the
+// next sync treats each as a fresh local skill. Returns the ids it wrote.
+func seedDefaultSkills(p project.Project) ([]string, error) {
+	var seeded []string
+	for _, s := range defaultskills.All() {
+		if p.HasSkill(s.ID) {
+			continue
+		}
+		dir := filepath.Join(p.SkillsDir(), s.ID)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return nil, fmt.Errorf("create skill dir %s: %w", s.ID, err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, adept.SkillFileName), s.Body, 0o644); err != nil {
+			return nil, fmt.Errorf("write %s: %w", s.ID, err)
+		}
+		if err := os.MkdirAll(filepath.Join(p.BaseSnapshotsDir(), s.ID), 0o755); err != nil {
+			return nil, fmt.Errorf("create base dir %s: %w", s.ID, err)
+		}
+		seeded = append(seeded, s.ID)
+	}
+	return seeded, nil
 }
 
 // upsertLibraryRef appends or replaces a library entry by name. Used by

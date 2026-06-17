@@ -54,27 +54,20 @@ tags: [review, quality]
 ```bash
 adept init                       # scaffold .adeptability/ in the current project
 adept init --from <git-url>      # …and clone a remote skill library to pull skills from
-adept harness add claude-code    # enable a harness (claude-code | cursor | codex | copilot | opencode)
-adept harness list
+adept harness add <id>           # enable a harness (claude-code | cursor | codex | copilot | opencode)
 adept sync                       # render canonical skills → every enabled harness
 adept status                     # init state, libraries, harnesses, and drift at a glance
 adept diff                       # show exactly what differs between canonical and rendered
 adept sync-from                  # adopt edits made directly in a harness file back to canonical
-```
-
-Authoring and sharing skills:
-
-```bash
-adept skill add my-skill --edit          # scaffold a new skill and open $EDITOR
-adept skill list                         # skills resolved for this project (canonical + libraries)
-adept skill search <query>               # find installable skills on skills.sh
+adept skill add <id> --edit      # scaffold a new skill and open $EDITOR
 adept skill install <owner>/<repo>/<skill>   # install one skill from GitHub/skills.sh (pinned to a SHA)
-adept skill check <target>               # static safety scan (project | library:<name>:<id> | owner/repo/skill)
-adept library add <name> --from <git-url>    # stack a remote library; first-wins on id collisions
 ```
 
-Global flags on every command: `--json`, `--log-level debug|info|warn|error`,
-`--project <path>`, `--library <path>`.
+**`adept --help` is the source of truth for the command surface** — it's always current, so
+prefer it over memory. `adept --help` lists every verb; `adept <command> --help` (e.g.
+`adept skill --help`, `adept sync --help`) shows that command's subcommands and flags. Global
+flags on every command: `--json`, `--log-level debug|info|warn|error`, `--project <path>`,
+`--library <path>`.
 
 ## Typical tasks
 
