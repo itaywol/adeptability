@@ -155,8 +155,9 @@ func newInitCmd(d *Deps) *cobra.Command {
 // writeSkillScaffold: write SKILL.md plus an empty base snapshot dir so the
 // next sync treats each as a fresh local skill. Returns the ids it wrote.
 func seedDefaultSkills(p project.Project) ([]string, error) {
-	var seeded []string
-	for _, s := range defaultskills.All() {
+	all := defaultskills.All()
+	seeded := make([]string, 0, len(all))
+	for _, s := range all {
 		if p.HasSkill(s.ID) {
 			continue
 		}
