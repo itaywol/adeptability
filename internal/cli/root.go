@@ -8,7 +8,6 @@
 package cli
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -152,10 +151,6 @@ func ExitFromError(err error) int {
 
 // ErrDirty is the sentinel returned by commands that report drift but did not fail.
 var ErrDirty = errors.New("dirty state detected")
-
-// Context returns a request context for the duration of one command run.
-// Centralizing this lets future versions wire signal handling or tracing.
-func Context() context.Context { return context.Background() }
 
 // Surface for testing: re-export adept sentinels under the CLI package so
 // command tests can `require.ErrorIs(err, cli.ErrSkillNotFound)` without an

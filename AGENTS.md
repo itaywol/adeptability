@@ -52,7 +52,6 @@ internal/library/     centralized + multi-library skill resolution (first-wins o
 internal/scan/        static safety scanner (+ optional LLM intent pass)
 internal/registry/    github (trees API) + skillssh (skills.sh catalog) clients
 internal/git/         git clone/pull/checkout-at-SHA wrapper
-internal/sign/         cosign signing/verification
 internal/{fsutil,locks,hash,config,project,log,budget,org}/  supporting primitives
 ```
 
