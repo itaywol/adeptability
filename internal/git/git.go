@@ -42,6 +42,9 @@ type Client interface {
 	Add(ctx context.Context, dir, path string) error
 	Commit(ctx context.Context, dir, msg string) (hash string, err error)
 	Status(ctx context.Context, dir string) (dirty bool, lines []string, err error)
+	// StagedFiles returns the repo-relative paths staged in the index
+	// (`git diff --cached --name-only`). Empty when nothing is staged.
+	StagedFiles(ctx context.Context, dir string) ([]string, error)
 	HeadHash(ctx context.Context, dir string) (string, error)
 	EnsureConfig(ctx context.Context, dir, key, value string) error
 	// CloneOrPull clones url@ref into dest if dest is not already a git
@@ -157,6 +160,18 @@ func (c *client) Status(ctx context.Context, dir string) (bool, []string, error)
 	}
 	lines := strings.Split(out, "\n")
 	return true, lines, nil
+}
+
+func (c *client) StagedFiles(ctx context.Context, dir string) ([]string, error) {
+	res, err := c.r.Run(ctx, dir, "diff", "--cached", "--name-only")
+	if err != nil {
+		return nil, fmt.Errorf("git diff --cached: %w", err)
+	}
+	out := strings.TrimRight(res.Stdout, "\n")
+	if out == "" {
+		return nil, nil
+	}
+	return strings.Split(out, "\n"), nil
 }
 
 func (c *client) HeadHash(ctx context.Context, dir string) (string, error) {

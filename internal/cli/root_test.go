@@ -14,7 +14,7 @@ func TestRootHasAllCommands(t *testing.T) {
 	root := NewRoot(BuildInfo{Version: "test", Commit: "abc", Date: "today"})
 	want := []string{
 		"init", "status", "sync", "sync-from", "diff",
-		"harness", "skill", "library",
+		"hook", "harness", "skill", "library",
 	}
 	got := map[string]bool{}
 	for _, c := range root.Commands() {

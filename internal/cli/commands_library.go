@@ -29,7 +29,7 @@ import (
 // the corresponding harness ids are recorded in the project config.
 
 func newInitCmd(d *Deps) *cobra.Command {
-	var fromURL, ref, modeStr, libName string
+	var fromURL, ref, modeStr, libName, gitHook string
 	c := &cobra.Command{
 		Use:   "init",
 		Short: "Initialize an adept project (and optionally clone a remote library)",
@@ -42,6 +42,8 @@ func newInitCmd(d *Deps) *cobra.Command {
 	c.Flags().StringVar(&ref, "ref", "main", "branch or tag in the remote library")
 	c.Flags().StringVar(&libName, "name", "default", "local name for the library added via --from")
 	c.Flags().StringVar(&modeStr, "mode", string(adept.ModeSymlink), "harness materialization: symlink|copy")
+	c.Flags().StringVar(&gitHook, "git-hook", "", "install a pre-commit drift hook: fail|fix")
+	c.Flags().Lookup("git-hook").NoOptDefVal = "fail" // bare --git-hook == --git-hook=fail
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
 		ctx := cmd.Context()
 		w := cmd.OutOrStdout()
@@ -110,7 +112,18 @@ func newInitCmd(d *Deps) *cobra.Command {
 			return fmt.Errorf("write project config: %w", err)
 		}
 
-		// 6) summary
+		// 6) optionally install the git pre-commit drift hook
+		if gitHook != "" && gitHook != "off" {
+			if !d.Git.IsRepo(p.Root()) {
+				fmt.Fprintf(w, "skipping --git-hook: %s is not a git repository (run `git init`, then `adept hook install`)\n", p.Root())
+			} else if path, herr := installPreCommitHook(d, p.Root(), gitHook); herr != nil {
+				return herr
+			} else {
+				fmt.Fprintf(w, "installed pre-commit hook (mode=%s) at %s\n", gitHook, path)
+			}
+		}
+
+		// 7) summary
 		fmt.Fprintf(w, "project initialized at %s (mode=%s)\n", p.Root(), mode)
 		if len(adopted) > 0 {
 			fmt.Fprintf(w, "adopted harnesses: %s\n", strings.Join(adopted, ", "))

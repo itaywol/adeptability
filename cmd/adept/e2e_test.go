@@ -348,3 +348,45 @@ func gitInit(t *testing.T, dir string) {
 		require.NoErrorf(t, err, "git %v: %s", args, out)
 	}
 }
+
+// TestE2EGitHook verifies `adept init --git-hook` writes a managed pre-commit
+// hook into a real git repo, and that the bare flag defaults to fail mode.
+func TestE2EGitHook(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping e2e under -short")
+	}
+	repoRoot := findRepoRoot(t)
+	binPath := adeptBin(t.TempDir())
+	buildBinary(t, repoRoot, binPath)
+
+	proj := filepath.Join(t.TempDir(), "proj")
+	require.NoError(t, os.MkdirAll(proj, 0o755))
+	cmd := exec.Command("git", "init", "-b", "main")
+	cmd.Dir = proj
+	require.NoError(t, cmd.Run())
+
+	run := func(args ...string) (string, int) {
+		c := exec.Command(binPath, args...)
+		c.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + t.TempDir(), "ADEPT_LIBRARY=" + filepath.Join(t.TempDir(), "lib")}
+		var buf bytes.Buffer
+		c.Stdout, c.Stderr = &buf, &buf
+		err := c.Run()
+		code := 0
+		var ee *exec.ExitError
+		if errors.As(err, &ee) {
+			code = ee.ExitCode()
+		} else {
+			require.NoError(t, err, buf.String())
+		}
+		return buf.String(), code
+	}
+
+	out, code := run("--project", proj, "init", "--git-hook")
+	require.Equal(t, 0, code, out)
+	require.Contains(t, out, "installed pre-commit hook (mode=fail)")
+
+	body, err := os.ReadFile(filepath.Join(proj, ".git", "hooks", "pre-commit"))
+	require.NoError(t, err)
+	require.Contains(t, string(body), "adept hook run")
+	require.NotContains(t, string(body), "--fix")
+}
