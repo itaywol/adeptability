@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.0](https://github.com/itaywol/adeptability/compare/v1.1.0...v1.2.0) (2026-06-17)
+
+
+### Features
+
+* add team expertise exchange billboard ([#20](https://github.com/itaywol/adeptability/issues/20)) ([1e1b3d2](https://github.com/itaywol/adeptability/commit/1e1b3d27dae89e3d328fb6ebc31febbeecb79a4e))
+* default exchange serve port to 4639 ([#23](https://github.com/itaywol/adeptability/issues/23)) ([4817665](https://github.com/itaywol/adeptability/commit/481766573ccd4edd0606b9d8b4f909ca1b061803))
+
 ## [1.1.0](https://github.com/itaywol/adeptability/compare/v1.0.3...v1.1.0) (2026-06-17)
 
 
