@@ -112,6 +112,26 @@ func TestClient_Status_Dirty(t *testing.T) {
 	require.Equal(t, []string{" M file1", "?? new.txt"}, lines)
 }
 
+func TestClient_StagedFiles(t *testing.T) {
+	m := &mockRunner{results: map[string]Result{
+		"diff --cached --name-only": {Stdout: ".claude/skills/a/SKILL.md\n.adeptability/skills/a/SKILL.md\n"},
+	}}
+	c := NewClient(m)
+	files, err := c.StagedFiles(context.Background(), "/repo")
+	require.NoError(t, err)
+	require.Equal(t, []string{".claude/skills/a/SKILL.md", ".adeptability/skills/a/SKILL.md"}, files)
+}
+
+func TestClient_StagedFiles_Empty(t *testing.T) {
+	m := &mockRunner{results: map[string]Result{
+		"diff --cached --name-only": {Stdout: ""},
+	}}
+	c := NewClient(m)
+	files, err := c.StagedFiles(context.Background(), "/repo")
+	require.NoError(t, err)
+	require.Empty(t, files)
+}
+
 func TestClient_HeadHash(t *testing.T) {
 	m := &mockRunner{results: map[string]Result{
 		"rev-parse HEAD": {Stdout: "deadbeef\n"},
