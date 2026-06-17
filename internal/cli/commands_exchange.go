@@ -77,7 +77,7 @@ func newExchangeServeCmd(d *Deps) *cobra.Command {
 		Long: "Starts the billboard HTTP API. On first run it mints a bootstrap token and prints it once " +
 			"(teammates need it to `register`). Serve plain HTTP on a trusted network; terminate TLS at a reverse proxy when exposed.",
 	}
-	c.Flags().StringVar(&addr, "addr", ":8080", "listen address")
+	c.Flags().StringVar(&addr, "addr", ":4639", "listen address")
 	c.Flags().StringVar(&db, "db", "fs", "storage driver: fs|memory")
 	c.Flags().StringVar(&data, "data", "", "data directory for the fs driver (default: <library>/exchange-data)")
 	c.Flags().BoolVar(&rotateBootstrap, "rotate-bootstrap", false, "mint a new bootstrap token (invalidates the old one)")
