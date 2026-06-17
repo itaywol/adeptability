@@ -24,7 +24,7 @@ running the CLI commands below.
 ## Hosting a server
 
 ```bash
-adept exchange serve --addr :8080 --db fs --data /var/lib/adept-exchange
+adept exchange serve --addr :4639 --db fs --data /var/lib/adept-exchange
 ```
 
 - On first run it mints a **bootstrap token** and prints it **once**. Share it
