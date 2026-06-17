@@ -33,9 +33,6 @@ type Renderer struct {
 // New constructs a Copilot renderer with the default Bucketer.
 func New() *Renderer { return &Renderer{b: NewBucketer()} }
 
-// NewWithBucketer injects a Bucketer for tests or alternate strategies.
-func NewWithBucketer(b Bucketer) *Renderer { return &Renderer{b: b} }
-
 // Compile-time interface check.
 var _ adept.Renderer = (*Renderer)(nil)
 
