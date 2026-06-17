@@ -89,11 +89,13 @@ func TestSeedDefaultSkills(t *testing.T) {
 	// First seed writes every bundled default.
 	first, err := seedDefaultSkills(p)
 	require.NoError(t, err)
-	require.ElementsMatch(t, []string{"adept-self-improve", "authoring-adept-skills", "using-adept"}, first)
+	require.ElementsMatch(t, []string{"adept-self-improve", "authoring-adept-skills", "expertise-exchange", "using-adept"}, first)
 	for _, id := range first {
 		require.True(t, p.HasSkill(id))
 		require.DirExists(t, filepath.Join(p.BaseSnapshotsDir(), id))
 	}
+	// Sidecar files are seeded alongside SKILL.md.
+	require.FileExists(t, filepath.Join(p.SkillsDir(), "expertise-exchange", "references", "setup-and-usage.md"))
 
 	// Re-seed is idempotent: nothing already-present is rewritten.
 	second, err := seedDefaultSkills(p)

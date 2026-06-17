@@ -42,3 +42,25 @@ func TestAll_SortedByID(t *testing.T) {
 		require.Less(t, skills[i-1].ID, skills[i].ID)
 	}
 }
+
+// Sidecar files travel with their skill so a seeded skill is complete on disk.
+func TestAll_CarriesSidecarFiles(t *testing.T) {
+	var exchange *Skill
+	for _, s := range All() {
+		if s.ID == "expertise-exchange" {
+			s := s
+			exchange = &s
+			break
+		}
+	}
+	require.NotNil(t, exchange, "expertise-exchange must be bundled")
+
+	var found bool
+	for _, f := range exchange.Files {
+		if f.RelPath == "references/setup-and-usage.md" {
+			found = true
+			require.NotEmpty(t, f.Body)
+		}
+	}
+	require.True(t, found, "references/setup-and-usage.md sidecar present")
+}

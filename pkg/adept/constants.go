@@ -18,6 +18,14 @@ const (
 	LibraryEnvVar = "ADEPT_LIBRARY"
 	// DefaultLibraryDir is the conventional library path under $HOME.
 	DefaultLibraryDir = ".adeptability"
+
+	// ExchangeServerEnvVar overrides the stored default billboard server URL.
+	ExchangeServerEnvVar = "ADEPT_EXCHANGE_SERVER"
+	// ExchangeTokenEnvVar overrides the on-disk billboard bearer token.
+	ExchangeTokenEnvVar = "ADEPT_EXCHANGE_TOKEN"
+	// ExchangeDirName is the subdir under the library root holding billboard
+	// credentials (one file per server host, mode 0600).
+	ExchangeDirName = "exchange"
 )
 
 // SkillIDPattern is the validation regex for skill ids. Kept as a string here so
