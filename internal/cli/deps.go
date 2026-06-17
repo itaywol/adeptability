@@ -9,6 +9,7 @@ import (
 	"github.com/itaywol/adeptability/internal/budget"
 	"github.com/itaywol/adeptability/internal/canonical"
 	"github.com/itaywol/adeptability/internal/config"
+	"github.com/itaywol/adeptability/internal/exchange"
 	"github.com/itaywol/adeptability/internal/fsutil"
 	"github.com/itaywol/adeptability/internal/git"
 	"github.com/itaywol/adeptability/internal/harness"
@@ -68,6 +69,9 @@ type Deps struct {
 	// LLM provider resolver — used by skill check / install scan gates.
 	// Empty when no provider is configured for this project.
 	LLMRegistry llm.Registry
+
+	// Exchange (team expertise billboard) storage drivers.
+	ExchangeDrivers exchange.DriverRegistry
 }
 
 // LLMProvider returns the provider configured in the project, or nil
@@ -134,25 +138,26 @@ func NewDeps(gf *GlobalFlags, b BuildInfo) (*Deps, error) {
 	}
 
 	return &Deps{
-		Flags:         gf,
-		Build:         b,
-		Parser:        parser,
-		Validator:     validator,
-		Loader:        canonical.NewLoader(parser, validator),
-		Hasher:        hash.NewHasher(),
-		Config:        config.NewStore(writer.AtomicWrite),
-		Status:        status.NewResolver(),
-		Writer:        writer,
-		Linker:        linker,
-		Git:           git.NewClient(git.NewExecRunner("git")),
-		Log:           logger,
-		Registry:      reg,
-		Orchestrator:  harness.NewOrchestrator(reg, parser, writer, linker, logger),
-		AdapterLoader: adapterLoader,
-		OrgParser:     orgParser,
-		GitHub:        gh.New(nil),
-		SkillsSh:      skillssh.New(nil, ""),
-		LLMRegistry:   llm.NewRegistry(anthropic.New(nil, "", ""), ollama.New(nil, "", "")),
+		Flags:           gf,
+		Build:           b,
+		Parser:          parser,
+		Validator:       validator,
+		Loader:          canonical.NewLoader(parser, validator),
+		Hasher:          hash.NewHasher(),
+		Config:          config.NewStore(writer.AtomicWrite),
+		Status:          status.NewResolver(),
+		Writer:          writer,
+		Linker:          linker,
+		Git:             git.NewClient(git.NewExecRunner("git")),
+		Log:             logger,
+		Registry:        reg,
+		Orchestrator:    harness.NewOrchestrator(reg, parser, writer, linker, logger),
+		AdapterLoader:   adapterLoader,
+		OrgParser:       orgParser,
+		GitHub:          gh.New(nil),
+		SkillsSh:        skillssh.New(nil, ""),
+		LLMRegistry:     llm.NewRegistry(anthropic.New(nil, "", ""), ollama.New(nil, "", "")),
+		ExchangeDrivers: exchange.NewDriverRegistry(),
 	}, nil
 }
 
@@ -197,6 +202,15 @@ func (d *Deps) LoadUserAdapters() error {
 		}
 	}
 	return nil
+}
+
+// ExchangeCreds returns a billboard credential store rooted at the library root.
+func (d *Deps) ExchangeCreds() (*exchange.CredStore, error) {
+	root, err := d.ResolveLibraryRoot()
+	if err != nil {
+		return nil, err
+	}
+	return exchange.NewCredStore(root), nil
 }
 
 // Library returns a Library bound to the resolved root.

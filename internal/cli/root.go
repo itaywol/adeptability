@@ -97,6 +97,7 @@ func NewRoot(b BuildInfo) *cobra.Command {
 		newSkillCmd(deps),
 		newLibraryCmd(deps),
 		newConfigCmd(deps),
+		newExchangeCmd(deps),
 	)
 	applyUsageOnArgError(root)
 	return root

@@ -13,4 +13,11 @@ var (
 	ErrSymlinkUnsupported = errors.New("symlink unsupported on this filesystem")
 	ErrMergeConflict      = errors.New("merge conflict")
 	ErrMergeBaseMissing   = errors.New("merge base snapshot missing")
+
+	// Exchange (team expertise billboard) sentinels.
+	ErrExchangeUnauthorized  = errors.New("exchange: unauthorized")
+	ErrExchangeForbidden     = errors.New("exchange: forbidden")
+	ErrExchangeItemNotFound  = errors.New("exchange: item not found")
+	ErrExchangeHandleTaken   = errors.New("exchange: handle already registered")
+	ErrExchangeDriverUnknown = errors.New("exchange: storage driver unknown")
 )

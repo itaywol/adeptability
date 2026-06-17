@@ -47,7 +47,7 @@ func newInitCmd(d *Deps) *cobra.Command {
 	c.Flags().StringVar(&modeStr, "mode", string(adept.ModeSymlink), "harness materialization: symlink|copy")
 	c.Flags().StringVar(&gitHook, "git-hook", "", "install a pre-commit drift hook: fail|fix")
 	c.Flags().Lookup("git-hook").NoOptDefVal = "fail" // bare --git-hook == --git-hook=fail
-	c.Flags().BoolVar(&noDefaultSkills, "no-default-skills", false, "skip seeding the bundled default skills (using-adept, authoring-adept-skills, adept-self-improve)")
+	c.Flags().BoolVar(&noDefaultSkills, "no-default-skills", false, "skip seeding the bundled default skills (using-adept, authoring-adept-skills, adept-self-improve, expertise-exchange)")
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
 		ctx := cmd.Context()
 		w := cmd.OutOrStdout()
@@ -167,6 +167,15 @@ func seedDefaultSkills(p project.Project) ([]string, error) {
 		}
 		if err := os.WriteFile(filepath.Join(dir, adept.SkillFileName), s.Body, 0o644); err != nil {
 			return nil, fmt.Errorf("write %s: %w", s.ID, err)
+		}
+		for _, f := range s.Files {
+			dst := filepath.Join(dir, filepath.FromSlash(f.RelPath))
+			if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+				return nil, fmt.Errorf("create sidecar dir for %s/%s: %w", s.ID, f.RelPath, err)
+			}
+			if err := os.WriteFile(dst, f.Body, 0o644); err != nil {
+				return nil, fmt.Errorf("write sidecar %s/%s: %w", s.ID, f.RelPath, err)
+			}
 		}
 		if err := os.MkdirAll(filepath.Join(p.BaseSnapshotsDir(), s.ID), 0o755); err != nil {
 			return nil, fmt.Errorf("create base dir %s: %w", s.ID, err)
