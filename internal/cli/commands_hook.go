@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -230,10 +231,14 @@ func driftedHarnesses(ctx context.Context, d *Deps, p project.Project) ([]string
 // harnessRoots returns the repo-relative path prefixes that belong to a
 // harness: its detection BaseDir plus the static (pre-template) prefix of its
 // OutputPath (which covers aggregators like AGENTS.md that have no BaseDir).
+// All harness roots and staged paths are repo-relative and slash-separated
+// (git emits forward slashes on every OS), so this classification logic uses
+// the slash-only "path" package — never "filepath", which would inject
+// backslashes on Windows and break every prefix match.
 func harnessRoots(spec adept.HarnessSpec) []string {
 	roots := []string{}
 	if spec.BaseDir != "" {
-		roots = append(roots, filepath.Clean(spec.BaseDir))
+		roots = append(roots, path.Clean(filepath.ToSlash(spec.BaseDir)))
 	}
 	if pfx := staticPrefix(spec.OutputPath); pfx != "" {
 		roots = append(roots, pfx)
@@ -248,6 +253,7 @@ func staticPrefix(tmpl string) string {
 	if tmpl == "" {
 		return ""
 	}
+	tmpl = filepath.ToSlash(tmpl)
 	if i := strings.IndexByte(tmpl, '{'); i >= 0 {
 		tmpl = tmpl[:i]
 	}
@@ -255,13 +261,14 @@ func staticPrefix(tmpl string) string {
 	if tmpl == "" {
 		return ""
 	}
-	return filepath.Clean(tmpl)
+	return path.Clean(tmpl)
 }
 
 // pathUnder reports whether rel is at or below root (both repo-relative,
 // slash-separated). Matches "root", "root/...", but not "rootish".
 func pathUnder(rel, root string) bool {
-	rel = filepath.Clean(rel)
+	rel = path.Clean(filepath.ToSlash(rel))
+	root = path.Clean(filepath.ToSlash(root))
 	return rel == root || strings.HasPrefix(rel, root+"/")
 }
 
@@ -273,7 +280,7 @@ func pathUnder(rel, root string) bool {
 // ponytail: staging fan-out is a deliberate over-adopt; a precise
 // staging-subpath→harness map is the upgrade if it ever matters.
 func harnessesForStagedPaths(d *Deps, enabled, staged []string) []string {
-	stagingRoot := filepath.Join(adept.BaseDirName, adept.StagingDir)
+	stagingRoot := path.Join(adept.BaseDirName, adept.StagingDir)
 	stagingTouched := false
 	for _, s := range staged {
 		if pathUnder(s, stagingRoot) {
@@ -318,7 +325,7 @@ func restagePaths(d *Deps, root string, enabled []string) []string {
 			continue
 		}
 		for _, r := range harnessRoots(a.Spec()) {
-			if _, err := os.Stat(filepath.Join(root, r)); err == nil {
+			if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(r))); err == nil {
 				seen[r] = true
 			}
 		}

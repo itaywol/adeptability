@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -81,7 +82,9 @@ func TestInstallPreCommitHook(t *testing.T) {
 	require.Contains(t, string(body), "adept hook run --fix")
 	info, err := os.Stat(path)
 	require.NoError(t, err)
-	require.NotZero(t, info.Mode()&0o100, "hook must be executable")
+	if runtime.GOOS != "windows" { // Windows has no unix executable bit
+		require.NotZero(t, info.Mode()&0o100, "hook must be executable")
+	}
 
 	// Re-install (still adept-managed) is allowed and flips mode.
 	_, err = installPreCommitHook(d, root, "fail")
