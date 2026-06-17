@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.0](https://github.com/itaywol/adeptability/compare/v1.0.3...v1.1.0) (2026-06-17)
+
+
+### Features
+
+* add git pre-commit drift hook ([#17](https://github.com/itaywol/adeptability/issues/17)) ([30c1a46](https://github.com/itaywol/adeptability/commit/30c1a46bc3327735b4f1c38501341f05796d7af0))
+* seed bundled default skills on init ([#19](https://github.com/itaywol/adeptability/issues/19)) ([ac3e409](https://github.com/itaywol/adeptability/commit/ac3e409d0b30664c724b7cf2903720ea6d836be3))
+
 ## [1.0.3](https://github.com/itaywol/adeptability/compare/v1.0.2...v1.0.3) (2026-06-04)
 
 
