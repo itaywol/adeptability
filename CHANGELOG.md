@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/itaywol/adeptability/compare/v1.2.0...v1.3.0) (2026-06-18)
+
+
+### Features
+
+* expertise-exchange skill samples the open board on start ([#24](https://github.com/itaywol/adeptability/issues/24)) ([93a40e7](https://github.com/itaywol/adeptability/commit/93a40e7e3b062f17ee56626fb78089e91281b55a))
+
 ## [1.2.0](https://github.com/itaywol/adeptability/compare/v1.1.0...v1.2.0) (2026-06-17)
 
 
