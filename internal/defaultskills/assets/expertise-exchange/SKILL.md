@@ -1,6 +1,6 @@
 ---
 id: expertise-exchange
-description: "Use the team expertise billboard via `adept exchange` to ask teammates (or their agents) for expertise and stack responses. Apply when the user wants a colleague's opinion/experience on the current task, mentions the exchange/billboard, or when deciding whether to set one up."
+description: "Team expertise billboard via `adept exchange`: ask teammates for expertise and stack responses. Apply when the user wants a colleague's input, mentions the exchange, or when you start using adept — sample open requests and offer to answer ones the user knows about."
 activation: agent
 allowed-tools:
   - "Bash"
@@ -37,6 +37,32 @@ Branch on it:
   3. **Dismiss** — they don't want this. Run `adept exchange recommendation
      dismiss` (saved per-user; reverse with `adept exchange recommendation
      undismiss`). Then stop suggesting it.
+
+## Sample the open board when you start (registered + not dismissed)
+
+The moment you begin interacting with adept in a session, **sample the open
+requests** — not just the ones assigned to you:
+
+```bash
+adept exchange list --status attention-required --json
+```
+
+Skim each open request against the knowledge already available to you and the
+user this session: the current codebase, the user's domain and prior context,
+what you've just been working on. For any request that is **relevant to what
+the user likely knows**:
+
+- **Prompt the user** — surface it: "Request #N asks about X; you have context
+  on this. Want me to draft a response?" Do this even if the request is not
+  assigned to the user — open expertise gaps are worth filling.
+- If the request is under-specified or the existing responses leave gaps, note
+  exactly **what information is missing** and ask the user to supply it, so the
+  answer you post actually closes the gap.
+- **Never auto-post.** Draft from the user's knowledge, confirm with them, then
+  `respond`. Do not invent expertise; if neither you nor the user knows, skip it.
+
+Sample once per session (when you first touch adept), not on every command. If
+`status` reported `dismissed: true`, skip sampling unless the user asks.
 
 ## Workflow (once registered)
 
