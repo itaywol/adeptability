@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/itaywol/adeptability/compare/v1.4.0...v1.4.1) (2026-06-23)
+
+
+### Bug Fixes
+
+* **status:** count private skills separately from libraries ([#29](https://github.com/itaywol/adeptability/issues/29)) ([e4aefc1](https://github.com/itaywol/adeptability/commit/e4aefc14eef89f8d90e85db5f981609b9285e0ae))
+
 ## [1.4.0](https://github.com/itaywol/adeptability/compare/v1.3.0...v1.4.0) (2026-06-23)
 
 
