@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.0](https://github.com/itaywol/adeptability/compare/v1.3.0...v1.4.0) (2026-06-23)
+
+
+### Features
+
+* **init:** add --as-library to initialize a publishable library ([#26](https://github.com/itaywol/adeptability/issues/26)) ([02047db](https://github.com/itaywol/adeptability/commit/02047db556201bee000985546332f65658bfa323))
+* **library:** private dev-canonical + managing-library skill ([#28](https://github.com/itaywol/adeptability/issues/28)) ([9b971c5](https://github.com/itaywol/adeptability/commit/9b971c59aa4228ed4746336b000366c4e5a4ae1c))
+
 ## [1.3.0](https://github.com/itaywol/adeptability/compare/v1.2.0...v1.3.0) (2026-06-18)
 
 
