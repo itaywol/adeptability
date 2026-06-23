@@ -8,6 +8,10 @@
   "additionalProperties": false,
   "properties": {
     "schema": { "type": "integer", "const": 1 },
+    "layout": {
+      "type": "string",
+      "enum": ["library"]
+    },
     "harnesses": {
       "type": "array",
       "items": { "type": "string" },

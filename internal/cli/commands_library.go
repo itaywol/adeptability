@@ -32,14 +32,18 @@ import (
 
 func newInitCmd(d *Deps) *cobra.Command {
 	var fromURL, ref, modeStr, libName, gitHook string
-	var noDefaultSkills bool
+	var noDefaultSkills, asLibrary bool
 	c := &cobra.Command{
 		Use:   "init",
 		Short: "Initialize an adept project (and optionally clone a remote library)",
 		Args:  cobra.NoArgs,
 		Long: "Creates .adeptability/{skills,base}/ in the project, writes config.json, " +
 			"optionally clones a remote library, and adopts any pre-existing harness skills " +
-			"(.claude/, .cursor/, .opencode/, AGENTS.md, .github/instructions/) it finds on disk.",
+			"(.claude/, .cursor/, .opencode/, AGENTS.md, .github/instructions/) it finds on disk.\n\n" +
+			"With --as-library the project is initialized as a publishable library: canonical " +
+			"skills live at <root>/skills/ (where a consumer's `library add`/`init --from` reads " +
+			"them) instead of <root>/.adeptability/skills/. Harness adoption, mode, and the " +
+			"bundled default skills are skipped — a library curates its own skills.",
 	}
 	c.Flags().StringVar(&fromURL, "from", "", "remote library URL (git remote or local path)")
 	c.Flags().StringVar(&ref, "ref", "main", "branch or tag in the remote library")
@@ -48,6 +52,7 @@ func newInitCmd(d *Deps) *cobra.Command {
 	c.Flags().StringVar(&gitHook, "git-hook", "", "install a pre-commit drift hook: fail|fix")
 	c.Flags().Lookup("git-hook").NoOptDefVal = "fail" // bare --git-hook == --git-hook=fail
 	c.Flags().BoolVar(&noDefaultSkills, "no-default-skills", false, "skip seeding the bundled default skills (using-adept, authoring-adept-skills, adept-self-improve, expertise-exchange)")
+	c.Flags().BoolVar(&asLibrary, "as-library", false, "initialize a publishable library (skills at <root>/skills/) rather than a consumer project")
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
 		ctx := cmd.Context()
 		w := cmd.OutOrStdout()
@@ -57,8 +62,9 @@ func newInitCmd(d *Deps) *cobra.Command {
 			return fmt.Errorf("invalid --mode %q (want symlink|copy)", modeStr)
 		}
 
-		// 1) project skeleton
-		p, err := d.Project()
+		// 1) project skeleton. In library layout skills live at <root>/skills/;
+		// the layout must be forced here because config.json does not exist yet.
+		p, err := d.ProjectWithLayout(asLibrary)
 		if err != nil {
 			return err
 		}
@@ -71,8 +77,9 @@ func newInitCmd(d *Deps) *cobra.Command {
 
 		// 1b) seed the bundled default skills (idempotent; skips any the
 		// project already has). These make a fresh project immediately useful:
-		// how to drive adept, author a skill, and self-improve.
-		if !noDefaultSkills {
+		// how to drive adept, author a skill, and self-improve. A library
+		// curates its own skills, so seeding is skipped for --as-library.
+		if !noDefaultSkills && !asLibrary {
 			seeded, err := seedDefaultSkills(p)
 			if err != nil {
 				return fmt.Errorf("seed default skills: %w", err)
@@ -82,12 +89,18 @@ func newInitCmd(d *Deps) *cobra.Command {
 			}
 		}
 
-		// 2) load (or create) the project config and stamp mode
+		// 2) load (or create) the project config and record the layout. Mode
+		// is a harness concept, irrelevant to a library, so it is only stamped
+		// for consumer projects.
 		cfg, err := readOrEmptyConfig(d, p.ConfigPath())
 		if err != nil {
 			return err
 		}
-		cfg.Mode = mode
+		if asLibrary {
+			cfg.Layout = adept.LayoutLibrary
+		} else {
+			cfg.Mode = mode
+		}
 
 		// 3) honor --from by cloning into $ADEPT_LIBRARY/libs/<name>/ and
 		// appending an entry to cfg.Libraries. Multiple `init --from` calls
@@ -112,17 +125,21 @@ func newInitCmd(d *Deps) *cobra.Command {
 			fmt.Fprintf(w, "library %q cloned from %s into %s\n", libName, fromURL, dest)
 		}
 
-		// 4) auto-adopt pre-existing harness trees, if any
-		adopted, err := autoAdopt(ctx, d, p)
-		if err != nil {
-			return fmt.Errorf("auto-adopt harness skills: %w", err)
-		}
-		for _, hid := range adopted {
-			if !containsString(cfg.Harnesses, hid) {
-				cfg.Harnesses = append(cfg.Harnesses, hid)
+		// 4) auto-adopt pre-existing harness trees, if any. A library renders
+		// to no harnesses, so adoption is skipped for --as-library.
+		var adopted []string
+		if !asLibrary {
+			adopted, err = autoAdopt(ctx, d, p)
+			if err != nil {
+				return fmt.Errorf("auto-adopt harness skills: %w", err)
 			}
+			for _, hid := range adopted {
+				if !containsString(cfg.Harnesses, hid) {
+					cfg.Harnesses = append(cfg.Harnesses, hid)
+				}
+			}
+			sort.Strings(cfg.Harnesses)
 		}
-		sort.Strings(cfg.Harnesses)
 
 		// 5) persist config
 		if err := p.SaveConfig(cfg); err != nil {
@@ -141,7 +158,11 @@ func newInitCmd(d *Deps) *cobra.Command {
 		}
 
 		// 7) summary
-		fmt.Fprintf(w, "project initialized at %s (mode=%s)\n", p.Root(), mode)
+		if asLibrary {
+			fmt.Fprintf(w, "library initialized at %s (skills at %s)\n", p.Root(), p.SkillsDir())
+		} else {
+			fmt.Fprintf(w, "project initialized at %s (mode=%s)\n", p.Root(), mode)
+		}
 		if len(adopted) > 0 {
 			fmt.Fprintf(w, "adopted harnesses: %s\n", strings.Join(adopted, ", "))
 		}

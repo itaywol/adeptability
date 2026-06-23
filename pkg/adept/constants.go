@@ -26,6 +26,14 @@ const (
 	// ExchangeDirName is the subdir under the library root holding billboard
 	// credentials (one file per server host, mode 0600).
 	ExchangeDirName = "exchange"
+
+	// LayoutLibrary marks a project initialized as a publishable library
+	// (Config.Layout). In this layout canonical skills live at <root>/skills/
+	// — the same place a consumer's `library add`/`init --from` reads them —
+	// rather than the default consumer location <root>/.adeptability/skills/.
+	// adept metadata (config.json, base snapshots) still lives under
+	// .adeptability/. An empty/absent Layout means the default consumer layout.
+	LayoutLibrary = "library"
 )
 
 // SkillIDPattern is the validation regex for skill ids. Kept as a string here so
