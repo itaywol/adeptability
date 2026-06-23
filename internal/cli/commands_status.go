@@ -66,6 +66,7 @@ type statusReport struct {
 	Libraries        []statusLibraryRow `json:"libraries"`
 	Harnesses        []statusHarnessRow `json:"harnesses"`
 	SkillsCanonical  int                `json:"skillsCanonical"`
+	SkillsPrivate    int                `json:"skillsPrivate"`
 	SkillsFromLibs   int                `json:"skillsFromLibraries"`
 	MissingLibraries int                `json:"missingLibraries"`
 	DriftedHarnesses int                `json:"driftedHarnesses"`
@@ -101,8 +102,13 @@ func (r *statusRenderable) Plain(w io.Writer) error {
 		}
 		_ = tw.Flush()
 	}
-	fmt.Fprintf(w, "skills: %d in project canonical, %d resolved from libraries\n",
-		rep.SkillsCanonical, rep.SkillsFromLibs)
+	if rep.SkillsPrivate > 0 {
+		fmt.Fprintf(w, "skills: %d published, %d private, %d resolved from libraries\n",
+			rep.SkillsCanonical, rep.SkillsPrivate, rep.SkillsFromLibs)
+	} else {
+		fmt.Fprintf(w, "skills: %d in project canonical, %d resolved from libraries\n",
+			rep.SkillsCanonical, rep.SkillsFromLibs)
+	}
 	if len(rep.Harnesses) == 0 {
 		fmt.Fprintln(w, "harnesses: (none enabled — run `adept harness add <id>`)")
 		return nil
@@ -188,11 +194,18 @@ func collectStatus(ctx context.Context, d *Deps) (statusReport, error) {
 		return rep, err
 	}
 	rep.SkillsCanonical = len(projSkills)
+	privSkills, err := p.ListPrivateSkills()
+	if err != nil {
+		return rep, err
+	}
+	rep.SkillsPrivate = len(privSkills)
 	resolved, err := resolveSkills(d, p)
 	if err != nil {
 		return rep, err
 	}
-	rep.SkillsFromLibs = len(resolved) - rep.SkillsCanonical
+	// resolved = published canonical ∪ private ∪ libraries; subtract the first
+	// two so the remainder is genuinely "from libraries".
+	rep.SkillsFromLibs = len(resolved) - rep.SkillsCanonical - rep.SkillsPrivate
 	if rep.SkillsFromLibs < 0 {
 		rep.SkillsFromLibs = 0
 	}
