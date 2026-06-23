@@ -47,6 +47,13 @@ type Project interface {
 	ConfigPath() string       // <root>/.adeptability/config.json
 	BaseDirForSkill(id string) string
 
+	// PrivateSkillsDir is the private dev-canonical directory, used only in
+	// the library layout: <root>/.adeptability/skills/. Skills there render to
+	// the maintainer's harnesses (via sync) but are NOT published to consumers
+	// (who read <root>/skills/). Returns "" in the consumer layout, where that
+	// path is already the single published canonical (SkillsDir).
+	PrivateSkillsDir() string
+
 	// Config loads the project config. Missing file = empty config.
 	Config() (*adept.Config, error)
 	// SaveConfig atomically persists cfg to ConfigPath().
@@ -55,6 +62,20 @@ type Project interface {
 	HasSkill(id string) bool
 	GetSkill(id string) (*adept.Skill, error)
 	ListSkills() ([]*adept.Skill, error)
+
+	// Private dev-canonical accessors (library layout only). In the consumer
+	// layout HasPrivateSkill is always false, GetPrivateSkill returns
+	// ErrSkillNotFound, ListPrivateSkills returns nil, and the install/remove
+	// variants error — there is no private canonical to write to.
+	HasPrivateSkill(id string) bool
+	GetPrivateSkill(id string) (*adept.Skill, error)
+	ListPrivateSkills() ([]*adept.Skill, error)
+	// InstallPrivateSkill writes canonical files into PrivateSkillsDir. Unlike
+	// InstallSkill it takes NO base snapshot: private skills are dev-only and
+	// never pulled/pushed against a remote, so they have no merge base.
+	InstallPrivateSkill(s *adept.Skill, files []adept.SkillFile) error
+	// RemovePrivateSkill deletes a skill from PrivateSkillsDir.
+	RemovePrivateSkill(id string) error
 
 	// HashSkill returns the content hash of the project canonical skill dir
 	// (<skills>/<id>). Empty string + nil when not present.
@@ -125,6 +146,16 @@ func (p *project) SkillsDir() string {
 	}
 	return filepath.Join(p.BaseDir(), adept.SkillsDirName)
 }
+
+// PrivateSkillsDir is the private dev-canonical dir, only meaningful in the
+// library layout: <root>/.adeptability/skills/. Empty in consumer layout,
+// where that path is already the single published canonical (SkillsDir).
+func (p *project) PrivateSkillsDir() string {
+	if !p.libraryLayout {
+		return ""
+	}
+	return filepath.Join(p.BaseDir(), adept.SkillsDirName)
+}
 func (p *project) BaseSnapshotsDir() string { return filepath.Join(p.BaseDir(), adept.BaseSnapDir) }
 func (p *project) ConfigPath() string {
 	return filepath.Join(p.BaseDir(), adept.ConfigFileName)
@@ -191,11 +222,63 @@ func (p *project) HasSkill(id string) bool {
 	return err == nil
 }
 
+func (p *project) HasPrivateSkill(id string) bool {
+	dir := p.PrivateSkillsDir()
+	if dir == "" {
+		return false
+	}
+	_, err := os.Stat(filepath.Join(dir, id, adept.SkillFileName))
+	return err == nil
+}
+
+func (p *project) GetPrivateSkill(id string) (*adept.Skill, error) {
+	dir := p.PrivateSkillsDir()
+	if dir == "" {
+		return nil, fmt.Errorf("project get private %q: %w", id, adept.ErrSkillNotFound)
+	}
+	return p.getSkillFromDir(dir, id)
+}
+
+func (p *project) InstallPrivateSkill(s *adept.Skill, files []adept.SkillFile) error {
+	if s == nil {
+		return fmt.Errorf("project install private: %w: nil skill", adept.ErrSkillInvalid)
+	}
+	if !skillIDRE.MatchString(s.ID) {
+		return fmt.Errorf("project install private: %w: id %q does not match %s", adept.ErrSkillInvalid, s.ID, adept.SkillIDPattern)
+	}
+	dir := p.PrivateSkillsDir()
+	if dir == "" {
+		return fmt.Errorf("project install private %q: no private canonical (not a library project)", s.ID)
+	}
+	if err := p.writeSkillFilesToDir(dir, s, files); err != nil {
+		return fmt.Errorf("project install private %q: %w", s.ID, err)
+	}
+	return nil
+}
+
+func (p *project) RemovePrivateSkill(id string) error {
+	if !skillIDRE.MatchString(id) {
+		return fmt.Errorf("project remove private: %w: id %q does not match %s", adept.ErrSkillInvalid, id, adept.SkillIDPattern)
+	}
+	dir := p.PrivateSkillsDir()
+	if dir == "" || !p.HasPrivateSkill(id) {
+		return fmt.Errorf("project remove private %q: %w", id, adept.ErrSkillNotFound)
+	}
+	if err := os.RemoveAll(filepath.Join(dir, id)); err != nil {
+		return fmt.Errorf("project remove private %q: %w", id, err)
+	}
+	return nil
+}
+
 func (p *project) GetSkill(id string) (*adept.Skill, error) {
+	return p.getSkillFromDir(p.SkillsDir(), id)
+}
+
+func (p *project) getSkillFromDir(dir, id string) (*adept.Skill, error) {
 	if id == "" {
 		return nil, fmt.Errorf("project get: %w: empty id", adept.ErrSkillInvalid)
 	}
-	skillPath := filepath.Join(p.SkillsDir(), id, adept.SkillFileName)
+	skillPath := filepath.Join(dir, id, adept.SkillFileName)
 	data, err := os.ReadFile(skillPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -212,7 +295,7 @@ func (p *project) GetSkill(id string) (*adept.Skill, error) {
 	// external slugs, etc.).
 	skill.ID = id
 	skill.Body = body
-	files, err := p.loadSidecars(id)
+	files, err := p.loadSidecarsFromDir(dir, id)
 	if err != nil {
 		return nil, fmt.Errorf("project get %q: %w", id, err)
 	}
@@ -221,13 +304,27 @@ func (p *project) GetSkill(id string) (*adept.Skill, error) {
 }
 
 func (p *project) ListSkills() ([]*adept.Skill, error) {
-	ids, err := p.listSkillIDs()
+	return p.listSkillsInDir(p.SkillsDir())
+}
+
+// ListPrivateSkills lists skills in PrivateSkillsDir. Returns nil in the
+// consumer layout (no private canonical there).
+func (p *project) ListPrivateSkills() ([]*adept.Skill, error) {
+	dir := p.PrivateSkillsDir()
+	if dir == "" {
+		return nil, nil
+	}
+	return p.listSkillsInDir(dir)
+}
+
+func (p *project) listSkillsInDir(dir string) ([]*adept.Skill, error) {
+	ids, err := p.listSkillIDsIn(dir)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]*adept.Skill, 0, len(ids))
 	for _, id := range ids {
-		s, err := p.GetSkill(id)
+		s, err := p.getSkillFromDir(dir, id)
 		if err != nil {
 			return nil, err
 		}
@@ -236,8 +333,8 @@ func (p *project) ListSkills() ([]*adept.Skill, error) {
 	return out, nil
 }
 
-func (p *project) listSkillIDs() ([]string, error) {
-	entries, err := os.ReadDir(p.SkillsDir())
+func (p *project) listSkillIDsIn(dir string) ([]string, error) {
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, nil
@@ -252,7 +349,7 @@ func (p *project) listSkillIDs() ([]string, error) {
 		if strings.HasPrefix(e.Name(), ".") {
 			continue
 		}
-		_, err := os.Stat(filepath.Join(p.SkillsDir(), e.Name(), adept.SkillFileName))
+		_, err := os.Stat(filepath.Join(dir, e.Name(), adept.SkillFileName))
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				continue
@@ -334,11 +431,15 @@ func (p *project) UninstallSkill(id string) error {
 }
 
 func (p *project) writeSkillFiles(s *adept.Skill, files []adept.SkillFile) error {
+	return p.writeSkillFilesToDir(p.SkillsDir(), s, files)
+}
+
+func (p *project) writeSkillFilesToDir(dir string, s *adept.Skill, files []adept.SkillFile) error {
 	body, err := renderCanonical(s)
 	if err != nil {
 		return err
 	}
-	skillPath := filepath.Join(p.SkillsDir(), s.ID, adept.SkillFileName)
+	skillPath := filepath.Join(dir, s.ID, adept.SkillFileName)
 	if err := p.writer.AtomicWrite(skillPath, body, 0o644); err != nil {
 		return fmt.Errorf("write SKILL.md: %w", err)
 	}
@@ -357,7 +458,7 @@ func (p *project) writeSkillFiles(s *adept.Skill, files []adept.SkillFile) error
 		if mode == 0 {
 			mode = 0o644
 		}
-		dst := filepath.Join(p.SkillsDir(), s.ID, clean)
+		dst := filepath.Join(dir, s.ID, clean)
 		if err := p.writer.AtomicWrite(dst, f.Bytes, mode); err != nil {
 			return fmt.Errorf("write sidecar %q: %w", f.RelPath, err)
 		}
@@ -365,8 +466,8 @@ func (p *project) writeSkillFiles(s *adept.Skill, files []adept.SkillFile) error
 	return nil
 }
 
-func (p *project) loadSidecars(id string) ([]adept.SkillFile, error) {
-	root := filepath.Join(p.SkillsDir(), id)
+func (p *project) loadSidecarsFromDir(dir, id string) ([]adept.SkillFile, error) {
+	root := filepath.Join(dir, id)
 	var out []adept.SkillFile
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {

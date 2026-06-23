@@ -76,16 +76,27 @@ func newInitCmd(d *Deps) *cobra.Command {
 		}
 
 		// 1b) seed the bundled default skills (idempotent; skips any the
-		// project already has). These make a fresh project immediately useful:
-		// how to drive adept, author a skill, and self-improve. A library
-		// curates its own skills, so seeding is skipped for --as-library.
-		if !noDefaultSkills && !asLibrary {
-			seeded, err := seedDefaultSkills(p)
+		// project already has). For a consumer project these go into the
+		// canonical and make it immediately useful (drive adept, author a
+		// skill, self-improve). For a library they go into the PRIVATE
+		// dev-canonical (authoring helpers + managing-library) so they assist
+		// the maintainer's harness without ever being published.
+		if !noDefaultSkills {
+			var seeded []string
+			if asLibrary {
+				seeded, err = seedLibraryDefaults(p)
+			} else {
+				seeded, err = seedDefaultSkills(p)
+			}
 			if err != nil {
 				return fmt.Errorf("seed default skills: %w", err)
 			}
 			if len(seeded) > 0 {
-				fmt.Fprintf(w, "seeded default skills: %s\n", strings.Join(seeded, ", "))
+				where := "default skills"
+				if asLibrary {
+					where = "private dev skills"
+				}
+				fmt.Fprintf(w, "seeded %s: %s\n", where, strings.Join(seeded, ", "))
 			}
 		}
 
@@ -171,18 +182,38 @@ func newInitCmd(d *Deps) *cobra.Command {
 	return c
 }
 
-// seedDefaultSkills writes adept's bundled default skills into the project
-// canonical, skipping any the project already has. It mirrors
-// writeSkillScaffold: write SKILL.md plus an empty base snapshot dir so the
-// next sync treats each as a fresh local skill. Returns the ids it wrote.
+// seedDefaultSkills writes adept's bundled CONSUMER default skills into the
+// project canonical (<root>/.adeptability/skills or, for a library project,
+// <root>/skills), skipping any the project already has. It writes SKILL.md
+// plus an empty base snapshot dir so the next sync treats each as a fresh
+// local skill. Returns the ids it wrote.
 func seedDefaultSkills(p project.Project) ([]string, error) {
-	all := defaultskills.All()
-	seeded := make([]string, 0, len(all))
-	for _, s := range all {
-		if p.HasSkill(s.ID) {
+	return seedSkills(p, defaultskills.ConsumerDefaults(), p.SkillsDir(), p.HasSkill, true)
+}
+
+// seedLibraryDefaults writes the bundled LIBRARY default skills (authoring
+// helpers + managing-library) into the private dev-canonical
+// (<root>/.adeptability/skills). Private skills render to the maintainer's
+// harnesses but never publish, so no base snapshot is taken.
+func seedLibraryDefaults(p project.Project) ([]string, error) {
+	dir := p.PrivateSkillsDir()
+	if dir == "" {
+		return nil, fmt.Errorf("seed library defaults: project has no private canonical")
+	}
+	return seedSkills(p, defaultskills.LibraryDefaults(), dir, p.HasPrivateSkill, false)
+}
+
+// seedSkills writes bundled skills verbatim into skillsDir, skipping ids that
+// `has` reports already present. When snapshotBase is true an empty base
+// snapshot dir is created alongside each so the 3-way status machine has an
+// ancestor. Returns the ids written.
+func seedSkills(p project.Project, skills []defaultskills.Skill, skillsDir string, has func(string) bool, snapshotBase bool) ([]string, error) {
+	seeded := make([]string, 0, len(skills))
+	for _, s := range skills {
+		if has(s.ID) {
 			continue
 		}
-		dir := filepath.Join(p.SkillsDir(), s.ID)
+		dir := filepath.Join(skillsDir, s.ID)
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return nil, fmt.Errorf("create skill dir %s: %w", s.ID, err)
 		}
@@ -198,8 +229,10 @@ func seedDefaultSkills(p project.Project) ([]string, error) {
 				return nil, fmt.Errorf("write sidecar %s/%s: %w", s.ID, f.RelPath, err)
 			}
 		}
-		if err := os.MkdirAll(filepath.Join(p.BaseSnapshotsDir(), s.ID), 0o755); err != nil {
-			return nil, fmt.Errorf("create base dir %s: %w", s.ID, err)
+		if snapshotBase {
+			if err := os.MkdirAll(filepath.Join(p.BaseSnapshotsDir(), s.ID), 0o755); err != nil {
+				return nil, fmt.Errorf("create base dir %s: %w", s.ID, err)
+			}
 		}
 		seeded = append(seeded, s.ID)
 	}
