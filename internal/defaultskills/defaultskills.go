@@ -33,6 +33,31 @@ type Skill struct {
 	Files []SidecarFile
 }
 
+// ManagingLibraryID is the bundled skill seeded only into library projects
+// (init --as-library): it teaches how to maintain a published library
+// (published vs private skills, add --publish, sync, releasing).
+const ManagingLibraryID = "managing-library"
+
+// ConsumerDefaults are seeded by `adept init` into a consumer project: how to
+// drive adept, author a skill, and self-improve. Excludes the library-only
+// management skill, which is irrelevant when you're consuming skills.
+func ConsumerDefaults() []Skill {
+	out := make([]Skill, 0)
+	for _, s := range All() {
+		if s.ID == ManagingLibraryID {
+			continue
+		}
+		out = append(out, s)
+	}
+	return out
+}
+
+// LibraryDefaults are seeded into the private dev-canonical by
+// `adept init --as-library`: the same authoring helpers plus the
+// library-management skill. They render to the maintainer's harnesses but are
+// never published to consumers.
+func LibraryDefaults() []Skill { return All() }
+
 // All returns the bundled skills, sorted by id for deterministic seeding.
 func All() []Skill {
 	entries, err := fs.ReadDir(assets, "assets")

@@ -18,10 +18,13 @@ import (
 )
 
 // newSkillCmd registers the `adept skill {add,edit,remove,list}` subtree.
-// All writes target the project canonical at .adeptability/skills/<id>/.
-// Library content is read-only here: `list` shows the resolved union, but
-// `add`/`edit`/`remove` only touch project canonical (per the Model B
-// rule that project shadows libraries).
+// In a consumer project all writes target the canonical at
+// .adeptability/skills/<id>/. In a library project (init --as-library) there
+// are two canonicals: published <root>/skills/ and private
+// <root>/.adeptability/skills/; `add` defaults to private (--publish targets
+// published), while `edit`/`remove` resolve an id across both (published
+// wins). External library content remains read-only here — `list` shows the
+// resolved union but writes never touch it.
 func newSkillCmd(d *Deps) *cobra.Command {
 	c := &cobra.Command{Use: "skill", Short: "Manage canonical skills in this project"}
 	c.AddCommand(
@@ -42,7 +45,7 @@ func newSkillCmd(d *Deps) *cobra.Command {
 
 func newSkillAddCmd(d *Deps) *cobra.Command {
 	var fromPath string
-	var openEditor bool
+	var openEditor, publish bool
 	c := &cobra.Command{
 		Use:   "skill add <id>",
 		Short: "Create a new project skill from scratch or import an existing directory",
@@ -51,6 +54,7 @@ func newSkillAddCmd(d *Deps) *cobra.Command {
 	c.Use = "add <id>"
 	c.Flags().StringVar(&fromPath, "from", "", "import an existing skill directory into the project")
 	c.Flags().BoolVar(&openEditor, "edit", false, "open the new SKILL.md in $EDITOR after creation")
+	c.Flags().BoolVar(&publish, "publish", false, "in a library project, add to the PUBLISHED skills/ (default is the private dev-canonical)")
 	c.RunE = func(cmd *cobra.Command, args []string) error {
 		id := args[0]
 		if err := validateSkillID(id); err != nil {
@@ -60,7 +64,15 @@ func newSkillAddCmd(d *Deps) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		if p.HasSkill(id) {
+
+		// In a library project, add defaults to the PRIVATE dev-canonical;
+		// --publish targets the published skills/. Outside a library there is
+		// only one canonical, so --publish is a harmless no-op.
+		private := isLibraryProject(p) && !publish
+		if private && p.HasPrivateSkill(id) {
+			return fmt.Errorf("private skill %q already exists (use `adept skill edit %s` to modify)", id, id)
+		}
+		if !private && p.HasSkill(id) {
 			return fmt.Errorf("skill %q already exists in project (use `adept skill edit %s` to modify)", id, id)
 		}
 
@@ -72,30 +84,52 @@ func newSkillAddCmd(d *Deps) *cobra.Command {
 			if s.ID != id {
 				return fmt.Errorf("import %s: skill id %q does not match requested id %q", fromPath, s.ID, id)
 			}
-			if err := p.InstallSkill(s, s.Files); err != nil {
+			if private {
+				err = p.InstallPrivateSkill(s, s.Files)
+			} else {
+				err = p.InstallSkill(s, s.Files)
+			}
+			if err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "imported %s from %s\n", id, fromPath)
+			fmt.Fprintf(cmd.OutOrStdout(), "imported %s from %s%s\n", id, fromPath, addedSuffix(private))
 		} else {
-			if err := writeSkillScaffold(p, id); err != nil {
+			if err := writeSkillScaffold(p, id, private); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "created %s\n", id)
+			fmt.Fprintf(cmd.OutOrStdout(), "created %s%s\n", id, addedSuffix(private))
 		}
 
 		if openEditor {
-			return runEditor(skillPath(p, id))
+			return runEditor(skillPathIn(p, id, private))
 		}
 		return nil
 	}
 	return c
 }
 
+// isLibraryProject reports whether p has a private dev-canonical, i.e. it was
+// initialized with `adept init --as-library`.
+func isLibraryProject(p project.Project) bool { return p.PrivateSkillsDir() != "" }
+
+// addedSuffix annotates add/import output so the user sees where a skill
+// landed in a library project. Empty for consumer projects.
+func addedSuffix(private bool) string {
+	if private {
+		return " (private)"
+	}
+	return ""
+}
+
 // writeSkillScaffold drops a minimal canonical SKILL.md so the user can
 // edit instead of staring at a blank file. The frontmatter has just
 // enough to parse cleanly.
-func writeSkillScaffold(p project.Project, id string) error {
-	dir := filepath.Join(p.SkillsDir(), id)
+func writeSkillScaffold(p project.Project, id string, private bool) error {
+	skillsDir := p.SkillsDir()
+	if private {
+		skillsDir = p.PrivateSkillsDir()
+	}
+	dir := filepath.Join(skillsDir, id)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create skill dir: %w", err)
 	}
@@ -115,10 +149,13 @@ func writeSkillScaffold(p project.Project, id string) error {
 	if err := os.WriteFile(dest, []byte(body), 0o644); err != nil {
 		return fmt.Errorf("write scaffold: %w", err)
 	}
-	// Snapshot empty base so future syncs treat it as a fresh local skill.
-	baseDir := filepath.Join(p.BaseSnapshotsDir(), id)
-	if err := os.MkdirAll(baseDir, 0o755); err != nil {
-		return fmt.Errorf("create base dir: %w", err)
+	// Published skills snapshot an empty base so future syncs treat them as a
+	// fresh local skill. Private dev skills have no base (never pulled/pushed).
+	if !private {
+		baseDir := filepath.Join(p.BaseSnapshotsDir(), id)
+		if err := os.MkdirAll(baseDir, 0o755); err != nil {
+			return fmt.Errorf("create base dir: %w", err)
+		}
 	}
 	return nil
 }
@@ -138,10 +175,15 @@ func newSkillEditCmd(d *Deps) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		if !p.HasSkill(id) {
+		// Resolve across both canonicals; published wins on a name clash.
+		switch {
+		case p.HasSkill(id):
+			return runEditor(skillPathIn(p, id, false))
+		case p.HasPrivateSkill(id):
+			return runEditor(skillPathIn(p, id, true))
+		default:
 			return fmt.Errorf("skill %q not present in project (run `adept skill add %s` or `adept sync-from`)", id, id)
 		}
-		return runEditor(skillPath(p, id))
 	}
 	return c
 }
@@ -161,10 +203,21 @@ func newSkillRemoveCmd(d *Deps) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		if err := p.UninstallSkill(id); err != nil {
-			return err
+		// Published wins on a name clash, mirroring edit and resolution.
+		switch {
+		case p.HasSkill(id):
+			if err := p.UninstallSkill(id); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "removed %s\n", id)
+		case p.HasPrivateSkill(id):
+			if err := p.RemovePrivateSkill(id); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "removed %s (private)\n", id)
+		default:
+			return p.UninstallSkill(id) // returns ErrSkillNotFound for a clean message
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "removed %s\n", id)
 		return nil
 	}
 	return c
@@ -192,9 +245,30 @@ func newSkillListCmd(d *Deps) *cobra.Command {
 		projIDs := map[string]struct{}{}
 		rows := []skillRow{}
 		for _, s := range projSkills {
+			source := "project"
+			if isLibraryProject(p) {
+				source = "published"
+			}
 			rows = append(rows, skillRow{
 				ID:          s.ID,
-				Source:      "project",
+				Source:      source,
+				Description: s.Description,
+			})
+			projIDs[s.ID] = struct{}{}
+		}
+		// Private dev-canonical skills (library layout): rendered locally,
+		// never published. Published skills shadow private on a name clash.
+		privSkills, err := p.ListPrivateSkills()
+		if err != nil {
+			return err
+		}
+		for _, s := range privSkills {
+			if _, shadowed := projIDs[s.ID]; shadowed {
+				continue
+			}
+			rows = append(rows, skillRow{
+				ID:          s.ID,
+				Source:      "private",
 				Description: s.Description,
 			})
 			projIDs[s.ID] = struct{}{}
@@ -261,9 +335,14 @@ func (r *skillListRenderable) Plain(w io.Writer) error {
 
 // ---------- helpers ----------
 
-// skillPath returns the canonical SKILL.md path for an installed skill.
-func skillPath(p project.Project, id string) string {
-	return filepath.Join(p.SkillsDir(), id, adept.SkillFileName)
+// skillPathIn returns the SKILL.md path for an installed skill, in the private
+// dev-canonical when private is true, otherwise the published canonical.
+func skillPathIn(p project.Project, id string, private bool) string {
+	dir := p.SkillsDir()
+	if private {
+		dir = p.PrivateSkillsDir()
+	}
+	return filepath.Join(dir, id, adept.SkillFileName)
 }
 
 // runEditor opens $EDITOR (or VISUAL, falling back to vi) on path, wired
@@ -311,8 +390,15 @@ func projectSkillCompletion(d *Deps) cobra.CompletionFunc {
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
-		out := make([]cobra.Completion, 0, len(skills))
+		priv, err := p.ListPrivateSkills()
+		if err != nil {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		out := make([]cobra.Completion, 0, len(skills)+len(priv))
 		for _, s := range skills {
+			out = append(out, s.ID)
+		}
+		for _, s := range priv {
 			out = append(out, s.ID)
 		}
 		return out, cobra.ShellCompDirectiveNoFileComp

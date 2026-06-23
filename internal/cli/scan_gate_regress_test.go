@@ -39,6 +39,16 @@ func (s scanGateRegressStubProject) InstallSkill(*adept.Skill, []adept.SkillFile
 	return nil
 }
 func (s scanGateRegressStubProject) UninstallSkill(string) error { return nil }
+func (s scanGateRegressStubProject) PrivateSkillsDir() string    { return "" }
+func (s scanGateRegressStubProject) HasPrivateSkill(string) bool { return false }
+func (s scanGateRegressStubProject) GetPrivateSkill(string) (*adept.Skill, error) {
+	return nil, nil
+}
+func (s scanGateRegressStubProject) ListPrivateSkills() ([]*adept.Skill, error) { return nil, nil }
+func (s scanGateRegressStubProject) InstallPrivateSkill(*adept.Skill, []adept.SkillFile) error {
+	return nil
+}
+func (s scanGateRegressStubProject) RemovePrivateSkill(string) error { return nil }
 
 var _ project.Project = scanGateRegressStubProject{}
 

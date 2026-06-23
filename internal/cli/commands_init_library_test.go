@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/itaywol/adeptability/internal/defaultskills"
 	"github.com/itaywol/adeptability/pkg/adept"
 )
 
@@ -26,9 +27,18 @@ func TestInitAsLibrary(t *testing.T) {
 	cmd.SetErr(io.Discard)
 	require.NoError(t, cmd.Execute())
 
-	// Skills live at <root>/skills/, NOT <root>/.adeptability/skills/.
+	// Published canonical lives at <root>/skills/ and starts EMPTY — the
+	// library's own skills are added with `skill add --publish`, not seeded.
 	require.DirExists(t, filepath.Join(root, adept.SkillsDirName))
-	require.NoDirExists(t, filepath.Join(root, adept.BaseDirName, adept.SkillsDirName))
+	published, err := os.ReadDir(filepath.Join(root, adept.SkillsDirName))
+	require.NoError(t, err)
+	require.Empty(t, published, "published skills/ must start empty")
+
+	// The library default helpers are seeded into the PRIVATE dev-canonical at
+	// <root>/.adeptability/skills/ (rendered locally, never published).
+	privDir := filepath.Join(root, adept.BaseDirName, adept.SkillsDirName)
+	require.DirExists(t, privDir)
+	require.FileExists(t, filepath.Join(privDir, defaultskills.ManagingLibraryID, adept.SkillFileName))
 
 	// Metadata still lives under .adeptability/.
 	require.DirExists(t, filepath.Join(root, adept.BaseDirName, adept.BaseSnapDir))
@@ -38,20 +48,20 @@ func TestInitAsLibrary(t *testing.T) {
 	cfg, err := d.Config.Read(cfgPath)
 	require.NoError(t, err)
 	require.Equal(t, adept.LayoutLibrary, cfg.Layout)
-	// A library curates its own skills: no defaults seeded, no harness/mode.
+	// No harness/mode stamped for a library.
 	require.Empty(t, cfg.Harnesses)
 	require.Empty(t, string(cfg.Mode))
-	entries, err := os.ReadDir(filepath.Join(root, adept.SkillsDirName))
-	require.NoError(t, err)
-	require.Empty(t, entries, "library init must not seed default skills")
 
-	// A freshly resolved project detects the library layout from config and
-	// points SkillsDir at the repo-root skills/ dir.
+	// A freshly resolved project detects the library layout from config: the
+	// published canonical is repo-root skills/, the private one is under
+	// .adeptability/, and the seeded helper resolves as a private skill.
 	p, err := d.Project()
 	require.NoError(t, err)
 	require.Equal(t, filepath.Join(root, adept.SkillsDirName), p.SkillsDir())
+	require.Equal(t, privDir, p.PrivateSkillsDir())
+	require.True(t, p.HasPrivateSkill(defaultskills.ManagingLibraryID))
 
-	// Sanity: a skill written there is visible through the project.
+	// Sanity: a published skill written at root is visible through the project.
 	skillDir := filepath.Join(root, adept.SkillsDirName, "greet")
 	require.NoError(t, os.MkdirAll(skillDir, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(skillDir, adept.SkillFileName), skillMD("greet", "say hi"), 0o644))

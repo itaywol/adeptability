@@ -25,25 +25,40 @@ func resolveSkills(d *Deps, p project.Project) ([]*adept.Skill, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list project skills: %w", err)
 	}
+
+	// Library layout adds a private dev-canonical (<root>/.adeptability/skills)
+	// that renders to local harnesses but is never published. Published skills
+	// shadow private ones on id collision. Nil in the consumer layout.
+	privSkills, err := p.ListPrivateSkills()
+	if err != nil {
+		return nil, fmt.Errorf("list private skills: %w", err)
+	}
+	taken := map[string]struct{}{}
+	for _, s := range projSkills {
+		taken[s.ID] = struct{}{}
+	}
+	out := append([]*adept.Skill{}, projSkills...)
+	for _, s := range privSkills {
+		if _, dup := taken[s.ID]; dup {
+			d.Log.Debug("private skill shadowed by published canonical", "id", s.ID)
+			continue
+		}
+		out = append(out, s)
+		taken[s.ID] = struct{}{}
+	}
+
 	multi, err := openMultiLibrary(d, p)
 	if err != nil {
 		return nil, err
 	}
 	if multi == nil || len(multi.Libraries()) == 0 {
-		return projSkills, nil
-	}
-
-	// Index project ids so the library walk can skip shadowed entries.
-	taken := map[string]struct{}{}
-	for _, s := range projSkills {
-		taken[s.ID] = struct{}{}
+		return out, nil
 	}
 
 	resolutions, err := multi.ListAll()
 	if err != nil {
 		return nil, err
 	}
-	out := append([]*adept.Skill{}, projSkills...)
 	for _, r := range resolutions {
 		if _, dup := taken[r.Skill.ID]; dup {
 			d.Log.Debug("skill shadowed by project canonical", "id", r.Skill.ID, "library", r.Source)

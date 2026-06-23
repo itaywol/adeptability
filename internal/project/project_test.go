@@ -218,3 +218,58 @@ func TestProject_UninstallSkill_RemovesBaseSnapshot(t *testing.T) {
 	_, err := os.Stat(filepath.Join(root, adept.BaseDirName, adept.BaseSnapDir, "skill-a"))
 	require.True(t, os.IsNotExist(err))
 }
+
+func newLibraryProject(t *testing.T) (Project, string) {
+	t.Helper()
+	root := t.TempDir()
+	return NewLibrary(root, canonical.NewParser(), hash.NewHasher(), config.NewStore(nil), fsutil.NewWriter()), root
+}
+
+func TestProject_ConsumerLayout_NoPrivateCanonical(t *testing.T) {
+	p, _ := newProject(t)
+	require.Empty(t, p.PrivateSkillsDir())
+	require.False(t, p.HasPrivateSkill("x"))
+	list, err := p.ListPrivateSkills()
+	require.NoError(t, err)
+	require.Empty(t, list)
+	// Installing a private skill errors when there is no private canonical.
+	require.Error(t, p.InstallPrivateSkill(sampleSkill("x"), nil))
+}
+
+func TestProject_LibraryLayout_PublishedVsPrivate(t *testing.T) {
+	p, root := newLibraryProject(t)
+
+	// Published canonical is repo-root skills/; private is .adeptability/skills/.
+	require.Equal(t, filepath.Join(root, adept.SkillsDirName), p.SkillsDir())
+	require.Equal(t, filepath.Join(root, adept.BaseDirName, adept.SkillsDirName), p.PrivateSkillsDir())
+
+	require.NoError(t, p.InstallSkill(sampleSkill("pub"), nil))
+	require.NoError(t, p.InstallPrivateSkill(sampleSkill("priv"), nil))
+
+	// Each lands in its own directory and is visible only through its accessor.
+	require.FileExists(t, filepath.Join(root, adept.SkillsDirName, "pub", adept.SkillFileName))
+	require.FileExists(t, filepath.Join(root, adept.BaseDirName, adept.SkillsDirName, "priv", adept.SkillFileName))
+	require.True(t, p.HasSkill("pub"))
+	require.False(t, p.HasSkill("priv"))
+	require.True(t, p.HasPrivateSkill("priv"))
+	require.False(t, p.HasPrivateSkill("pub"))
+
+	pub, err := p.ListSkills()
+	require.NoError(t, err)
+	require.Len(t, pub, 1)
+	require.Equal(t, "pub", pub[0].ID)
+
+	priv, err := p.ListPrivateSkills()
+	require.NoError(t, err)
+	require.Len(t, priv, 1)
+	require.Equal(t, "priv", priv[0].ID)
+
+	// Private install takes NO base snapshot (private skills are never merged).
+	require.False(t, p.HasBaseSnapshot("priv"))
+
+	// RemovePrivateSkill only touches the private canonical.
+	require.NoError(t, p.RemovePrivateSkill("priv"))
+	require.False(t, p.HasPrivateSkill("priv"))
+	require.ErrorIs(t, p.RemovePrivateSkill("pub"), adept.ErrSkillNotFound)
+	require.True(t, p.HasSkill("pub"))
+}
