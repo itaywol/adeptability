@@ -148,6 +148,7 @@ func (s *store) Write(path string, cfg *adept.Config) error {
 // to the public field order do not bleed into the on-disk byte sequence.
 type canonicalForm struct {
 	Schema    int                `json:"schema"`
+	Layout    string             `json:"layout,omitempty"`
 	Harnesses []string           `json:"harnesses,omitempty"`
 	Mode      adept.HarnessMode  `json:"mode,omitempty"`
 	Libraries []adept.LibraryRef `json:"libraries,omitempty"`
@@ -160,7 +161,7 @@ func (s *store) canonicalize(cfg *adept.Config) canonicalForm {
 	if schema == 0 {
 		schema = adept.ConfigSchemaVersion
 	}
-	out := canonicalForm{Schema: schema, Mode: cfg.Mode}
+	out := canonicalForm{Schema: schema, Layout: cfg.Layout, Mode: cfg.Mode}
 	if len(cfg.Harnesses) > 0 {
 		out.Harnesses = append(out.Harnesses, cfg.Harnesses...)
 	}

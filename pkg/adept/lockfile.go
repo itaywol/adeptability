@@ -34,7 +34,11 @@ type LibraryRef struct {
 //     source. Multiple libraries supported via Libraries[]; project canonical
 //     shadows library skills sharing the same id.
 type Config struct {
-	Schema    int          `json:"schema"`
+	Schema int `json:"schema"`
+	// Layout selects where canonical skills live. Empty (the default) is the
+	// consumer layout (<root>/.adeptability/skills/). LayoutLibrary places
+	// them at <root>/skills/ so the repo is directly consumable as a library.
+	Layout    string       `json:"layout,omitempty"`
 	Harnesses []string     `json:"harnesses,omitempty"`
 	Mode      HarnessMode  `json:"mode,omitempty"`
 	Libraries []LibraryRef `json:"libraries,omitempty"`

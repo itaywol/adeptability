@@ -42,7 +42,7 @@ var skillIDRE = regexp.MustCompile(adept.SkillIDPattern)
 type Project interface {
 	Root() string
 	BaseDir() string          // <root>/.adeptability
-	SkillsDir() string        // <root>/.adeptability/skills
+	SkillsDir() string        // <root>/.adeptability/skills (consumer) or <root>/skills (library layout)
 	BaseSnapshotsDir() string // <root>/.adeptability/base
 	ConfigPath() string       // <root>/.adeptability/config.json
 	BaseDirForSkill(id string) string
@@ -78,8 +78,9 @@ type Project interface {
 	UninstallSkill(id string) error
 }
 
-// New constructs a Project rooted at the given absolute project path. The
-// .adeptability subdirectory does not need to exist; InstallSkill creates it.
+// New constructs a Project rooted at the given absolute project path in the
+// default consumer layout (canonical skills under <root>/.adeptability/skills/).
+// The .adeptability subdirectory does not need to exist; InstallSkill creates it.
 func New(root string, parser canonical.Parser, hasher hash.Hasher, store config.Store, w fsutil.Writer) Project {
 	return &project{
 		root:   root,
@@ -90,17 +91,40 @@ func New(root string, parser canonical.Parser, hasher hash.Hasher, store config.
 	}
 }
 
+// NewLibrary constructs a Project in the library layout: canonical skills live
+// at <root>/skills/ (so the repo is directly consumable as an adept library)
+// while adept metadata — config.json and base snapshots — stays under
+// <root>/.adeptability/. Use this when Config.Layout == adept.LayoutLibrary.
+func NewLibrary(root string, parser canonical.Parser, hasher hash.Hasher, store config.Store, w fsutil.Writer) Project {
+	return &project{
+		root:          root,
+		parser:        parser,
+		hasher:        hasher,
+		store:         store,
+		writer:        w,
+		libraryLayout: true,
+	}
+}
+
 type project struct {
 	root   string
 	parser canonical.Parser
 	hasher hash.Hasher
 	store  config.Store
 	writer fsutil.Writer
+	// libraryLayout places canonical skills at <root>/skills/ instead of
+	// <root>/.adeptability/skills/. See NewLibrary.
+	libraryLayout bool
 }
 
-func (p *project) Root() string             { return p.root }
-func (p *project) BaseDir() string          { return filepath.Join(p.root, adept.BaseDirName) }
-func (p *project) SkillsDir() string        { return filepath.Join(p.BaseDir(), adept.SkillsDirName) }
+func (p *project) Root() string    { return p.root }
+func (p *project) BaseDir() string { return filepath.Join(p.root, adept.BaseDirName) }
+func (p *project) SkillsDir() string {
+	if p.libraryLayout {
+		return filepath.Join(p.root, adept.SkillsDirName)
+	}
+	return filepath.Join(p.BaseDir(), adept.SkillsDirName)
+}
 func (p *project) BaseSnapshotsDir() string { return filepath.Join(p.BaseDir(), adept.BaseSnapDir) }
 func (p *project) ConfigPath() string {
 	return filepath.Join(p.BaseDir(), adept.ConfigFileName)

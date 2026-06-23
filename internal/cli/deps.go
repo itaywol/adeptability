@@ -222,13 +222,46 @@ func (d *Deps) Library() (library.Library, error) {
 	return library.New(root, d.Parser, d.Hasher, d.Writer), nil
 }
 
-// Project returns a Project bound to the resolved root.
+// Project returns a Project bound to the resolved root. The on-disk layout
+// (consumer vs library) is read from config.json — which always lives at
+// <root>/.adeptability/config.json regardless of layout — so every command
+// transparently operates on the right skills directory.
 func (d *Deps) Project() (project.Project, error) {
 	root, err := d.ResolveProjectRoot()
 	if err != nil {
 		return nil, err
 	}
-	return project.New(root, d.Parser, d.Hasher, d.Config, d.Writer), nil
+	return d.projectAt(root, d.detectLibraryLayout(root)), nil
+}
+
+// ProjectWithLayout returns a Project for the resolved root forcing the given
+// layout, bypassing config detection. Used by `init` to build the project
+// before config.json exists on disk.
+func (d *Deps) ProjectWithLayout(libraryLayout bool) (project.Project, error) {
+	root, err := d.ResolveProjectRoot()
+	if err != nil {
+		return nil, err
+	}
+	return d.projectAt(root, libraryLayout), nil
+}
+
+func (d *Deps) projectAt(root string, libraryLayout bool) project.Project {
+	if libraryLayout {
+		return project.NewLibrary(root, d.Parser, d.Hasher, d.Config, d.Writer)
+	}
+	return project.New(root, d.Parser, d.Hasher, d.Config, d.Writer)
+}
+
+// detectLibraryLayout reports whether the project at root was initialized as a
+// library. The config path is layout-independent. A missing or unreadable
+// config falls back to the consumer layout.
+func (d *Deps) detectLibraryLayout(root string) bool {
+	cfgPath := filepath.Join(root, adept.BaseDirName, adept.ConfigFileName)
+	cfg, err := d.Config.Read(cfgPath)
+	if err != nil || cfg == nil {
+		return false
+	}
+	return cfg.Layout == adept.LayoutLibrary
 }
 
 // ResolveLibraryRoot returns --library, then $ADEPT_LIBRARY, then $HOME/.adeptability.
