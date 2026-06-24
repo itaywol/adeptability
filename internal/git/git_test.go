@@ -202,3 +202,23 @@ func TestExecRunner_SuccessCapturesStdout(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, res.Stdout, "hello")
 }
+
+func TestClient_ChangedFiles_ParsesAndTrims(t *testing.T) {
+	m := &mockRunner{results: map[string]Result{
+		"diff --name-only A B": {Stdout: "skills/foo/SKILL.md\n\n  skills/bar/x.sh  \n"},
+	}}
+	c := NewClient(m)
+	got, err := c.ChangedFiles(context.Background(), "/repo", "A", "B")
+	require.NoError(t, err)
+	require.Equal(t, []string{"skills/foo/SKILL.md", "skills/bar/x.sh"}, got)
+}
+
+func TestClient_RevParse_TrimsNewline(t *testing.T) {
+	m := &mockRunner{results: map[string]Result{
+		"rev-parse origin/main": {Stdout: "deadbeef\n"},
+	}}
+	c := NewClient(m)
+	got, err := c.RevParse(context.Background(), "/repo", "origin/main")
+	require.NoError(t, err)
+	require.Equal(t, "deadbeef", got)
+}
