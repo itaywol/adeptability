@@ -51,6 +51,13 @@ type Client interface {
 	// repository, otherwise runs `git fetch && git checkout ref` in place.
 	// Used by `adept init --from <git-url>` to bootstrap a library remote.
 	CloneOrPull(ctx context.Context, url, ref, dest string) error
+	// Fetch updates remote-tracking refs without touching the worktree.
+	Fetch(ctx context.Context, dir string) error
+	// RevParse resolves a revision (e.g. "HEAD", "origin/main") to a commit hash.
+	RevParse(ctx context.Context, dir, rev string) (string, error)
+	// ChangedFiles lists repo-relative paths differing between two revisions
+	// (`git diff --name-only from to`).
+	ChangedFiles(ctx context.Context, dir, from, to string) ([]string, error)
 }
 
 // execRunner shells out to the configured git binary.
@@ -215,6 +222,35 @@ func (c *client) CloneOrPull(ctx context.Context, url, ref, dest string) error {
 		return fmt.Errorf("git clone %s into %s: %w", url, dest, err)
 	}
 	return nil
+}
+
+func (c *client) Fetch(ctx context.Context, dir string) error {
+	if _, err := c.r.Run(ctx, dir, "fetch", "--all", "--prune"); err != nil {
+		return fmt.Errorf("git fetch in %s: %w", dir, err)
+	}
+	return nil
+}
+
+func (c *client) RevParse(ctx context.Context, dir, rev string) (string, error) {
+	res, err := c.r.Run(ctx, dir, "rev-parse", rev)
+	if err != nil {
+		return "", fmt.Errorf("git rev-parse %s in %s: %w", rev, dir, err)
+	}
+	return strings.TrimSpace(res.Stdout), nil
+}
+
+func (c *client) ChangedFiles(ctx context.Context, dir, from, to string) ([]string, error) {
+	res, err := c.r.Run(ctx, dir, "diff", "--name-only", from, to)
+	if err != nil {
+		return nil, fmt.Errorf("git diff %s %s in %s: %w", from, to, dir, err)
+	}
+	var out []string
+	for ln := range strings.SplitSeq(res.Stdout, "\n") {
+		if s := strings.TrimSpace(ln); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out, nil
 }
 
 // EnsureConfig sets key=value when the current value differs (or is missing).

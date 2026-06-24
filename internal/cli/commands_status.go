@@ -20,13 +20,15 @@ import (
 // one-line drift summary. Exits 2 when anything's out of sync so scripts
 // can branch on it.
 func newStatusCmd(d *Deps) *cobra.Command {
+	var fetch bool
 	c := &cobra.Command{
 		Use:   "status",
 		Short: "Show project state at a glance (init, libraries, harnesses, drift)",
 		Args:  cobra.NoArgs,
 	}
+	c.Flags().BoolVar(&fetch, "fetch", false, "fetch library remotes to detect available updates (network)")
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
-		rep, err := collectStatus(cmd.Context(), d)
+		rep, err := collectStatus(cmd.Context(), d, fetch)
 		if err != nil {
 			return err
 		}
@@ -42,11 +44,12 @@ func newStatusCmd(d *Deps) *cobra.Command {
 }
 
 type statusLibraryRow struct {
-	Name      string `json:"name"`
-	Remote    string `json:"remote"`
-	Ref       string `json:"ref,omitempty"`
-	OnDisk    bool   `json:"onDisk"`
-	LocalPath string `json:"localPath"`
+	Name             string `json:"name"`
+	Remote           string `json:"remote"`
+	Ref              string `json:"ref,omitempty"`
+	OnDisk           bool   `json:"onDisk"`
+	LocalPath        string `json:"localPath"`
+	UpdatesAvailable bool   `json:"updatesAvailable"`
 }
 
 type statusHarnessRow struct {
@@ -69,6 +72,7 @@ type statusReport struct {
 	SkillsPrivate    int                `json:"skillsPrivate"`
 	SkillsFromLibs   int                `json:"skillsFromLibraries"`
 	MissingLibraries int                `json:"missingLibraries"`
+	UpdatableLibs    int                `json:"updatableLibraries"`
 	DriftedHarnesses int                `json:"driftedHarnesses"`
 }
 
@@ -91,8 +95,11 @@ func (r *statusRenderable) Plain(w io.Writer) error {
 		fmt.Fprintln(tw, "  NAME\tREF\tON-DISK\tREMOTE")
 		for _, l := range rep.Libraries {
 			present := "yes"
-			if !l.OnDisk {
+			switch {
+			case !l.OnDisk:
 				present = "no (run `adept library add` or `git pull`)"
+			case l.UpdatesAvailable:
+				present = "yes (update available)"
 			}
 			ref := l.Ref
 			if ref == "" {
@@ -101,6 +108,13 @@ func (r *statusRenderable) Plain(w io.Writer) error {
 			fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\n", l.Name, ref, present, l.Remote)
 		}
 		_ = tw.Flush()
+		if rep.UpdatableLibs > 0 {
+			noun := "library has"
+			if rep.UpdatableLibs > 1 {
+				noun = "libraries have"
+			}
+			fmt.Fprintf(w, "updates: %d %s newer skills — run `adept library update`\n", rep.UpdatableLibs, noun)
+		}
 	}
 	if rep.SkillsPrivate > 0 {
 		fmt.Fprintf(w, "skills: %d published, %d private, %d resolved from libraries\n",
@@ -130,12 +144,46 @@ func (r *statusRenderable) Plain(w io.Writer) error {
 	return nil
 }
 
+// libraryHasUpdate reports whether the library clone at dir is behind its
+// tracked remote ref. Offline by default: it compares local HEAD against the
+// already-fetched origin/<ref> tracking ref, so a stale clone won't show an
+// update until something fetches. Pass fetch=true to refresh tracking refs
+// first (network). Any git error is treated as "no known update" — status
+// must never fail just because a remote is unreachable or has no origin.
+//
+// ponytail: HEAD != origin/<ref> is the signal; a diverged (non-fast-forward)
+// clone also trips it. That's fine — `adept library update` shows the real
+// diff and refuses a non-ff pull with a clear error.
+func libraryHasUpdate(ctx context.Context, d *Deps, dir, ref string, fetch bool) bool {
+	if d.Git == nil || !d.Git.IsRepo(dir) {
+		return false
+	}
+	if ref == "" {
+		ref = "main"
+	}
+	if fetch {
+		if err := d.Git.Fetch(ctx, dir); err != nil {
+			d.Log.Warn("status fetch library", "dir", dir, "err", err)
+			return false
+		}
+	}
+	local, err := d.Git.RevParse(ctx, dir, "HEAD")
+	if err != nil {
+		return false
+	}
+	remote, err := d.Git.RevParse(ctx, dir, "origin/"+ref)
+	if err != nil {
+		return false
+	}
+	return local != remote
+}
+
 // collectStatus assembles the report. Pure read; never mutates state.
 // Returns successfully even when the project is not initialized — the
 // Initialized=false branch tells the caller to recommend `init`. ctx is
 // threaded into the drift/status orchestration so Ctrl-C and command
 // timeouts cancel the (potentially slow) Status call.
-func collectStatus(ctx context.Context, d *Deps) (statusReport, error) {
+func collectStatus(ctx context.Context, d *Deps, fetch bool) (statusReport, error) {
 	rep := statusReport{}
 	libRoot, err := d.ResolveLibraryRoot()
 	if err != nil {
@@ -174,17 +222,23 @@ func collectStatus(ctx context.Context, d *Deps) (statusReport, error) {
 	for _, l := range cfg.Libraries {
 		local := filepath.Join(libsRoot, l.Name)
 		onDisk := false
+		updatable := false
 		if _, statErr := os.Stat(local); statErr == nil {
 			onDisk = true
+			updatable = libraryHasUpdate(ctx, d, local, l.Ref, fetch)
+			if updatable {
+				rep.UpdatableLibs++
+			}
 		} else {
 			rep.MissingLibraries++
 		}
 		rep.Libraries = append(rep.Libraries, statusLibraryRow{
-			Name:      l.Name,
-			Remote:    l.Remote,
-			Ref:       l.Ref,
-			OnDisk:    onDisk,
-			LocalPath: local,
+			Name:             l.Name,
+			Remote:           l.Remote,
+			Ref:              l.Ref,
+			OnDisk:           onDisk,
+			LocalPath:        local,
+			UpdatesAvailable: updatable,
 		})
 	}
 

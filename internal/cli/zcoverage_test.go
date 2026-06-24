@@ -516,7 +516,7 @@ func TestCollectStatus_NotInitialized(t *testing.T) {
 	root := t.TempDir()
 	d := testDeps(t, root, t.TempDir())
 	// No .adeptability/ created.
-	rep, err := collectStatus(context.Background(), d)
+	rep, err := collectStatus(context.Background(), d, false)
 	require.NoError(t, err)
 	require.False(t, rep.Initialized)
 	require.Equal(t, root, rep.ProjectRoot)
@@ -538,7 +538,7 @@ func TestCollectStatus_Initialized(t *testing.T) {
 	// "present" exists on disk and carries a skill; "absent" does not.
 	writeLibrarySkill(t, libRoot, "present", "libonly", "from lib")
 
-	rep, err := collectStatus(context.Background(), d)
+	rep, err := collectStatus(context.Background(), d, false)
 	require.NoError(t, err)
 	require.True(t, rep.Initialized)
 	require.Equal(t, 1, rep.SkillsCanonical)
