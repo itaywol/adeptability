@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/itaywol/adeptability/compare/v1.4.1...v1.5.0) (2026-06-24)
+
+
+### Features
+
+* **library:** add `library update` command and status update hints ([#31](https://github.com/itaywol/adeptability/issues/31)) ([ecef9fd](https://github.com/itaywol/adeptability/commit/ecef9fd989d7fd2b8bb554965262b3bfd8830d4b))
+
 ## [1.4.1](https://github.com/itaywol/adeptability/compare/v1.4.0...v1.4.1) (2026-06-23)
 
 
