@@ -1,0 +1,99 @@
+site_name: adeptability
+site_description: Write an AI coding skill once, run it in every AI coding assistant.
+site_url: https://itaywol.github.io/adeptability/
+repo_url: https://github.com/itaywol/adeptability
+repo_name: itaywol/adeptability
+edit_uri: edit/main/docs/
+copyright: Copyright &copy; itaywol — MIT License
+
+theme:
+  name: material
+  language: en
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - content.action.edit
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+plugins:
+  - search
+
+# The legacy HARNESS_COMPARISON.md is a redirect stub, intentionally not in nav.
+not_in_nav: |
+  /HARNESS_COMPARISON.md
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Install: getting-started/install.md
+      - Quickstart: getting-started/quickstart.md
+      - Your first skill: getting-started/first-skill.md
+  - Concepts:
+      - Canonical skills: concepts/canonical-skills.md
+      - Harnesses & adapters: concepts/harnesses.md
+      - Libraries: concepts/libraries.md
+      - Layouts: concepts/layouts.md
+      - Drift & the 3-way model: concepts/drift.md
+  - Guides:
+      - Authoring a skill: guides/authoring.md
+      - Sharing a library with a team: guides/sharing-a-library.md
+      - Importing existing rules: guides/importing.md
+      - Vendoring a library in-repo: guides/vendoring.md
+      - Git drift hook: guides/git-hook.md
+      - Safety scans & LLM config: guides/safety-scans.md
+  - Command Reference: reference/commands.md
+  - Harness Comparison: harness-comparison.md
+  - Exchange: exchange.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/itaywol/adeptability
