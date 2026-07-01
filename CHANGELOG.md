@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.1](https://github.com/itaywol/adeptability/compare/v1.5.0...v1.5.1) (2026-07-01)
+
+
+### Bug Fixes
+
+* **ci:** drop pip cache from docs workflow ([#35](https://github.com/itaywol/adeptability/issues/35)) ([a7be42d](https://github.com/itaywol/adeptability/commit/a7be42d43279ecdfa52ef1354f4f41e5b80a366c))
+
 ## [1.5.0](https://github.com/itaywol/adeptability/compare/v1.4.1...v1.5.0) (2026-06-24)
 
 
