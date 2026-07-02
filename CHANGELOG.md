@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/itaywol/adeptability/compare/v1.5.1...v1.6.0) (2026-07-02)
+
+
+### Features
+
+* **render:** warn when codex/copilot drop skill sidecars ([#37](https://github.com/itaywol/adeptability/issues/37)) ([e7bfe3f](https://github.com/itaywol/adeptability/commit/e7bfe3f0148d996dbcf3e2fefc8c57255ca5ef0e))
+
 ## [1.5.1](https://github.com/itaywol/adeptability/compare/v1.5.0...v1.5.1) (2026-07-01)
 
 
