@@ -73,7 +73,7 @@ detect:
 
 Adapter files are validated against an embedded schema on load. Key fields:
 
-- `kind` — `per-skill` (one file per skill) or aggregate.
+- `kind` — `per-skill` (one file per skill), `aggregator-single`, or `aggregator-per-glob`.
 - `output` — the on-disk path template; `{id}` expands to the skill id.
 - `frontmatter.include` / `frontmatter.rename` — which canonical fields to emit, and any
   key renames.

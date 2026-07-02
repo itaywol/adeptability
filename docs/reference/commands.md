@@ -188,7 +188,7 @@ pins upstream provenance (repo, ref, SHA, content hash).
 | Flag | Default | Purpose |
 | --- | --- | --- |
 | `--yes` | `false` | Skip the install preview confirmation |
-| `--allow-unsafe` | `false` | Install even when the scan flags suspicious content |
+| `--allow-unsafe` | `false` | Install even when the sandbox sniff flags suspicious content |
 
 ### skill update
 

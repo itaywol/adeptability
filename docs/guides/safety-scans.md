@@ -26,7 +26,7 @@ adept skill check <target>
 
 `<target>` can be:
 
-- `project` — the project's canonical skills
+- `<id>` — a skill in the project canonical (`.adeptability/skills/<id>/`)
 - `library:<name>:<id>` — a specific skill in a configured library
 - `<owner>/<repo>/<skill>` — a remote skill on skills.sh / GitHub
 
