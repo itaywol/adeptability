@@ -28,7 +28,7 @@ sidecar for the frontmatter. Recognized frontmatter fields:
 
 | Field | Purpose |
 | --- | --- |
-| `name` / `id` | The skill identity (validated id charset, ≤ 50 chars) |
+| `id` (alias `name`) | The skill identity (validated id charset, ≤ 50 chars) |
 | `description` | Used by agent-mode harnesses for progressive disclosure / activation |
 | `activation` | `always` \| `globs` \| `agent` \| `manual` |
 | `globs` | File globs that activate a `globs` skill |
@@ -37,7 +37,7 @@ sidecar for the frontmatter. Recognized frontmatter fields:
 
 ```markdown
 ---
-name: pr-review
+id: pr-review
 description: Use before opening a PR. Tests, security, performance.
 activation: agent
 allowed-tools: [Read, Grep]
@@ -54,9 +54,10 @@ alongside the body and are preserved by harnesses that support them.
 
 A skill's identity is `(id, content-hash)`. There are **no version numbers** — the content
 hash is the source of truth for "did this change." This is what powers the
-[drift detection](drift.md): `adept` compares hashes of the canonical skill, the last-synced
-base snapshot, and the rendered harness output to decide whether things are `synced`, `ahead`,
-`behind`, or `diverged`.
+[drift detection](drift.md): `adept` compares hashes of the project canonical, the last-synced
+base snapshot, and the library canonical to decide whether a skill is `synced`, `ahead`,
+`behind`, or `diverged` — and separately compares canonical against each harness's rendered
+output to detect harness drift.
 
 ## Validation
 

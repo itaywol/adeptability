@@ -51,7 +51,6 @@ allowed-tools: [Read, Grep]
     ```markdown
     ---
     description: Apply before opening a PR. Tests, security, performance.
-    alwaysApply: false
     ---
 
     ## Tests
@@ -61,9 +60,10 @@ allowed-tools: [Read, Grep]
     ```
 
     **Why correct:** Cursor's "Agent Requested" mode activates rules whose `description`
-    matches the current task. Verbatim Claude frontmatter would leave `description` valid but
-    add unrecognized `name`/`allowed-tools` and never set `alwaysApply` — the rule would be
-    effectively dead.
+    matches the current task — description-only frontmatter, no `alwaysApply`. (`always`
+    skills get `alwaysApply: true`; `globs` skills get `globs:` + `alwaysApply: false`.)
+    Verbatim Claude frontmatter would leave `description` valid but add unrecognized
+    `name`/`allowed-tools` keys.
 
 === "OpenCode"
 
@@ -112,23 +112,28 @@ allowed-tools: [Read, Grep]
 
 === "GitHub Copilot"
 
-    `.github/instructions/always.instructions.md`
+    Copilot has no agent-requested mode, so this `activation: agent` skill is **skipped**
+    (see the activation table below). A skill with `activation: always` renders into
+    `.github/instructions/always.instructions.md`:
 
     ```markdown
     ---
     applyTo: "**"
     ---
 
+    <!-- adeptability:begin id=pr-review hash=a1b2c3d4 -->
     ## Apply before opening a PR. Tests, security, performance.
 
     ## Tests
     - [ ] Unit tests added
     ## Security
     - [ ] No secrets in diff
+    <!-- adeptability:end id=pr-review -->
     ```
 
     Skills with `activation: globs` bucket into a per-glob file like
-    `.github/instructions/bucket-a63d8819.instructions.md` with `applyTo: "**/*.ts,**/*.tsx"`.
+    `.github/instructions/bucket-a63d8819677675ea.instructions.md` with
+    `applyTo: "**/*.ts,**/*.tsx"`.
 
     **Why correct:** Copilot uses `applyTo` glob match to decide when to inject the
     instructions. Without it, the file is loaded for the wrong files or ignored entirely.
@@ -148,9 +153,9 @@ Skills can bundle `scripts/`, `references/`, `assets/`. Where supported:
 
 - **Claude Code:** full sidecar tree preserved.
 - **OpenCode:** full sidecar tree preserved.
-- **Cursor:** dropped (single-file); recorded in `RenderOutput.Warnings`.
-- **Codex:** dropped (aggregator file model); recorded in warnings.
-- **Copilot:** dropped; recorded in warnings.
+- **Cursor:** dropped (single-file); a warning is reported on `sync`.
+- **Codex:** dropped (aggregator file model); a warning is reported on `sync`.
+- **Copilot:** dropped (aggregator file model); a warning is reported on `sync`.
 
 ## Beyond the specialized five
 

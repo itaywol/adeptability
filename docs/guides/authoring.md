@@ -19,7 +19,7 @@ adept skill add pr-review --from ./legacy/pr-review
 
 ```markdown
 ---
-name: pr-review
+id: pr-review
 description: Use before opening a PR. Checks tests, security, and performance.
 activation: agent
 allowed-tools: [Read, Grep]

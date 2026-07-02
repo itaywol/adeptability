@@ -12,11 +12,12 @@ adept init
 This creates `.adeptability/{skills,base}/`, writes `.adeptability/config.json`, and — if it
 finds any pre-existing harness files (`.claude/`, `.cursor/`, `.opencode/`, `AGENTS.md`,
 `.github/instructions/`) — **adopts them into canonical** and records the matching harness
-ids. It also seeds three bundled default skills:
+ids. It also seeds four bundled default skills:
 
 - `using-adept` — how to drive the CLI
 - `authoring-adept-skills` — how to write a good, portable skill
 - `adept-self-improve` — capture a session lesson as a skill, then sync it everywhere
+- `expertise-exchange` — ask teammates for expertise via the `adept exchange` board
 
 Skip the seeds with `adept init --no-default-skills`.
 
@@ -31,7 +32,7 @@ A skill is YAML frontmatter plus a markdown body:
 
 ```markdown
 ---
-name: lint-style
+id: lint-style
 description: Apply when writing or reviewing code. Enforce the house lint rules.
 activation: agent
 allowed-tools: [Read, Grep]
@@ -60,7 +61,7 @@ adept sync
 
 ```
 .claude/skills/lint-style/SKILL.md      # Claude Code
-.cursor/rules/lint-style.mdc            # Cursor (frontmatter translated: description + alwaysApply)
+.cursor/rules/lint-style.mdc            # Cursor (frontmatter translated per activation mode)
 ```
 
 ## 5. Check state
@@ -73,11 +74,11 @@ adept status
 adept: initialized at /home/you/my-project (mode=symlink)
 library root: /home/you/.adeptability
 libraries: (none — project-only mode)
-skills: 4 in project canonical, 0 resolved from libraries
+skills: 5 in project canonical, 0 resolved from libraries
 harnesses:
   ID           ENABLED  SYNCED  DRIFTED  MISSING  CONFLICT
-  claude-code  yes      4       0        0        0
-  cursor       yes      4       0        0        0
+  claude-code  yes      5       0        0        0
+  cursor       yes      5       0        0        0
 ```
 
 `status` exits `2` when anything is out of sync, so scripts and CI can branch on it.

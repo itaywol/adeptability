@@ -17,7 +17,7 @@ sidecars. This page walks through creating one from scratch.
 
 ```markdown
 ---
-name: pr-review
+id: pr-review
 description: Use before opening a PR. Tests, security, performance.
 activation: agent              # always | globs | agent | manual
 allowed-tools: [Read, Grep]    # carried into Claude Code
@@ -32,8 +32,9 @@ tags: [review, quality]
 
 The schema lives at `pkg/adeptschema/skill.schema.json` and is validated on every load.
 
-!!! note "`name` vs `id`"
-    The canonical frontmatter key is `name`. Skill **ids** are validated against
+!!! note "`id` vs `name`"
+    The canonical frontmatter key is `id`; `name` is accepted as an alias and mapped to `id`
+    on load. Skill **ids** are validated against
     `^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$` — lowercase ASCII letters, digits, and internal
     hyphens, max 50 chars. This is the lowest common denominator across harnesses, so a valid
     id always renders a valid harness name and directory.

@@ -145,6 +145,31 @@ func TestOrchestrator_Sync_PerSkillWritesFiles(t *testing.T) {
 	}
 }
 
+func TestOrchestrator_Sync_CollectsRendererWarnings(t *testing.T) {
+	p := newProj(t)
+	installSkill(t, p, "skill-a")
+	setHarnesses(t, p, "agg")
+	setHarnessMode(t, p, "agg", adept.ModeCopy)
+
+	a := aggregatorAdapter("agg", "AGENTS.md")
+	a.render = rendererFunc(func(_ context.Context, in adept.RenderInput) (adept.RenderOutput, error) {
+		return adept.RenderOutput{
+			Path:     "tmp/" + in.Skill.ID + ".part",
+			Bytes:    []byte("part:" + in.Skill.ID + "\n"),
+			SkillID:  in.Skill.ID,
+			Warnings: []string{`agg: dropped sidecar "scripts/x.sh"`},
+		}, nil
+	})
+	orch := newOrch(t, a)
+
+	results, err := orch.Sync(context.Background(), p, SyncOptions{})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	// Aggregation builds fresh outputs from the parts; the renderer warnings
+	// must still surface on the SyncResult.
+	require.Equal(t, []string{`agg: dropped sidecar "scripts/x.sh"`}, results[0].Warnings)
+}
+
 func TestOrchestrator_Sync_DryRunWritesNothing(t *testing.T) {
 	p := newProj(t)
 	installSkill(t, p, "skill-a")

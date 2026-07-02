@@ -52,13 +52,18 @@ func (r *Renderer) Render(_ context.Context, in adept.RenderInput) (adept.Render
 
 	hash := common.ShortSkillHash(s)
 	frag := buildFragment(s, hash)
-	return adept.RenderOutput{
+	out := adept.RenderOutput{
 		Path:      OutputFile,
 		Bytes:     []byte(frag),
 		Mode:      0o644,
 		SkillID:   s.ID,
 		SkillHash: hash,
-	}, nil
+	}
+	for _, f := range s.Files {
+		out.Warnings = append(out.Warnings,
+			fmt.Sprintf("codex: dropped sidecar %q (codex aggregates skills into a single AGENTS.md)", f.RelPath))
+	}
+	return out, nil
 }
 
 // buildFragment emits the marker-wrapped section for a skill.
