@@ -57,7 +57,7 @@ func (r *Renderer) Render(_ context.Context, in adept.RenderInput) (adept.Render
 
 	hash := common.ShortSkillHash(s)
 	frag := buildFragment(s, hash)
-	return adept.RenderOutput{
+	out := adept.RenderOutput{
 		Path:      spec.Path,
 		Bytes:     []byte(frag),
 		Mode:      0o644,
@@ -68,7 +68,12 @@ func (r *Renderer) Render(_ context.Context, in adept.RenderInput) (adept.Render
 			Bytes:   []byte(spec.ApplyTo),
 			Mode:    0o600,
 		}},
-	}, nil
+	}
+	for _, f := range s.Files {
+		out.Warnings = append(out.Warnings,
+			fmt.Sprintf("copilot: dropped sidecar %q (copilot aggregates skills into instruction buckets)", f.RelPath))
+	}
+	return out, nil
 }
 
 // buildFragment emits the marker-wrapped section. Bucket frontmatter is

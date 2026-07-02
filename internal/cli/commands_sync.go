@@ -72,6 +72,9 @@ func (r *syncRenderable) Plain(w io.Writer) error {
 		if len(res.DroppedSkillIDs) > 0 {
 			fmt.Fprintf(w, "  %s dropped: %v\n", res.Harness, res.DroppedSkillIDs)
 		}
+		for _, warn := range res.Warnings {
+			fmt.Fprintf(w, "  warn: %s\n", warn)
+		}
 	}
 	return nil
 }

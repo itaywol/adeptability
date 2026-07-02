@@ -16,6 +16,30 @@ import (
 // -update regenerates golden files for renderer + aggregator tests.
 var updateGolden = flag.Bool("update", false, "regenerate copilot golden files")
 
+func TestRenderer_SidecarsDroppedWithWarning(t *testing.T) {
+	r := New()
+	s := &adept.Skill{
+		ID:          "with-sidecars",
+		Description: "Skill with sidecars",
+		Activation:  adept.ActivationAlways,
+		Body:        "body\n",
+		Files: []adept.SkillFile{
+			{RelPath: "scripts/h.sh"},
+			{RelPath: "references/notes.md"},
+		},
+	}
+	out, err := r.Render(context.Background(), adept.RenderInput{Skill: s})
+	if err != nil {
+		t.Fatalf("Render error: %v", err)
+	}
+	if len(out.Warnings) != 2 {
+		t.Fatalf("expected 2 sidecar warnings, got %d: %v", len(out.Warnings), out.Warnings)
+	}
+	if !strings.Contains(out.Warnings[0], "scripts/h.sh") {
+		t.Fatalf("first warning should name the sidecar, got %q", out.Warnings[0])
+	}
+}
+
 func TestRenderer_AlwaysSkill(t *testing.T) {
 	r := New()
 	s := &adept.Skill{

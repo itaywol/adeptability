@@ -49,7 +49,11 @@ type SyncResult struct {
 	// pre-aggregation render misses; this surfaces post-aggregation losses
 	// so users can see exactly what didn't fit.
 	DroppedSkillIDs []string
-	Drift           adept.DriftReport
+	// Warnings carries non-fatal renderer notes (e.g. sidecars dropped by a
+	// single-file or aggregator harness), collected from the pre-aggregation
+	// render outputs.
+	Warnings []string
+	Drift    adept.DriftReport
 }
 
 // StatusOptions configures a single Status invocation.
@@ -175,6 +179,11 @@ func (o *orchestrator) syncHarness(
 		return res, mode, err
 	}
 	res.Dropped = dropped
+	// Collect renderer warnings before aggregation — aggregators build fresh
+	// outputs from the parts and would silently lose them.
+	for _, pt := range parts {
+		res.Warnings = append(res.Warnings, pt.Warnings...)
+	}
 	// Aggregator step (no-op for per-skill).
 	outputs := parts
 	if spec.Kind != adept.KindPerSkill {
