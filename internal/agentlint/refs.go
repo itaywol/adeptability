@@ -75,9 +75,13 @@ func ExtractFileRefs(body string) []FileRef {
 	return out
 }
 
-// plausibleFileRef rejects candidates that cannot be project files.
+// plausibleFileRef rejects candidates that cannot be project files. Rooted
+// paths are checked with an explicit "/" prefix as well as filepath.IsAbs:
+// agent bodies use forward slashes regardless of OS, and on Windows
+// IsAbs("/abs/path.md") is false (no drive letter), which would leak
+// absolute unix-style refs into the existence check.
 func plausibleFileRef(s string) bool {
-	if strings.Contains(s, "://") || filepath.IsAbs(s) {
+	if strings.Contains(s, "://") || strings.HasPrefix(s, "/") || filepath.IsAbs(s) {
 		return false
 	}
 	if strings.ContainsAny(s, "*?[{<>$") {
