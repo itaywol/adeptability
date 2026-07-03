@@ -12,11 +12,12 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
 </p>
 
-`adept` lets you author an AI coding skill (a prompt, rule, or procedure) **once**, then
-render it accurately into Claude Code, Cursor, GitHub Copilot, OpenAI Codex, OpenCode, and
-50+ other agents. It handles each harness's frontmatter, activation rules, aggregation, and
-size budgets for you — think **dotfiles for your AI coding agents**: one source of truth, the
-right on-disk format everywhere.
+`adept` lets you author an AI coding skill (a prompt, rule, or procedure) — or a **subagent**
+(a reviewer, test-runner, or other specialist) — **once**, then render it accurately into
+Claude Code, Cursor, GitHub Copilot, OpenAI Codex, OpenCode, and 50+ other agents. It handles
+each harness's frontmatter, activation rules, aggregation, and size budgets for you — think
+**dotfiles for your AI coding agents**: one source of truth, the right on-disk format
+everywhere.
 
 📖 **[Full documentation → itaywol.github.io/adeptability](https://itaywol.github.io/adeptability)**
 
@@ -45,23 +46,32 @@ Or grab a pre-built, cosign-signed binary from the
 cd ./my-project
 adept init                          # scaffold .adeptability/, adopt any existing .claude/ .cursor/ AGENTS.md, seed default skills
 adept skill add lint-style --edit   # scaffold a canonical skill, opens $EDITOR
+adept agent add pr-reviewer --template evaluator   # scaffold a subagent (then `adept agent check` lints it)
 adept harness add claude-code       # enable a harness (run `adept harness list` for all ids)
 adept harness add cursor
-adept sync                          # render the skill into every enabled harness
+adept sync                          # render skills + agents into every enabled harness
 adept status                        # init state, libraries, harnesses, and drift at a glance
 ```
 
-`adept sync` writes `.claude/skills/lint-style/SKILL.md`, `.cursor/rules/lint-style.mdc`, and
-so on — each in that harness's native format. Edit a skill inside a harness instead? Run
-`adept sync-from` to pull it back to canonical, then `adept sync` to re-publish everywhere.
+`adept sync` writes `.claude/skills/lint-style/SKILL.md`, `.cursor/rules/lint-style.mdc`,
+`.claude/agents/pr-reviewer.md`, and so on — each in that harness's native format. Edit one
+inside a harness instead? Run `adept sync-from` to pull it back to canonical, then
+`adept sync` to re-publish everywhere. Building scheduled automation? `adept loop add`
+composes a discovery skill + evaluator agent + cron skeleton in one shot — see the
+[loops guide](https://itaywol.github.io/adeptability/guides/loops/).
 
 `init` also seeds bundled default skills (`using-adept`, `authoring-adept-skills`,
-`adept-self-improve`) so a fresh project is useful on day one. Skip with `--no-default-skills`.
+`authoring-adept-agents`, `authoring-adept-loops`, `adept-self-improve`) so a fresh project is
+useful on day one. Skip with `--no-default-skills`.
 
 ## Core concepts
 
 - **Canonical skill** — one `SKILL.md` (YAML frontmatter + markdown body) plus optional
   `scripts/`, `references/`, `assets/` sidecars. The single source of truth for a skill.
+- **Canonical agent** — one `.adeptability/agents/<id>.md` (frontmatter + system prompt)
+  rendered to `.claude/agents/`, `.opencode/agents/`, `.cursor/agents/`, `.github/agents/`,
+  and `.codex/agents/*.toml`. `adept agent check` runs a safety scan plus a best-practice
+  lint. See [Canonical agents](https://itaywol.github.io/adeptability/concepts/agents/).
 - **Harness** — a target AI agent (Claude Code, Cursor, Codex, …). `adept sync` renders each
   canonical skill into every enabled harness's own path and schema; a hash-based state
   machine (`synced | ahead | behind | diverged`) powers `status` and `diff`. No lockfile.
