@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.0](https://github.com/itaywol/adeptability/compare/v1.6.0...v1.7.0) (2026-07-03)
+
+
+### Features
+
+* **agents:** add agents management and loop composition ([#39](https://github.com/itaywol/adeptability/issues/39)) ([b874758](https://github.com/itaywol/adeptability/commit/b874758e82fafb90fbfd9752e382b90a907dde07))
+* **nix:** add flake with package, overlay, and dev shell ([#41](https://github.com/itaywol/adeptability/issues/41)) ([0bb088e](https://github.com/itaywol/adeptability/commit/0bb088e3a16e5c06d76d5c1a637ca0d4802e921d))
+
 ## [1.6.0](https://github.com/itaywol/adeptability/compare/v1.5.1...v1.6.0) (2026-07-02)
 
 
