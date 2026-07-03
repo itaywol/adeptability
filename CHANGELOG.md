@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0](https://github.com/itaywol/adeptability/compare/v1.7.0...v1.8.0) (2026-07-03)
+
+
+### Features
+
+* **dist:** ship shell completions in nix, release archives, and brew ([#43](https://github.com/itaywol/adeptability/issues/43)) ([c0a8bfb](https://github.com/itaywol/adeptability/commit/c0a8bfbc7c3d381ea2c54cb183abfb57542c2a8b))
+
 ## [1.7.0](https://github.com/itaywol/adeptability/compare/v1.6.0...v1.7.0) (2026-07-03)
 
 
