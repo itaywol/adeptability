@@ -84,6 +84,11 @@ signs:
     args:
       - sign-blob
       - --yes
+      # cosign v3 defaults to the sigstore bundle format and requires --bundle;
+      # keep the legacy .sig/.pem outputs that scripts/install.sh verifies.
+      # Upgrade path: switch to --bundle and update install.sh verify-blob together.
+      - --use-signing-config=false
+      - --new-bundle-format=false
       - --output-signature=${signature}
       - --output-certificate=${certificate}
       - ${artifact}
