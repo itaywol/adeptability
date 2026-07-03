@@ -96,6 +96,7 @@ func NewRoot(b BuildInfo) *cobra.Command {
 		newHarnessCmd(deps),
 		newSkillCmd(deps),
 		newAgentCmd(deps),
+		newLoopCmd(deps),
 		newLibraryCmd(deps),
 		newConfigCmd(deps),
 		newExchangeCmd(deps),

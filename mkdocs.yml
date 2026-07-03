@@ -89,6 +89,7 @@ nav:
       - Importing existing rules: guides/importing.md
       - Vendoring a library in-repo: guides/vendoring.md
       - Git drift hook: guides/git-hook.md
+      - Composing loops: guides/loops.md
       - Safety scans & LLM config: guides/safety-scans.md
   - Command Reference: reference/commands.md
   - Harness Comparison: harness-comparison.md

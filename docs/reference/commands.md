@@ -145,6 +145,7 @@ Create a new project skill from scratch, or import an existing directory.
 | Flag | Default | Purpose |
 | --- | --- | --- |
 | `--from <path>` | — | Import an existing skill directory into the project |
+| `--template default\|triage` | `default` | Scaffold template — `triage` is a loop-discovery skill (Read → Judge → Write → Hand off → Stop) |
 | `--edit` | `false` | Open the new `SKILL.md` in `$EDITOR` after creation |
 | `--publish` | `false` | In a library project, add to the published `skills/` (default: private dev-canonical) |
 
@@ -298,6 +299,31 @@ references). High or critical findings exit `2` so CI can gate on it.
 | `--format table\|markdown\|json` | `table` | Output format |
 | `--llm` | `false` | Force the LLM intent pass (errors if no provider configured) |
 | `--no-llm` | `false` | Skip the LLM intent pass even when a provider is configured |
+
+---
+
+## loop
+
+Compose a loop — a scheduled system that discovers work, hands it to agents, verifies with
+an independent evaluator, persists state, and reschedules. A loop is not a synced resource:
+it is a composition of things adept already manages (a discovery skill + an evaluator agent)
+plus a schedule that lives in CI or the harness. See the [loops guide](../guides/loops.md).
+
+### loop add
+
+```
+adept loop add <id> [flags]
+```
+
+Scaffolds the composition in one shot: a `<id>` discovery skill (triage template,
+`activation: manual` so only the automation invokes it), a `<id>-reviewer` evaluator agent
+(adversarial template), optionally a GitHub Actions cron skeleton — then prints the
+first-loop checklist (state file, isolation, token cap, human review).
+
+| Flag | Default | Purpose |
+| --- | --- | --- |
+| `--workflow` | `false` | Also write `.github/workflows/adept-loop-<id>.yml` (cloud cron skeleton; never overwrites) |
+| `--edit` | `false` | Open the discovery skill in `$EDITOR` after creation |
 
 ---
 

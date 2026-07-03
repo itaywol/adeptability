@@ -47,6 +47,7 @@ adept skill add <id> --edit      # scaffold a new skill and open $EDITOR
 adept skill install <owner>/<repo>/<skill>   # install one skill (pinned to a SHA, safety-scanned)
 adept agent add <id> --edit      # scaffold a new agent (subagent); --template evaluator for reviewers
 adept agent check <id>           # safety scan + best-practice lint for an agent
+adept loop add <id> --workflow   # compose a loop: discovery skill + evaluator agent + cron skeleton
 ```
 
 **`adept --help` is the source of truth for the command surface** — it's always current, so

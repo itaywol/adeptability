@@ -92,7 +92,7 @@ func TestSeedDefaultSkills(t *testing.T) {
 	// First seed writes every bundled default.
 	first, err := seedDefaultSkills(p)
 	require.NoError(t, err)
-	require.ElementsMatch(t, []string{"adept-self-improve", "authoring-adept-agents", "authoring-adept-skills", "expertise-exchange", "using-adept"}, first)
+	require.ElementsMatch(t, []string{"adept-self-improve", "authoring-adept-agents", "authoring-adept-loops", "authoring-adept-skills", "expertise-exchange", "using-adept"}, first)
 	for _, id := range first {
 		require.True(t, p.HasSkill(id))
 		require.DirExists(t, filepath.Join(p.BaseSnapshotsDir(), id))
