@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.1](https://github.com/itaywol/adeptability/compare/v1.8.0...v1.8.1) (2026-07-03)
+
+
+### Bug Fixes
+
+* **ci:** keep legacy cosign sig/pem outputs under cosign v3 ([#46](https://github.com/itaywol/adeptability/issues/46)) ([636213e](https://github.com/itaywol/adeptability/commit/636213e54722f1f61101b5e3224bbc2b1e4fae74))
+
 ## [1.8.0](https://github.com/itaywol/adeptability/compare/v1.7.0...v1.8.0) (2026-07-03)
 
 
