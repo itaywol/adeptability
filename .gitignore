@@ -13,3 +13,5 @@ coverage.txt
 /.claude/
 /adeptability.lock.json
 cmd/adept/.adeptability/
+result
+result-*

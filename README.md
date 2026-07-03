@@ -33,6 +33,9 @@ brew install itaywol/tap/adeptability
 # Any platform (curl installer)
 curl -fsSL https://raw.githubusercontent.com/itaywol/adeptability/main/scripts/install.sh | sh
 
+# Nix / NixOS (flake)
+nix profile install github:itaywol/adeptability
+
 # Containers
 docker run --rm -v "$PWD:/work" -w /work ghcr.io/itaywol/adeptability:latest --help
 ```

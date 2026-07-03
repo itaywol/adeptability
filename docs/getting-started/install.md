@@ -32,6 +32,34 @@ the binary in `/usr/local/bin`. Environment overrides:
 | `ADEPT_BIN_DIR` | `/usr/local/bin` | Install location |
 | `ADEPT_NO_VERIFY` | `0` | Set to `1` to skip cosign verification |
 
+## Nix / NixOS (flake)
+
+The repo ships a flake exposing the package, an overlay, and a dev shell.
+
+```bash
+# try it without installing
+nix run github:itaywol/adeptability -- --help
+
+# imperative install into your profile
+nix profile install github:itaywol/adeptability
+```
+
+Declarative NixOS / home-manager setup — add the input and pull the package:
+
+```nix
+{
+  inputs.adeptability.url = "github:itaywol/adeptability";
+
+  # NixOS:          environment.systemPackages = [ inputs.adeptability.packages.${pkgs.system}.default ];
+  # home-manager:   home.packages             = [ inputs.adeptability.packages.${pkgs.system}.default ];
+  # or apply the overlay and use pkgs.adeptability:
+  #   nixpkgs.overlays = [ inputs.adeptability.overlays.default ];
+}
+```
+
+Pin a release with `github:itaywol/adeptability/v1.6.0`. `nix develop` drops you into a shell
+with `go`, `gopls`, and `golangci-lint` for hacking on adept itself.
+
 ## Docker (GHCR)
 
 ```bash
