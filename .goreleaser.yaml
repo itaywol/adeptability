@@ -6,6 +6,7 @@ before:
   hooks:
     - go mod tidy
     - go test ./...
+    - ./scripts/completions.sh
 
 builds:
   - id: adept
@@ -44,6 +45,7 @@ archives:
     files:
       - LICENSE
       - README.md
+      - completions/*
 
 checksum:
   name_template: "checksums.txt"
@@ -149,5 +151,6 @@ brews:
     license: MIT
     install: |
       bin.install "adept"
+      generate_completions_from_executable(bin/"adept", "completion")
     test: |
       system "#{bin}/adept", "--version"

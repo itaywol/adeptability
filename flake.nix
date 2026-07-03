@@ -27,6 +27,15 @@
 
           subPackages = [ "cmd/adept" ];
 
+          nativeBuildInputs = [ pkgs.installShellFiles ];
+
+          postInstall = ''
+            installShellCompletion --cmd adept \
+              --bash <($out/bin/adept completion bash) \
+              --zsh <($out/bin/adept completion zsh) \
+              --fish <($out/bin/adept completion fish)
+          '';
+
           ldflags = [
             "-s"
             "-w"
