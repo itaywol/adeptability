@@ -91,3 +91,40 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: '0'
         run: go build -ldflags '-s -w' -o adept ./cmd/adept
+
+  # The release pipeline only runs on tags, so config/hook breakage used to
+  # surface after the tag existed (v1.7.0/v1.8.0 shipped with zero assets).
+  # Validate what we can on every PR. Ceiling: signing is not exercised here —
+  # a cosign behavior change still only fails at release time.
+  release-sanity:
+    name: Release sanity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+          cache: true
+      - name: goreleaser check
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          version: latest
+          args: check
+      - name: Completions hook
+        run: |
+          ./scripts/completions.sh
+          for f in adept.bash adept.zsh adept.fish adept.ps1; do
+            test -s "completions/$f"
+          done
+
+  nix:
+    name: Nix build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v31
+      # Exercises postInstall, which runs the freshly built binary to generate
+      # completions. Fails on vendorHash drift: if go.mod changed, update
+      # vendorHash in flake.nix in the same PR.
+      - name: nix build
+        run: nix build .#adeptability
