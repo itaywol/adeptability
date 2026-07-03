@@ -2,3 +2,6 @@
 # Force LF on checkout so Windows (core.autocrlf=true) does not rewrite them
 # to CRLF and break renderer golden tests.
 *.golden text eol=lf
+
+# Shell scripts run via /bin/sh on release runners; CRLF breaks the shebang.
+*.sh text eol=lf

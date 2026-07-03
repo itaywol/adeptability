@@ -27,6 +27,17 @@
 
           subPackages = [ "cmd/adept" ];
 
+          nativeBuildInputs = [ pkgs.installShellFiles ];
+
+          # Completions run the freshly built binary, so skip them when the
+          # build platform can't execute host binaries (cross builds).
+          postInstall = pkgs.lib.optionalString (pkgs.stdenv.buildPlatform.canExecute pkgs.stdenv.hostPlatform) ''
+            installShellCompletion --cmd adept \
+              --bash <($out/bin/adept completion bash) \
+              --zsh <($out/bin/adept completion zsh) \
+              --fish <($out/bin/adept completion fish)
+          '';
+
           ldflags = [
             "-s"
             "-w"
