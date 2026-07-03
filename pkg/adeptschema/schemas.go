@@ -7,6 +7,9 @@ import _ "embed"
 //go:embed skill.schema.json
 var SkillSchema []byte
 
+//go:embed agent.schema.json
+var AgentSchema []byte
+
 //go:embed adapter.schema.json
 var AdapterSchema []byte
 

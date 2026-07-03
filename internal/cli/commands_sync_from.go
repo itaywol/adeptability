@@ -47,19 +47,24 @@ func newSyncFromCmd(d *Deps) *cobra.Command {
 
 		// Non-interactive paths first.
 		if all || len(harnessIDs) > 0 {
-			report, err := d.Orchestrator.Import(cmd.Context(), p, harness.ImportOptions{
+			importOpts := harness.ImportOptions{
 				HarnessIDs: harnessIDs,
 				Strategy:   harness.ImportStrategyFirst,
 				DryRun:     dryRun,
 				Force:      force,
-			})
+			}
+			report, err := d.Orchestrator.Import(cmd.Context(), p, importOpts)
 			if err != nil {
 				return err
 			}
-			if err := d.Print(cmd.OutOrStdout(), &syncFromRenderable{Report: report}); err != nil {
+			agentReport, err := d.Orchestrator.ImportAgents(cmd.Context(), p, importOpts)
+			if err != nil {
 				return err
 			}
-			if len(report.Conflicts) > 0 && !force {
+			if err := d.Print(cmd.OutOrStdout(), &syncFromRenderable{Report: report, Agents: agentReport}); err != nil {
+				return err
+			}
+			if (len(report.Conflicts) > 0 || len(agentReport.Conflicts) > 0) && !force {
 				return ErrDirty
 			}
 			return nil
@@ -71,9 +76,20 @@ func newSyncFromCmd(d *Deps) *cobra.Command {
 	return c
 }
 
-type syncFromRenderable struct{ Report harness.ImportReport }
+type syncFromRenderable struct {
+	Report harness.ImportReport
+	Agents harness.AgentImportReport
+}
 
-func (r *syncFromRenderable) JSON() any { return r.Report }
+// JSON keeps the historical top-level ImportReport shape and nests the agent
+// report under "agents".
+func (r *syncFromRenderable) JSON() any {
+	return struct {
+		harness.ImportReport
+		Agents harness.AgentImportReport `json:"agents"`
+	}{ImportReport: r.Report, Agents: r.Agents}
+}
+
 func (r *syncFromRenderable) Plain(w io.Writer) error {
 	tw := NewTabWriter(w)
 	fmt.Fprintln(tw, "SKILL\tHARNESS\tSOURCE")
@@ -83,15 +99,35 @@ func (r *syncFromRenderable) Plain(w io.Writer) error {
 	if err := tw.Flush(); err != nil {
 		return err
 	}
-	if len(r.Report.Conflicts) > 0 {
+	if len(r.Agents.Imported) > 0 {
+		fmt.Fprintln(w)
+		tw = NewTabWriter(w)
+		fmt.Fprintln(tw, "AGENT\tHARNESS\tSOURCE")
+		for _, row := range r.Agents.Imported {
+			fmt.Fprintf(tw, "%s\t%s\t%s\n", row.AgentID, row.Harness, row.SourcePath)
+		}
+		if err := tw.Flush(); err != nil {
+			return err
+		}
+		// Importer recovery notes (e.g. harness-only fields that were
+		// dropped) — the transform is lossy and the user must see where.
+		for _, row := range r.Agents.Imported {
+			for _, warning := range row.Warnings {
+				fmt.Fprintf(w, "  warn: %s\n", warning)
+			}
+		}
+	}
+	conflicts := append(append([]harness.ConflictRow{}, r.Report.Conflicts...), r.Agents.Conflicts...)
+	if len(conflicts) > 0 {
 		fmt.Fprintln(w, "\nCONFLICTS:")
-		for _, c := range r.Report.Conflicts {
+		for _, c := range conflicts {
 			fmt.Fprintf(w, "  %s  from=%v  resolved=%s\n", c.SkillID, c.From, c.Resolved)
 		}
 	}
-	if len(r.Report.Skipped) > 0 {
+	skipped := append(append([]harness.SkipRow{}, r.Report.Skipped...), r.Agents.Skipped...)
+	if len(skipped) > 0 {
 		fmt.Fprintln(w, "\nSKIPPED:")
-		for _, s := range r.Report.Skipped {
+		for _, s := range skipped {
 			fmt.Fprintf(w, "  %s — %s\n", s.Harness, s.Reason)
 		}
 	}
@@ -138,19 +174,24 @@ func runInteractiveSyncFrom(ctx context.Context, d *Deps, p project.Project, w i
 		return nil
 	}
 
-	report, err := d.Orchestrator.Import(ctx, p, harness.ImportOptions{
+	importOpts := harness.ImportOptions{
 		HarnessIDs: chosen,
 		Strategy:   harness.ImportStrategyFirst,
 		DryRun:     dryRun,
 		Force:      force,
-	})
+	}
+	report, err := d.Orchestrator.Import(ctx, p, importOpts)
 	if err != nil {
 		return err
 	}
-	if err := d.Print(w, &syncFromRenderable{Report: report}); err != nil {
+	agentReport, err := d.Orchestrator.ImportAgents(ctx, p, importOpts)
+	if err != nil {
 		return err
 	}
-	if len(report.Conflicts) > 0 && !force {
+	if err := d.Print(w, &syncFromRenderable{Report: report, Agents: agentReport}); err != nil {
+		return err
+	}
+	if (len(report.Conflicts) > 0 || len(agentReport.Conflicts) > 0) && !force {
 		return ErrDirty
 	}
 	return nil

@@ -28,6 +28,9 @@ canonical skill  ──render──▶  .claude/skills/…       (per-skill)
 - **Identity is `(id, content-hash)`** — no version numbers. The hash decides what changed.
 - A skill is a directory `<root>/skills/<id>/` with one `SKILL.md` (YAML frontmatter +
   markdown body) and optional sidecars (`scripts/`, `references/`, `assets/`).
+- An **agent** (subagent) is a single file `.adeptability/agents/<id>.md`; it renders to
+  `.claude/agents/`, `.opencode/agents/`, `.cursor/agents/`, `.github/agents/`, and
+  `.codex/agents/*.toml` the same way. See [[authoring-adept-agents]].
 - The **filesystem is the source of truth.** `config.json` only records enabled harnesses,
   the materialization mode, and library remotes.
 
@@ -42,6 +45,8 @@ adept diff                       # show exactly what differs between canonical a
 adept sync-from                  # adopt edits made directly in a harness file back to canonical
 adept skill add <id> --edit      # scaffold a new skill and open $EDITOR
 adept skill install <owner>/<repo>/<skill>   # install one skill (pinned to a SHA, safety-scanned)
+adept agent add <id> --edit      # scaffold a new agent (subagent); --template evaluator for reviewers
+adept agent check <id>           # safety scan + best-practice lint for an agent
 ```
 
 **`adept --help` is the source of truth for the command surface** — it's always current, so

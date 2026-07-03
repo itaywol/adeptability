@@ -236,6 +236,71 @@ Scan a skill for safety issues without installing. `<target>` is `project`,
 
 ---
 
+## agent
+
+Manage canonical agents (subagents). Agents are single files at
+`.adeptability/agents/<id>.md`; `adept sync` renders them into every enabled harness that
+supports agent definitions (`.claude/agents/`, `.opencode/agents/`, `.cursor/agents/`,
+`.github/agents/*.agent.md`, `.codex/agents/*.toml`), and `adept sync-from` adopts
+harness-side agent edits back. Harnesses without an agent concept skip them with a warning.
+
+### agent add
+
+```
+adept agent add <id> [flags]
+```
+
+Create a new project agent from a best-practice template, or import an existing file.
+
+| Flag | Default | Purpose |
+| --- | --- | --- |
+| `--from <path>` | — | Import an existing agent `.md` file into the project |
+| `--template default\|evaluator` | `default` | Scaffold template — `evaluator` encodes the adversarial maker–checker reviewer pattern |
+| `--edit` | `false` | Open the new agent file in `$EDITOR` after creation |
+
+### agent edit
+
+```
+adept agent edit <id>
+```
+
+Open the project agent's file in `$EDITOR`.
+
+### agent remove
+
+```
+adept agent remove <id>
+```
+
+Remove an agent from the project canonical.
+
+### agent list
+
+```
+adept agent list
+```
+
+List agents in the project canonical (`ID`, `MODE`, `TARGETS`, `DESCRIPTION`).
+
+### agent check
+
+```
+adept agent check <id> [flags]
+```
+
+One report over three passes: the static safety scanner (same malicious-instruction rules as
+`skill check`), the optional LLM intent pass, and the agent best-practice linter
+(`AGENT-LINT-*`: schema, trigger-shaped description, tool hygiene, boundaries, broken file
+references). High or critical findings exit `2` so CI can gate on it.
+
+| Flag | Default | Purpose |
+| --- | --- | --- |
+| `--format table\|markdown\|json` | `table` | Output format |
+| `--llm` | `false` | Force the LLM intent pass (errors if no provider configured) |
+| `--no-llm` | `false` | Skip the LLM intent pass even when a provider is configured |
+
+---
+
 ## library
 
 Manage the project's library remotes. See [Libraries](../concepts/libraries.md).

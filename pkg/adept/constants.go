@@ -4,6 +4,7 @@ package adept
 const (
 	BaseDirName    = ".adeptability"
 	SkillsDirName  = "skills"
+	AgentsDirName  = "agents"
 	BaseSnapDir    = "base"
 	StagingDir     = "staging"
 	SkillFileName  = "SKILL.md"
@@ -45,3 +46,9 @@ const (
 // OpenCode) so a valid canonical id always renders a valid harness name and
 // directory. Length is capped at 50 characters.
 const SkillIDPattern = `^[a-z0-9](?:[a-z0-9-]{0,48}[a-z0-9])?$`
+
+// AgentIDPattern is the validation regex for agent ids. Identical to
+// SkillIDPattern on purpose: the same lowercase-hyphen charset is what Claude
+// Code requires for agent names and what OpenCode/Cursor derive from the
+// filename, so a valid canonical id always renders a valid agent name.
+const AgentIDPattern = SkillIDPattern

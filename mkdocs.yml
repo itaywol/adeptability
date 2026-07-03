@@ -78,6 +78,7 @@ nav:
       - Your first skill: getting-started/first-skill.md
   - Concepts:
       - Canonical skills: concepts/canonical-skills.md
+      - Canonical agents: concepts/agents.md
       - Harnesses & adapters: concepts/harnesses.md
       - Libraries: concepts/libraries.md
       - Layouts: concepts/layouts.md

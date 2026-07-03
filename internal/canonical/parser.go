@@ -58,21 +58,38 @@ func (p *parser) ParseSkillYAML(data []byte) (*adept.Skill, error) {
 var frontmatterDelim = []byte("---")
 
 func (p *parser) ParseFrontmatter(skillMD []byte) (*adept.Skill, string, error) {
-	if len(skillMD) == 0 {
-		return nil, "", fmt.Errorf("parse SKILL.md: %w: empty document", adept.ErrSkillInvalid)
+	fmYAML, body, err := splitFrontmatter(skillMD, "SKILL.md", adept.ErrSkillInvalid)
+	if err != nil {
+		return nil, "", err
+	}
+	s, err := p.ParseSkillYAML(fmYAML)
+	if err != nil {
+		return nil, "", err
+	}
+	return s, body, nil
+}
+
+// splitFrontmatter separates a `---` fenced YAML frontmatter block from the
+// markdown body that follows. label names the document kind in error messages
+// ("SKILL.md", "agent file") and sentinel is the invalid-document sentinel to
+// wrap. Shared by the skill and agent parsers so the fence grammar cannot
+// drift between them.
+func splitFrontmatter(data []byte, label string, sentinel error) (fmYAML []byte, body string, err error) {
+	if len(data) == 0 {
+		return nil, "", fmt.Errorf("parse %s: %w: empty document", label, sentinel)
 	}
 	// Normalize CRLF to LF before scanning so the parser is OS-agnostic.
-	norm := bytes.ReplaceAll(skillMD, []byte("\r\n"), []byte("\n"))
+	norm := bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n"))
 	if !bytes.HasPrefix(norm, append(frontmatterDelim, '\n')) &&
 		!bytes.Equal(bytes.TrimRight(norm[:min(len(norm), 3)], "\n"), frontmatterDelim) {
-		return nil, "", fmt.Errorf("parse SKILL.md: %w: missing frontmatter", adept.ErrSkillInvalid)
+		return nil, "", fmt.Errorf("parse %s: %w: missing frontmatter", label, sentinel)
 	}
 	// Skip the leading "---\n" (3 bytes + newline).
 	rest := norm[len(frontmatterDelim):]
 	if len(rest) > 0 && rest[0] == '\n' {
 		rest = rest[1:]
 	} else {
-		return nil, "", fmt.Errorf("parse SKILL.md: %w: malformed frontmatter opener", adept.ErrSkillInvalid)
+		return nil, "", fmt.Errorf("parse %s: %w: malformed frontmatter opener", label, sentinel)
 	}
 	// Search for the closing "\n---\n" or "\n---" at EOF.
 	closer := []byte("\n---\n")
@@ -86,19 +103,13 @@ func (p *parser) ParseFrontmatter(skillMD []byte) (*adept.Skill, string, error) 
 			endIdx = len(rest) - len("\n---")
 			bodyStart = len(rest)
 		} else {
-			return nil, "", fmt.Errorf("parse SKILL.md: %w: missing frontmatter terminator", adept.ErrSkillInvalid)
+			return nil, "", fmt.Errorf("parse %s: %w: missing frontmatter terminator", label, sentinel)
 		}
 	}
-	fmYAML := rest[:endIdx]
-	s, err := p.ParseSkillYAML(fmYAML)
-	if err != nil {
-		return nil, "", err
-	}
-	body := ""
 	if bodyStart < len(rest) {
 		body = string(rest[bodyStart:])
 	}
-	return s, body, nil
+	return rest[:endIdx], body, nil
 }
 
 // applyDefaults fills in fields that the schema models as defaults but YAML
@@ -107,11 +118,4 @@ func applyDefaults(s *adept.Skill) {
 	if s.Activation == "" {
 		s.Activation = adept.ActivationAgent
 	}
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

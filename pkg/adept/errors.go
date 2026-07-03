@@ -6,6 +6,8 @@ import "errors"
 var (
 	ErrSkillNotFound      = errors.New("skill not found")
 	ErrSkillInvalid       = errors.New("skill invalid")
+	ErrAgentNotFound      = errors.New("agent not found")
+	ErrAgentInvalid       = errors.New("agent invalid")
 	ErrLockSchemaMismatch = errors.New("lockfile schema mismatch")
 	ErrBudgetOverflow     = errors.New("aggregator budget overflow")
 	ErrAdapterInvalid     = errors.New("adapter invalid")
