@@ -71,6 +71,7 @@ type statusReport struct {
 	SkillsCanonical  int                `json:"skillsCanonical"`
 	SkillsPrivate    int                `json:"skillsPrivate"`
 	SkillsFromLibs   int                `json:"skillsFromLibraries"`
+	AgentsCanonical  int                `json:"agentsCanonical"`
 	MissingLibraries int                `json:"missingLibraries"`
 	UpdatableLibs    int                `json:"updatableLibraries"`
 	DriftedHarnesses int                `json:"driftedHarnesses"`
@@ -122,6 +123,9 @@ func (r *statusRenderable) Plain(w io.Writer) error {
 	} else {
 		fmt.Fprintf(w, "skills: %d in project canonical, %d resolved from libraries\n",
 			rep.SkillsCanonical, rep.SkillsFromLibs)
+	}
+	if rep.AgentsCanonical > 0 {
+		fmt.Fprintf(w, "agents: %d in project canonical\n", rep.AgentsCanonical)
 	}
 	if len(rep.Harnesses) == 0 {
 		fmt.Fprintln(w, "harnesses: (none enabled — run `adept harness add <id>`)")
@@ -263,6 +267,11 @@ func collectStatus(ctx context.Context, d *Deps, fetch bool) (statusReport, erro
 	if rep.SkillsFromLibs < 0 {
 		rep.SkillsFromLibs = 0
 	}
+	agents, err := p.ListAgents()
+	if err != nil {
+		return rep, err
+	}
+	rep.AgentsCanonical = len(agents)
 
 	// Harness state — only run the drift report when harnesses are
 	// enabled, otherwise we'd render the whole world for nothing.

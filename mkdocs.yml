@@ -78,6 +78,7 @@ nav:
       - Your first skill: getting-started/first-skill.md
   - Concepts:
       - Canonical skills: concepts/canonical-skills.md
+      - Canonical agents: concepts/agents.md
       - Harnesses & adapters: concepts/harnesses.md
       - Libraries: concepts/libraries.md
       - Layouts: concepts/layouts.md
@@ -88,6 +89,7 @@ nav:
       - Importing existing rules: guides/importing.md
       - Vendoring a library in-repo: guides/vendoring.md
       - Git drift hook: guides/git-hook.md
+      - Composing loops: guides/loops.md
       - Safety scans & LLM config: guides/safety-scans.md
   - Command Reference: reference/commands.md
   - Harness Comparison: harness-comparison.md

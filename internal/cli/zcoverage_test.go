@@ -39,13 +39,16 @@ func testDeps(t *testing.T, projectRoot, libraryRoot string) *Deps {
 	t.Helper()
 	parser := canonical.NewParser()
 	writer := fsutil.NewWriter()
+	agentValidator, err := canonical.NewAgentValidator()
+	require.NoError(t, err)
 	return &Deps{
-		Flags:  &GlobalFlags{ProjectDir: projectRoot, LibraryDir: libraryRoot},
-		Parser: parser,
-		Hasher: hash.NewHasher(),
-		Config: config.NewStore(writer.AtomicWrite),
-		Writer: writer,
-		Log:    log.NewLogger(log.Level("error"), false, io.Discard),
+		Flags:          &GlobalFlags{ProjectDir: projectRoot, LibraryDir: libraryRoot},
+		Parser:         parser,
+		AgentValidator: agentValidator,
+		Hasher:         hash.NewHasher(),
+		Config:         config.NewStore(writer.AtomicWrite),
+		Writer:         writer,
+		Log:            log.NewLogger(log.Level("error"), false, io.Discard),
 	}
 }
 
@@ -89,7 +92,7 @@ func TestSeedDefaultSkills(t *testing.T) {
 	// First seed writes every bundled default.
 	first, err := seedDefaultSkills(p)
 	require.NoError(t, err)
-	require.ElementsMatch(t, []string{"adept-self-improve", "authoring-adept-skills", "expertise-exchange", "using-adept"}, first)
+	require.ElementsMatch(t, []string{"adept-self-improve", "authoring-adept-agents", "authoring-adept-loops", "authoring-adept-skills", "expertise-exchange", "using-adept"}, first)
 	for _, id := range first {
 		require.True(t, p.HasSkill(id))
 		require.DirExists(t, filepath.Join(p.BaseSnapshotsDir(), id))

@@ -1,0 +1,4 @@
+description = 'Adversarially reviews drafted changes. Use after any code edit.'
+developer_instructions = "You are an adversarial reviewer.\n\nRun the tests before judging.\n"
+model = 'gpt-5.2-codex'
+name = 'reviewer'

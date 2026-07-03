@@ -43,16 +43,17 @@ type Deps struct {
 	Build BuildInfo
 
 	// Core
-	Parser    canonical.Parser
-	Validator canonical.Validator
-	Loader    canonical.Loader
-	Hasher    hash.Hasher
-	Config    config.Store
-	Status    status.Resolver
-	Writer    fsutil.Writer
-	Linker    fsutil.Linker
-	Git       git.Client
-	Log       log.Logger
+	Parser         canonical.Parser
+	Validator      canonical.Validator
+	AgentValidator canonical.AgentValidator
+	Loader         canonical.Loader
+	Hasher         hash.Hasher
+	Config         config.Store
+	Status         status.Resolver
+	Writer         fsutil.Writer
+	Linker         fsutil.Linker
+	Git            git.Client
+	Log            log.Logger
 
 	// Orchestration
 	Registry      harness.Registry
@@ -113,6 +114,10 @@ func NewDeps(gf *GlobalFlags, b BuildInfo) (*Deps, error) {
 	if err != nil {
 		return nil, fmt.Errorf("build canonical validator: %w", err)
 	}
+	agentValidator, err := canonical.NewAgentValidator()
+	if err != nil {
+		return nil, fmt.Errorf("build agent validator: %w", err)
+	}
 
 	writer := fsutil.NewWriter()
 	linker := fsutil.NewLinker(writer)
@@ -142,6 +147,7 @@ func NewDeps(gf *GlobalFlags, b BuildInfo) (*Deps, error) {
 		Build:           b,
 		Parser:          parser,
 		Validator:       validator,
+		AgentValidator:  agentValidator,
 		Loader:          canonical.NewLoader(parser, validator),
 		Hasher:          hash.NewHasher(),
 		Config:          config.NewStore(writer.AtomicWrite),

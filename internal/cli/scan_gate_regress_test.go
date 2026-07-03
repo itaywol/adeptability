@@ -49,6 +49,15 @@ func (s scanGateRegressStubProject) InstallPrivateSkill(*adept.Skill, []adept.Sk
 	return nil
 }
 func (s scanGateRegressStubProject) RemovePrivateSkill(string) error { return nil }
+func (s scanGateRegressStubProject) AgentsDir() string               { return "" }
+func (s scanGateRegressStubProject) AgentPath(string) string         { return "" }
+func (s scanGateRegressStubProject) HasAgent(string) bool            { return false }
+func (s scanGateRegressStubProject) GetAgent(string) (*adept.Agent, error) {
+	return nil, nil
+}
+func (s scanGateRegressStubProject) ListAgents() ([]*adept.Agent, error) { return nil, nil }
+func (s scanGateRegressStubProject) InstallAgent(*adept.Agent) error     { return nil }
+func (s scanGateRegressStubProject) UninstallAgent(string) error         { return nil }
 
 var _ project.Project = scanGateRegressStubProject{}
 

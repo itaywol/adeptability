@@ -108,7 +108,24 @@ type Target struct {
 	Name     string
 	Body     []byte
 	Sidecars map[string][]byte
+	// BodyLabel names the body document in finding locations. Empty means
+	// "SKILL.md" (the historical default); agent checks pass "<id>.md".
+	BodyLabel string
 }
+
+// bodyLabel returns the location label for body findings.
+func (t Target) bodyLabel() string {
+	if t.BodyLabel != "" {
+		return t.BodyLabel
+	}
+	return "SKILL.md"
+}
+
+// StripFences exposes the fence stripper for sibling analyzers (agent lint):
+// it removes fenced code blocks so prose-targeted patterns do not fire on
+// usage examples. The bool is false when fences are unbalanced — callers must
+// then treat the stripped view as untrustworthy and fall back to the raw body.
+func StripFences(body string) (string, bool) { return stripFences(body) }
 
 // Scanner is the static analyzer. NewScanner returns one wired with the
 // canonical rule list; tests pass custom Rules to exercise edge cases.
@@ -178,7 +195,7 @@ func (s *Scanner) Scan(target Target) Report {
 				Category:    rule.Category,
 				Severity:    rule.Severity,
 				Confidence:  rule.Confidence,
-				Location:    "SKILL.md",
+				Location:    target.bodyLabel(),
 				Issue:       rule.Issue,
 				Evidence:    snippet(ev),
 				Risk:        rule.Risk,

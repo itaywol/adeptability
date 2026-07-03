@@ -107,8 +107,17 @@ func writeStringList(b *strings.Builder, key string, xs []string) {
 	}
 }
 
+// yamlQuote emits s as a double-quoted YAML scalar. Control characters are
+// escaped (all valid escapes inside double quotes) — without this a
+// multi-line description would be written with literal newlines, which
+// yaml.v3 folds to spaces on reparse (silent mangling + perpetual drift), and
+// a line consisting of exactly "---" would truncate the frontmatter and make
+// the file we just wrote unparseable.
 func yamlQuote(s string) string {
 	escaped := strings.ReplaceAll(s, `\`, `\\`)
 	escaped = strings.ReplaceAll(escaped, `"`, `\"`)
+	escaped = strings.ReplaceAll(escaped, "\n", `\n`)
+	escaped = strings.ReplaceAll(escaped, "\r", `\r`)
+	escaped = strings.ReplaceAll(escaped, "\t", `\t`)
 	return `"` + escaped + `"`
 }

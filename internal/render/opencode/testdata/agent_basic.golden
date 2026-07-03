@@ -1,0 +1,7 @@
+---
+description: Adversarially reviews drafted changes. Use after any code edit.
+mode: subagent
+model: anthropic/claude-sonnet-4-20250514
+---
+
+You are an adversarial reviewer.

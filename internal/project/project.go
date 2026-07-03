@@ -63,6 +63,22 @@ type Project interface {
 	GetSkill(id string) (*adept.Skill, error)
 	ListSkills() ([]*adept.Skill, error)
 
+	// Agent store. Agents are single canonical files under
+	// <root>/.adeptability/agents/<id>.md in both layouts (no
+	// published/private split — agents are never published to consumers).
+	AgentsDir() string
+	// AgentPath returns <AgentsDir>/<id>.md.
+	AgentPath(id string) string
+	HasAgent(id string) bool
+	GetAgent(id string) (*adept.Agent, error)
+	ListAgents() ([]*adept.Agent, error)
+	// InstallAgent writes the canonical agent file (no base snapshot: agents
+	// have no 3-way merge; sync overwrites and drift warns).
+	InstallAgent(a *adept.Agent) error
+	// UninstallAgent removes the canonical agent file. Returns
+	// adept.ErrAgentNotFound when id is not installed.
+	UninstallAgent(id string) error
+
 	// Private dev-canonical accessors (library layout only). In the consumer
 	// layout HasPrivateSkill is always false, GetPrivateSkill returns
 	// ErrSkillNotFound, ListPrivateSkills returns nil, and the install/remove

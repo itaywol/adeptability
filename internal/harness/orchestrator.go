@@ -75,6 +75,9 @@ type Orchestrator interface {
 	Sync(ctx context.Context, p project.Project, opts SyncOptions) ([]SyncResult, error)
 	Status(ctx context.Context, p project.Project, opts StatusOptions) ([]adept.DriftReport, error)
 	Import(ctx context.Context, p project.Project, opts ImportOptions) (ImportReport, error)
+	// ImportAgents reverse-renders on-disk harness agent files into project
+	// canonical agents. Harnesses without AgentSupport contribute nothing.
+	ImportAgents(ctx context.Context, p project.Project, opts ImportOptions) (AgentImportReport, error)
 }
 
 // NewOrchestrator wires the orchestrator. The canonical.Parser is used by
@@ -125,6 +128,10 @@ func (o *orchestrator) Sync(ctx context.Context, p project.Project, opts SyncOpt
 			return nil, fmt.Errorf("sync: list skills: %w", err)
 		}
 	}
+	agents, err := p.ListAgents()
+	if err != nil {
+		return nil, fmt.Errorf("sync: list agents: %w", err)
+	}
 	results := make([]SyncResult, 0, len(harnessIDs))
 	// Mode is a single global default applied to every harness in this
 	// project. If a symlink falls back to a copy (FS does not support
@@ -144,10 +151,23 @@ func (o *orchestrator) Sync(ctx context.Context, p project.Project, opts SyncOpt
 		if err != nil {
 			return results, fmt.Errorf("sync %q: %w", hid, err)
 		}
-		results = append(results, res)
 		if flippedMode == adept.ModeCopy && resolvedMode != adept.ModeCopy {
 			resolvedMode = adept.ModeCopy
 		}
+		agentRes, agentFlipped, err := o.syncHarnessAgents(ctx, p, adapter, agents, opts, resolvedMode)
+		if err != nil {
+			return results, fmt.Errorf("sync %q agents: %w", hid, err)
+		}
+		if agentFlipped == adept.ModeCopy && resolvedMode != adept.ModeCopy {
+			resolvedMode = adept.ModeCopy
+		}
+		if hid == "cursor" {
+			if w := cursorClaudeAgentDedupWarning(harnessIDs, agents); w != "" {
+				agentRes.Warnings = append(agentRes.Warnings, w)
+			}
+		}
+		mergeAgentSyncResult(&res, agentRes)
+		results = append(results, res)
 	}
 	if !opts.DryRun && resolvedMode != desiredMode {
 		cfg.Mode = resolvedMode
@@ -429,6 +449,10 @@ func (o *orchestrator) Status(ctx context.Context, p project.Project, opts Statu
 			return nil, fmt.Errorf("status: list skills: %w", err)
 		}
 	}
+	agents, err := p.ListAgents()
+	if err != nil {
+		return nil, fmt.Errorf("status: list agents: %w", err)
+	}
 	reports := make([]adept.DriftReport, 0, len(ids))
 	for _, hid := range ids {
 		adapter, err := o.reg.Get(hid)
@@ -451,6 +475,22 @@ func (o *orchestrator) Status(ctx context.Context, p project.Project, opts Statu
 		report, err := adapter.Validate(p.Root(), expected)
 		if err != nil {
 			return reports, fmt.Errorf("status %q: validate: %w", hid, err)
+		}
+		// Agent drift folds into the same per-harness report so status/diff
+		// and interactive sync-from cover agents with no extra plumbing.
+		if as, ok := adapter.(adept.AgentSupport); ok {
+			applicableAgents := filterAgentTargets(agents, hid)
+			if len(applicableAgents) > 0 {
+				agentParts, _, err := o.renderAllAgents(ctx, as, spec, applicableAgents, p)
+				if err != nil {
+					return reports, fmt.Errorf("status %q: render agents: %w", hid, err)
+				}
+				agentDrift, err := as.ValidateAgents(p.Root(), agentParts)
+				if err != nil {
+					return reports, fmt.Errorf("status %q: validate agents: %w", hid, err)
+				}
+				mergeDrift(&report, agentDrift)
+			}
 		}
 		report.Harness = hid
 		reports = append(reports, report)

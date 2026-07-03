@@ -44,7 +44,7 @@ func newSkillCmd(d *Deps) *cobra.Command {
 // ---------- skill add ----------
 
 func newSkillAddCmd(d *Deps) *cobra.Command {
-	var fromPath string
+	var fromPath, template string
 	var openEditor, publish bool
 	c := &cobra.Command{
 		Use:   "skill add <id>",
@@ -53,8 +53,10 @@ func newSkillAddCmd(d *Deps) *cobra.Command {
 	}
 	c.Use = "add <id>"
 	c.Flags().StringVar(&fromPath, "from", "", "import an existing skill directory into the project")
+	c.Flags().StringVar(&template, "template", "default", "scaffold template: default|triage (loop discovery)")
 	c.Flags().BoolVar(&openEditor, "edit", false, "open the new SKILL.md in $EDITOR after creation")
 	c.Flags().BoolVar(&publish, "publish", false, "in a library project, add to the PUBLISHED skills/ (default is the private dev-canonical)")
+	_ = c.RegisterFlagCompletionFunc("template", cobra.FixedCompletions([]cobra.Completion{"default", "triage"}, cobra.ShellCompDirectiveNoFileComp))
 	c.RunE = func(cmd *cobra.Command, args []string) error {
 		id := args[0]
 		if err := validateSkillID(id); err != nil {
@@ -94,10 +96,10 @@ func newSkillAddCmd(d *Deps) *cobra.Command {
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "imported %s from %s%s\n", id, fromPath, addedSuffix(private))
 		} else {
-			if err := writeSkillScaffold(p, id, private); err != nil {
+			if err := writeSkillScaffold(p, id, private, template); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "created %s%s\n", id, addedSuffix(private))
+			fmt.Fprintf(cmd.OutOrStdout(), "created %s (template: %s)%s\n", id, template, addedSuffix(private))
 		}
 
 		if openEditor {
@@ -121,10 +123,80 @@ func addedSuffix(private bool) string {
 	return ""
 }
 
-// writeSkillScaffold drops a minimal canonical SKILL.md so the user can
-// edit instead of staring at a blank file. The frontmatter has just
-// enough to parse cleanly.
-func writeSkillScaffold(p project.Project, id string, private bool) error {
+// skillScaffoldTemplates are the built-in `skill add --template` bodies.
+// "triage" is a loop-discovery skill: the structure automations should
+// trigger (Read → Judge → Write → Hand off → Stop) so the discovery logic
+// lives in a maintained skill, not a wall of instructions in a cron job. The
+// Stop section is the boundary the loop cannot infer — leave it out and the
+// loop acts with confidence it has not earned.
+var skillScaffoldTemplates = map[string]string{
+	"default": `---
+id: {id}
+description: <one-line summary of when this skill applies>
+activation: agent
+---
+# {id}
+
+<skill body — replace this paragraph with the instructions you want every
+enabled harness to honor when this skill activates>
+`,
+	"triage": `---
+id: {id}
+description: <what this loop discovers AND when it runs — e.g. "Morning triage — reads failed CI, new issues, and recent commits; writes actionable findings to state/{id}.md. Invoked by the daily automation.">
+activation: manual
+---
+# {id} — loop discovery
+
+## Read (the discovery inputs)
+
+- <CI runs failed since the last run>
+- <issues opened in the last 24 hours>
+- <commits merged since yesterday>
+- the previous ./state/{id}.md
+
+## Judge (the part that sets the ceiling)
+
+For each candidate, decide:
+
+- actionable now, or noise? Skip noise.
+- does it block a release? → priority
+- already tracked? → skip
+
+Keep only what is worth acting on today.
+
+## Write (the persistence output)
+
+Append to ./state/{id}.md, one row per finding:
+
+| finding | source | priority | status |
+
+Commit the file so the next run can read it — the agent forgets, the repo does not.
+
+## Hand off
+
+For each kept finding, emit a task line:
+
+    worktree=fix/<slug> goal=<stop-condition>
+
+## Stop (the boundary you keep for yourself)
+
+Never merge. Never delete. Anything you are less than confident about goes to
+./inbox/ for a human, not into a PR.
+`,
+}
+
+// writeSkillScaffold drops a canonical SKILL.md from the chosen template so
+// the user edits a structure instead of staring at a blank file.
+func writeSkillScaffold(p project.Project, id string, private bool, template string) error {
+	body, ok := skillScaffoldTemplates[template]
+	if !ok {
+		names := make([]string, 0, len(skillScaffoldTemplates))
+		for k := range skillScaffoldTemplates {
+			names = append(names, k)
+		}
+		sort.Strings(names)
+		return fmt.Errorf("unknown --template %q (want %s)", template, strings.Join(names, "|"))
+	}
 	skillsDir := p.SkillsDir()
 	if private {
 		skillsDir = p.PrivateSkillsDir()
@@ -133,20 +205,8 @@ func writeSkillScaffold(p project.Project, id string, private bool) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create skill dir: %w", err)
 	}
-	body := strings.Join([]string{
-		"---",
-		"id: " + id,
-		"description: <one-line summary of when this skill applies>",
-		"activation: agent",
-		"---",
-		"# " + id,
-		"",
-		"<skill body — replace this paragraph with the instructions you want every",
-		"enabled harness to honor when this skill activates>",
-		"",
-	}, "\n")
 	dest := filepath.Join(dir, adept.SkillFileName)
-	if err := os.WriteFile(dest, []byte(body), 0o644); err != nil {
+	if err := os.WriteFile(dest, []byte(strings.ReplaceAll(body, "{id}", id)), 0o644); err != nil {
 		return fmt.Errorf("write scaffold: %w", err)
 	}
 	// Published skills snapshot an empty base so future syncs treat them as a
