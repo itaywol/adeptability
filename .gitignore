@@ -16,3 +16,6 @@ coverage.txt
 cmd/adept/.adeptability/
 result
 result-*
+
+# generated demo recording (regenerate via assets/demo.sh)
+assets/demo.cast

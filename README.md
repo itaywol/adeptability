@@ -12,6 +12,10 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
 </p>
 
+<p align="center">
+  <img src="assets/demo.gif" alt="Write one skill, run adept sync, and it renders into Claude Code, Cursor, Codex, and OpenCode at once" width="760">
+</p>
+
 `adept` lets you author an AI coding skill (a prompt, rule, or procedure) — or a **subagent**
 (a reviewer, test-runner, or other specialist) — **once**, then render it accurately into
 Claude Code, Cursor, GitHub Copilot, OpenAI Codex, OpenCode, and 50+ other agents. It handles
