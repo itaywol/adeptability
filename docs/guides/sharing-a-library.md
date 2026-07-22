@@ -51,7 +51,7 @@ git add .adeptability/config.json && git commit -m "chore: add team-skills libra
 ## 3. Teammates onboard automatically
 
 A teammate cloning `webapp` gets the reference but not the skill content (it was never
-committed). They resolve it into their own store and materialize:
+committed). They resolve it into their own project-local `.adeptability/libs/` and materialize:
 
 ```bash
 git clone git@github.com:acme/webapp.git && cd webapp

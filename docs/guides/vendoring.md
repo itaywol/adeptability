@@ -18,6 +18,13 @@ Trade-off: the repo now carries the full skill content instead of just the `{nam
 ref}` pointer, and updates land as a normal commit (`adept library update` still works — it
 edits the clone in place) instead of a re-clone on every machine.
 
+!!! note "The ignore line comes back"
+    `adept library add` and `adept migrate` both re-append `libs/` to
+    `.adeptability/.gitignore` if it's missing (`adept library update` does not). Already-tracked
+    files stay tracked, but any *new* file added to the vendored clone afterward is now ignored
+    and silently skipped by a plain `git add`. Re-remove the line (or use `git add -f`) when
+    committing new vendored content.
+
 ## CI-hermetic use of `ADEPT_LIBRARY`
 
 Point `ADEPT_LIBRARY` at an in-repo path if you additionally want the *machine store* itself

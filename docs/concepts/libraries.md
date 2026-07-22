@@ -50,12 +50,14 @@ back to it from project scope:
   resolved from the machine store and suggesting `adept migrate` to localize it. This keeps a
   library added under `--global` (or a legacy project) usable from any project without
   re-cloning.
-- **`adept migrate`**: re-clones every configured library into
-  `<project>/.adeptability/libs/` so resolution stops depending on the machine store, then
-  ensures the project's `.gitignore` covers it. It only touches the project's own clone
-  directory — the machine store is never deleted, since the global scope and other projects
-  may still be using it. Running it against `--global` is rejected (global libraries already
-  live in the machine store — there's nothing to localize).
+- **`adept migrate`**: for every configured library, clones it into
+  `<project>/.adeptability/libs/` if it isn't already a valid local git clone there
+  (libraries already local are left untouched and reported as such), so resolution stops
+  depending on the machine store. It then ensures the project's `.gitignore` covers the clone
+  dir. It only touches the project's own clone directory — the machine store is never deleted,
+  since the global scope and other projects may still be using it. Running it against
+  `--global` is rejected (global libraries already live in the machine store — there's nothing
+  to localize).
 
 ## Adding a library
 
