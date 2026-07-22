@@ -46,6 +46,9 @@ func newHookInstallCmd(d *Deps) *cobra.Command {
 	}
 	c.Flags().StringVar(&mode, "mode", "fail", "hook behavior on drift: fail|fix")
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
+		if err := rejectGlobal(d, "git hooks"); err != nil {
+			return err
+		}
 		root, err := d.ResolveProjectRoot()
 		if err != nil {
 			return err

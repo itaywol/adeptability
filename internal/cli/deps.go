@@ -286,6 +286,16 @@ func (d *Deps) ScopedProject() (project.Project, bool, error) {
 		return nil, false, err
 	}
 	if root, ok := findProjectRoot(start); ok {
+		// A `--global` render seeds ~/.adeptability/config.json, whose parent
+		// is $HOME. Left alone, walk-up from any dir under $HOME would then
+		// discover that config and resolve $HOME as a PROJECT — rendering
+		// AGENTS.md/agents into $HOME and bypassing the skills-only global
+		// rule. When the found .adeptability IS the library root, it is the
+		// global scope, not a project: return the global project instead.
+		if libRoot, lerr := d.ResolveLibraryRoot(); lerr == nil && root == filepath.Dir(libRoot) {
+			p, err := d.GlobalProject()
+			return p, true, err
+		}
 		return d.projectAt(root, d.detectLibraryLayout(root)), false, nil
 	}
 	if d.Log != nil {
@@ -293,6 +303,17 @@ func (d *Deps) ScopedProject() (project.Project, bool, error) {
 	}
 	p, err := d.GlobalProject()
 	return p, true, err
+}
+
+// rejectGlobal returns a clear error when --global is set. Agents and loops
+// are project-scope only by design — global scope renders skills into
+// home-level harness config and has no defined agent/loop target — so these
+// commands refuse --global up front instead of silently ignoring it.
+func rejectGlobal(d *Deps, what string) error {
+	if d.Flags != nil && d.Flags.Global {
+		return fmt.Errorf("%s are project-scope only — global scope not supported", what)
+	}
+	return nil
 }
 
 // ProjectWithLayout returns a Project for the resolved root forcing the given

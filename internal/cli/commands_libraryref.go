@@ -241,12 +241,22 @@ func newLibraryRemoveCmd(d *Deps) *cobra.Command {
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "library %q removed from config\n", name)
 		if deleteClone {
-			libsRoot := d.LibsRootFor(p)
-			dest := filepath.Join(libsRoot, name)
-			if err := os.RemoveAll(dest); err != nil && !errors.Is(err, fs.ErrNotExist) {
-				return fmt.Errorf("delete clone %s: %w", dest, err)
+			// Resolve the real on-disk clone before deleting. A machine-store
+			// fallback clone is shared across every project resolving from it,
+			// so --purge must never delete it (and must not falsely claim it
+			// did): only a scope-local clone is ours to remove.
+			dest, src := resolveLibDirSource(d, p, name)
+			switch src {
+			case libLocal:
+				if err := os.RemoveAll(dest); err != nil && !errors.Is(err, fs.ErrNotExist) {
+					return fmt.Errorf("delete clone %s: %w", dest, err)
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "library %q clone deleted (%s)\n", name, dest)
+			case libFallback:
+				fmt.Fprintf(cmd.OutOrStdout(), "library %q machine-store clone left intact (shared across projects): %s\n", name, dest)
+			case libMissing:
+				fmt.Fprintf(cmd.OutOrStdout(), "library %q had no local clone to delete\n", name)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "library %q clone deleted (%s)\n", name, dest)
 		}
 		return nil
 	}

@@ -71,6 +71,9 @@ func newLoopAddCmd(d *Deps) *cobra.Command {
 	c.Flags().BoolVar(&withWorkflow, "workflow", false, "also write a GitHub Actions cron skeleton (.github/workflows/adept-loop-<id>.yml)")
 	c.Flags().BoolVar(&openEditor, "edit", false, "open the discovery skill in $EDITOR after creation")
 	c.RunE = func(cmd *cobra.Command, args []string) error {
+		if err := rejectGlobal(d, "loops"); err != nil {
+			return err
+		}
 		id := args[0]
 		if err := validateSkillID(id); err != nil {
 			return err

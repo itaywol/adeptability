@@ -112,6 +112,9 @@ func newAgentAddCmd(d *Deps) *cobra.Command {
 	c.Flags().BoolVar(&openEditor, "edit", false, "open the new agent file in $EDITOR after creation")
 	_ = c.RegisterFlagCompletionFunc("template", cobra.FixedCompletions([]cobra.Completion{"default", "evaluator"}, cobra.ShellCompDirectiveNoFileComp))
 	c.RunE = func(cmd *cobra.Command, args []string) error {
+		if err := rejectGlobal(d, "agents"); err != nil {
+			return err
+		}
 		id := args[0]
 		if err := validateAgentID(id); err != nil {
 			return err
@@ -191,6 +194,9 @@ func newAgentEditCmd(d *Deps) *cobra.Command {
 		ValidArgsFunction: projectAgentCompletion(d),
 	}
 	c.RunE = func(cmd *cobra.Command, args []string) error {
+		if err := rejectGlobal(d, "agents"); err != nil {
+			return err
+		}
 		id := args[0]
 		p, err := d.Project()
 		if err != nil {
@@ -214,6 +220,9 @@ func newAgentRemoveCmd(d *Deps) *cobra.Command {
 		ValidArgsFunction: projectAgentCompletion(d),
 	}
 	c.RunE = func(cmd *cobra.Command, args []string) error {
+		if err := rejectGlobal(d, "agents"); err != nil {
+			return err
+		}
 		id := args[0]
 		p, err := d.Project()
 		if err != nil {
@@ -237,6 +246,9 @@ func newAgentListCmd(d *Deps) *cobra.Command {
 		Args:  cobra.NoArgs,
 	}
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
+		if err := rejectGlobal(d, "agents"); err != nil {
+			return err
+		}
 		p, err := d.Project()
 		if err != nil {
 			return err

@@ -113,14 +113,13 @@ func newInitCmd(d *Deps) *cobra.Command {
 			cfg.Mode = mode
 		}
 
-		// 3) honor --from by cloning into $ADEPT_LIBRARY/libs/<name>/ and
-		// appending an entry to cfg.Libraries. Multiple `init --from` calls
-		// with distinct --name stack libraries (first-wins on collision).
+		// 3) honor --from by cloning into the project's scope-local library
+		// root (<project>/.adeptability/libs/<name>/) and appending an entry to
+		// cfg.Libraries. Multiple `init --from` calls with distinct --name stack
+		// libraries (first-wins on collision). The clone is machine-local state,
+		// so the scope .gitignore is extended to keep it out of version control.
 		if fromURL != "" {
-			libsRoot, err := d.ResolveLibrariesRoot()
-			if err != nil {
-				return err
-			}
+			libsRoot := d.LibsRootFor(p)
 			if err := d.Writer.EnsureDir(libsRoot); err != nil {
 				return fmt.Errorf("create libraries root: %w", err)
 			}
@@ -133,6 +132,9 @@ func newInitCmd(d *Deps) *cobra.Command {
 				Remote: fromURL,
 				Ref:    ref,
 			})
+			if err := ensureScopeGitignore(d.Writer, p.BaseDir()); err != nil {
+				d.Log.Warn("write .adeptability/.gitignore", "err", err)
+			}
 			fmt.Fprintf(w, "library %q cloned from %s into %s\n", libName, fromURL, dest)
 		}
 
