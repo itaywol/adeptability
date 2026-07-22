@@ -107,6 +107,7 @@ func NewRoot(b BuildInfo) *cobra.Command {
 		newAgentCmd(deps),
 		newLoopCmd(deps),
 		newLibraryCmd(deps),
+		newMigrateCmd(deps),
 		newConfigCmd(deps),
 		newExchangeCmd(deps),
 	)

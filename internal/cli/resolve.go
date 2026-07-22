@@ -113,6 +113,12 @@ func openMultiLibrary(d *Deps, p project.Project) (library.Multi, error) {
 	return library.NewMulti(named), nil
 }
 
+// dirExists reports whether path exists and is a directory.
+func dirExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
+}
+
 // libResolveSource classifies how resolveLibDirSource located a library.
 type libResolveSource int
 
