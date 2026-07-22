@@ -239,7 +239,7 @@ func (o *orchestrator) syncHarness(
 		case opts.DryRun:
 			res.Written = append(res.Written, out.Path)
 		default:
-			written, flipped, err := o.write(p.Root(), absPath, out, resolvedMode)
+			written, flipped, err := o.write(p, absPath, out, resolvedMode)
 			if err != nil {
 				return res, resolvedMode, err
 			}
@@ -272,7 +272,7 @@ func (o *orchestrator) syncHarness(
 				}
 			}
 			sideOut := adept.RenderOutput{Path: sideOutRel, Bytes: side.Bytes, Mode: mode}
-			written, flipped, err := o.write(p.Root(), sideAbs, sideOut, resolvedMode)
+			written, flipped, err := o.write(p, sideAbs, sideOut, resolvedMode)
 			if err != nil {
 				return res, resolvedMode, fmt.Errorf("write sidecar %q: %w", sideOutRel, err)
 			}
@@ -353,7 +353,7 @@ func (o *orchestrator) renderAll(
 	return filtered, dropped, nil
 }
 
-func (o *orchestrator) write(projectRoot, absPath string, out adept.RenderOutput, mode adept.HarnessMode) (bool, bool, error) {
+func (o *orchestrator) write(p project.Project, absPath string, out adept.RenderOutput, mode adept.HarnessMode) (bool, bool, error) {
 	fileMode := out.Mode
 	if fileMode == 0 {
 		fileMode = 0o644
@@ -364,7 +364,7 @@ func (o *orchestrator) write(projectRoot, absPath string, out adept.RenderOutput
 		}
 		return true, false, nil
 	}
-	staging := stagingPathFor(projectRoot, out)
+	staging := stagingPathFor(p, out)
 	if err := o.writer.AtomicWrite(staging, out.Bytes, fileMode); err != nil {
 		return false, false, fmt.Errorf("stage %q: %w", staging, err)
 	}
@@ -693,8 +693,8 @@ func filterTargets(skills []*adept.Skill, harnessID string) []*adept.Skill {
 	return out
 }
 
-func stagingPathFor(projectRoot string, out adept.RenderOutput) string {
-	return filepath.Join(projectRoot, adept.BaseDirName, "staging", out.Path)
+func stagingPathFor(p project.Project, out adept.RenderOutput) string {
+	return filepath.Join(p.BaseDir(), adept.StagingDir, out.Path)
 }
 
 // aggregatorDrops returns the SkillIDs that appear in inputs but not in

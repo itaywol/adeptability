@@ -8,7 +8,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/itaywol/adeptability/internal/canonical"
+	"github.com/itaywol/adeptability/internal/config"
 	"github.com/itaywol/adeptability/internal/fsutil"
+	"github.com/itaywol/adeptability/internal/hash"
+	"github.com/itaywol/adeptability/internal/project"
 	"github.com/itaywol/adeptability/pkg/adept"
 )
 
@@ -142,7 +146,8 @@ func TestOrchestrator_Sync_SymlinkFailureDoesNotDestroyTarget(t *testing.T) {
 		writer: fsutil.NewWriter(),
 		linker: orchestratorRegressFailLinker{},
 	}
-	_, _, err := o.write(root, absPath, out, adept.ModeSymlink)
+	p := project.New(root, canonical.NewParser(), hash.NewHasher(), config.NewStore(nil), fsutil.NewWriter())
+	_, _, err := o.write(p, absPath, out, adept.ModeSymlink)
 	require.Error(t, err)
 
 	// The original file must still be present and unchanged.

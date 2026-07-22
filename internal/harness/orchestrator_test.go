@@ -145,6 +145,28 @@ func TestOrchestrator_Sync_PerSkillWritesFiles(t *testing.T) {
 	}
 }
 
+// When a Project's BaseDir is overridden (global scope), symlink staging must
+// land under p.BaseDir()/staging/, not under <root>/.adeptability/staging/.
+func TestOrchestrator_Write_StagingUnderBaseDir(t *testing.T) {
+	tmp := t.TempDir()
+	root := filepath.Join(tmp, "render-root")
+	base := filepath.Join(tmp, "custom-lib-root")
+	require.NoError(t, os.MkdirAll(root, 0o755))
+	p := project.NewGlobal(root, base, canonical.NewParser(), hash.NewHasher(),
+		config.NewStore(nil), fsutil.NewWriter())
+
+	w := fsutil.NewWriter()
+	o := &orchestrator{writer: w, linker: fsutil.NewLinker(w)}
+
+	out := adept.RenderOutput{Path: filepath.Join(".alpha", "skill-a.md"), Bytes: []byte("body\n"), Mode: 0o644}
+	absPath := filepath.Join(root, out.Path)
+	_, _, err := o.write(p, absPath, out, adept.ModeSymlink)
+	require.NoError(t, err)
+
+	require.FileExists(t, filepath.Join(base, adept.StagingDir, out.Path))
+	require.NoFileExists(t, filepath.Join(root, adept.BaseDirName, adept.StagingDir, out.Path))
+}
+
 func TestOrchestrator_Sync_CollectsRendererWarnings(t *testing.T) {
 	p := newProj(t)
 	installSkill(t, p, "skill-a")

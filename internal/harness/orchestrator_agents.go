@@ -90,7 +90,7 @@ func (o *orchestrator) syncHarnessAgents(
 			res.Written = append(res.Written, out.Path)
 			continue
 		}
-		written, flipped, err := o.write(p.Root(), absPath, out, resolvedMode)
+		written, flipped, err := o.write(p, absPath, out, resolvedMode)
 		if err != nil {
 			return res, resolvedMode, err
 		}
