@@ -15,6 +15,7 @@ var (
 	ErrSymlinkUnsupported = errors.New("symlink unsupported on this filesystem")
 	ErrMergeConflict      = errors.New("merge conflict")
 	ErrMergeBaseMissing   = errors.New("merge base snapshot missing")
+	ErrNotGlobalCapable   = errors.New("harness has no global config location")
 
 	// Exchange (team expertise billboard) sentinels.
 	ErrExchangeUnauthorized  = errors.New("exchange: unauthorized")

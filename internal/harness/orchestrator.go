@@ -33,6 +33,10 @@ type SyncOptions struct {
 	// mode). The CLI layer fills this in with the project ∪ library union
 	// so multi-library projects render library skills too.
 	Skills []*adept.Skill
+	// Global renders into the harness's home-level config location
+	// (Spec().GlobalOutput) instead of the project-relative OutputPath.
+	// Harnesses without a GlobalOutput fail with adept.ErrNotGlobalCapable.
+	Global bool
 }
 
 // SyncResult summarizes what Sync did (or would have done, when DryRun) for
@@ -66,6 +70,10 @@ type StatusOptions struct {
 	// mode). The CLI fills this with the resolved union so multi-library
 	// projects do not report library skills as "missing".
 	Skills []*adept.Skill
+	// Global compares against the harness's home-level config location
+	// (Spec().GlobalOutput) instead of the project-relative OutputPath.
+	// Harnesses without a GlobalOutput fail with adept.ErrNotGlobalCapable.
+	Global bool
 }
 
 // Orchestrator drives the harness adapters. It is the only component that
@@ -154,19 +162,23 @@ func (o *orchestrator) Sync(ctx context.Context, p project.Project, opts SyncOpt
 		if flippedMode == adept.ModeCopy && resolvedMode != adept.ModeCopy {
 			resolvedMode = adept.ModeCopy
 		}
-		agentRes, agentFlipped, err := o.syncHarnessAgents(ctx, p, adapter, agents, opts, resolvedMode)
-		if err != nil {
-			return results, fmt.Errorf("sync %q agents: %w", hid, err)
-		}
-		if agentFlipped == adept.ModeCopy && resolvedMode != adept.ModeCopy {
-			resolvedMode = adept.ModeCopy
-		}
-		if hid == "cursor" {
-			if w := cursorClaudeAgentDedupWarning(harnessIDs, agents); w != "" {
-				agentRes.Warnings = append(agentRes.Warnings, w)
+		// v1: agents are project-scope only; global agent targets are not yet
+		// defined, so global sync renders skills only.
+		if !opts.Global {
+			agentRes, agentFlipped, err := o.syncHarnessAgents(ctx, p, adapter, agents, opts, resolvedMode)
+			if err != nil {
+				return results, fmt.Errorf("sync %q agents: %w", hid, err)
 			}
+			if agentFlipped == adept.ModeCopy && resolvedMode != adept.ModeCopy {
+				resolvedMode = adept.ModeCopy
+			}
+			if hid == "cursor" {
+				if w := cursorClaudeAgentDedupWarning(harnessIDs, agents); w != "" {
+					agentRes.Warnings = append(agentRes.Warnings, w)
+				}
+			}
+			mergeAgentSyncResult(&res, agentRes)
 		}
-		mergeAgentSyncResult(&res, agentRes)
 		results = append(results, res)
 	}
 	if !opts.DryRun && resolvedMode != desiredMode {
@@ -188,13 +200,17 @@ func (o *orchestrator) syncHarness(
 ) (SyncResult, adept.HarnessMode, error) {
 	spec := adapter.Spec()
 	res := SyncResult{Harness: spec.ID}
+	spec, err := effectiveSpec(spec, opts.Global)
+	if err != nil {
+		return res, mode, err
+	}
 	// Filter by skill.Targets when set.
 	applicable := filterTargets(skills, spec.ID)
 	if len(applicable) == 0 {
 		return res, mode, nil
 	}
 	// Concurrent render fan-out.
-	parts, dropped, err := o.renderAll(ctx, adapter, applicable, p)
+	parts, dropped, err := o.renderAll(ctx, adapter, spec, applicable, p)
 	if err != nil {
 		return res, mode, err
 	}
@@ -304,14 +320,14 @@ func (o *orchestrator) syncHarness(
 func (o *orchestrator) renderAll(
 	ctx context.Context,
 	adapter adept.HarnessAdapter,
+	spec adept.HarnessSpec,
 	skills []*adept.Skill,
 	p project.Project,
 ) ([]adept.RenderOutput, []string, error) {
 	renderer := adapter.Renderer()
 	if renderer == nil {
-		return nil, nil, fmt.Errorf("adapter %q: %w: nil renderer", adapter.Spec().ID, adept.ErrAdapterInvalid)
+		return nil, nil, fmt.Errorf("adapter %q: %w: nil renderer", spec.ID, adept.ErrAdapterInvalid)
 	}
-	spec := adapter.Spec()
 	projInfo := adept.ProjectInfo{Name: filepath.Base(p.Root()), Root: p.Root()}
 
 	outputs := make([]adept.RenderOutput, len(skills))
@@ -459,13 +475,16 @@ func (o *orchestrator) Status(ctx context.Context, p project.Project, opts Statu
 		if err != nil {
 			return reports, fmt.Errorf("status %q: %w", hid, err)
 		}
+		spec, err := effectiveSpec(adapter.Spec(), opts.Global)
+		if err != nil {
+			return reports, fmt.Errorf("status %q: %w", hid, err)
+		}
 		applicable := filterTargets(skills, hid)
-		parts, _, err := o.renderAll(ctx, adapter, applicable, p)
+		parts, _, err := o.renderAll(ctx, adapter, spec, applicable, p)
 		if err != nil {
 			return reports, fmt.Errorf("status %q: %w", hid, err)
 		}
 		expected := parts
-		spec := adapter.Spec()
 		if spec.Kind != adept.KindPerSkill {
 			expected, err = adapter.Aggregate(ctx, parts, spec.SizeBudgetB)
 			if err != nil {
@@ -695,6 +714,22 @@ func filterTargets(skills []*adept.Skill, harnessID string) []*adept.Skill {
 
 func stagingPathFor(p project.Project, out adept.RenderOutput) string {
 	return filepath.Join(p.BaseDir(), adept.StagingDir, out.Path)
+}
+
+// effectiveSpec returns the spec with global paths substituted when global
+// scope is requested. Harnesses without a global target are rejected.
+func effectiveSpec(spec adept.HarnessSpec, global bool) (adept.HarnessSpec, error) {
+	if !global {
+		return spec, nil
+	}
+	if spec.GlobalOutput == "" {
+		return spec, fmt.Errorf("%s: %w", spec.ID, adept.ErrNotGlobalCapable)
+	}
+	spec.OutputPath = spec.GlobalOutput
+	if spec.GlobalBaseDir != "" {
+		spec.BaseDir = spec.GlobalBaseDir
+	}
+	return spec, nil
 }
 
 // aggregatorDrops returns the SkillIDs that appear in inputs but not in
