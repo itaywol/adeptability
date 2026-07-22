@@ -45,6 +45,35 @@ func TestScopedProjectWalkUpToLibraryRootResolvesGlobal(t *testing.T) {
 	require.Equal(t, libRoot, p.BaseDir())
 }
 
+// TestScopedProjectVendoredLibRootStaysProject guards against the guard
+// over-matching: with the documented vendored-CI topology
+// ADEPT_LIBRARY=<project>/.adept-lib, filepath.Dir(libRoot) equals the project
+// root, so a parent-equality check would misresolve a REAL project as global
+// (empty config -> zero harnesses -> `status` exits 0, defeating the CI drift
+// gate). Matching the config dir itself keeps this a project.
+func TestScopedProjectVendoredLibRootStaysProject(t *testing.T) {
+	proj := t.TempDir()
+	// Library root is a NON-".adeptability" dir under the project (vendored CI).
+	libRoot := filepath.Join(proj, ".adept-lib")
+	t.Setenv("ADEPT_LIBRARY", libRoot)
+	require.NoError(t, os.MkdirAll(libRoot, 0o755))
+
+	// A real project: its own .adeptability/config.json.
+	require.NoError(t, os.MkdirAll(filepath.Join(proj, adept.BaseDirName), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(proj, adept.BaseDirName, adept.ConfigFileName), []byte("{}"), 0o644))
+
+	nested := filepath.Join(proj, "src", "pkg")
+	require.NoError(t, os.MkdirAll(nested, 0o755))
+
+	d, err := NewDeps(&GlobalFlags{ProjectDir: nested}, BuildInfo{})
+	require.NoError(t, err)
+
+	p, isGlobal, err := d.ScopedProject()
+	require.NoError(t, err)
+	require.False(t, isGlobal, "a real project with a vendored .adept-lib library root must resolve as a project, not global")
+	require.Equal(t, proj, p.Root())
+}
+
 // TestWalkUpToGlobalConfigRendersToGlobalTarget is the end-to-end proof: a bare
 // `sync` (no --global, no --project) from a nested cwd under the library root's
 // parent renders a codex skill into the GLOBAL target (.codex/AGENTS.md), never

@@ -292,7 +292,15 @@ func (d *Deps) ScopedProject() (project.Project, bool, error) {
 		// AGENTS.md/agents into $HOME and bypassing the skills-only global
 		// rule. When the found .adeptability IS the library root, it is the
 		// global scope, not a project: return the global project instead.
-		if libRoot, lerr := d.ResolveLibraryRoot(); lerr == nil && root == filepath.Dir(libRoot) {
+		//
+		// Match the config dir itself (<root>/.adeptability == libraryRoot), not
+		// its parent: parent equality over-matches whenever the library root's
+		// basename isn't ".adeptability" — e.g. the vendored-CI topology
+		// ADEPT_LIBRARY=<project>/.adept-lib, where filepath.Dir(libRoot) is the
+		// real project root — silently resolving a real project as global and
+		// defeating its drift gate.
+		if libRoot, lerr := d.ResolveLibraryRoot(); lerr == nil &&
+			filepath.Clean(filepath.Join(root, adept.BaseDirName)) == filepath.Clean(libRoot) {
 			p, err := d.GlobalProject()
 			return p, true, err
 		}
