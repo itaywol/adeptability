@@ -72,6 +72,46 @@ func TestMigrateLocalizesLibraries(t *testing.T) {
 	require.Contains(t, out, "team: already local")
 }
 
+// TestMigrateBrokenPartialCloneDoesNotShortCircuit: a dest directory left
+// behind by an interrupted clone (exists on disk, has stray content, but has
+// no .git) must NOT be reported as "already local" — that would wedge the
+// library forever. It must fall through to CloneOrPull, which either repairs
+// it or fails with a clear, actionable error (never a silent success).
+func TestMigrateBrokenPartialCloneDoesNotShortCircuit(t *testing.T) {
+	projRoot, libRoot := t.TempDir(), t.TempDir()
+	d := depsWithRealGit(t, projRoot, libRoot)
+
+	upstream := t.TempDir()
+	gitRun(t, upstream, "init", "-b", "main")
+	gitRun(t, upstream, "config", "user.email", "t@example.com")
+	gitRun(t, upstream, "config", "user.name", "Test")
+	writeSkillFile(t, upstream, "demo", "first skill")
+	gitRun(t, upstream, "add", ".")
+	gitRun(t, upstream, "commit", "-m", "init")
+
+	p := initProject(t, d, projRoot, &adept.Config{
+		Libraries: []adept.LibraryRef{{Name: "team", Remote: upstream, Ref: "main"}},
+	})
+
+	// Simulate an interrupted `adept migrate`: dest exists with a stray file
+	// but was never actually cloned (no .git).
+	dest := filepath.Join(d.LibsRootFor(p), "team")
+	require.NoError(t, os.MkdirAll(dest, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dest, "stray.txt"), []byte("leftover"), 0o644))
+
+	// CloneOrPull's underlying `git clone` refuses to clone into an existing
+	// non-empty, non-repo directory (verified: exit 128, "already exists and
+	// is not an empty directory") — it does not repair in place. migrate
+	// must surface that failure with an actionable message, not silently
+	// report "already local" and exit 0.
+	out, err := runMigrate(t, d)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "team")
+	require.Contains(t, err.Error(), dest)
+	require.Contains(t, err.Error(), "not a valid git clone")
+	require.NotContains(t, out, "already local")
+}
+
 // TestMigrateRejectsGlobalScope: global scope IS the machine store, so there
 // is nothing to localize — `adept migrate --global` must error rather than
 // silently no-op.

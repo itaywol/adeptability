@@ -37,7 +37,12 @@ func newMigrateCmd(d *Deps) *cobra.Command {
 		w := cmd.OutOrStdout()
 		for _, ref := range cfg.Libraries {
 			dest := filepath.Join(libsRoot, ref.Name)
-			if dirExists(dest) {
+			// Gate on IsRepo, not mere existence: a dest left behind by an
+			// interrupted clone exists but isn't a valid repo. Treating that
+			// as "already local" would wedge the library forever (never
+			// re-cloned, never fixed). Let it fall through to CloneOrPull,
+			// which will either repair it or fail loudly.
+			if d.Git.IsRepo(dest) {
 				fmt.Fprintf(w, "%s: already local\n", ref.Name)
 				continue
 			}
@@ -46,6 +51,9 @@ func newMigrateCmd(d *Deps) *cobra.Command {
 				gitRef = "main"
 			}
 			if err := d.Git.CloneOrPull(cmd.Context(), ref.Remote, gitRef, dest); err != nil {
+				if dirExists(dest) {
+					return fmt.Errorf("%s: %s exists but is not a valid git clone (broken or partial) — remove it and re-run `adept migrate`: %w", ref.Name, dest, err)
+				}
 				return fmt.Errorf("%s: %w", ref.Name, err)
 			}
 			fmt.Fprintf(w, "%s: localized (%s)\n", ref.Name, dest)
