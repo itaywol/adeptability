@@ -26,7 +26,7 @@ func newSyncCmd(d *Deps) *cobra.Command {
 	c.Flags().BoolVar(&dryRun, "dry-run", false, "print what would change, write nothing")
 	_ = c.RegisterFlagCompletionFunc("harness", enabledHarnessCompletion(d))
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
-		p, err := d.Project()
+		p, isGlobal, err := d.ScopedProject()
 		if err != nil {
 			return err
 		}
@@ -43,6 +43,7 @@ func newSyncCmd(d *Deps) *cobra.Command {
 			Force:      force,
 			DryRun:     dryRun,
 			Skills:     skills,
+			Global:     isGlobal,
 		})
 		if err != nil {
 			return err

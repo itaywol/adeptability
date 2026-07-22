@@ -24,7 +24,7 @@ func newDiffCmd(d *Deps) *cobra.Command {
 	c.Flags().StringSliceVar(&harnessIDs, "harness", nil, "limit to specific harness ids (default: all enabled)")
 	_ = c.RegisterFlagCompletionFunc("harness", enabledHarnessCompletion(d))
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
-		p, err := d.Project()
+		p, isGlobal, err := d.ScopedProject()
 		if err != nil {
 			return err
 		}
@@ -38,6 +38,7 @@ func newDiffCmd(d *Deps) *cobra.Command {
 		reports, err := d.Orchestrator.Status(cmd.Context(), p, harness.StatusOptions{
 			HarnessIDs: harnessIDs,
 			Skills:     skills,
+			Global:     isGlobal,
 		})
 		if err != nil {
 			return err

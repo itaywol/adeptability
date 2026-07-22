@@ -130,7 +130,7 @@ func runHook(ctx context.Context, d *Deps, w io.Writer, fix bool) error {
 	} else if statErr != nil {
 		return fmt.Errorf("stat project: %w", statErr)
 	}
-	p, err := d.Project()
+	p, isGlobal, err := d.ScopedProject()
 	if err != nil {
 		return err
 	}
@@ -145,7 +145,7 @@ func runHook(ctx context.Context, d *Deps, w io.Writer, fix bool) error {
 		d.Log.Warn("load user adapters", "err", err)
 	}
 
-	drifted, err := driftedHarnesses(ctx, d, p)
+	drifted, err := driftedHarnesses(ctx, d, p, isGlobal)
 	if err != nil {
 		return err
 	}
@@ -183,7 +183,7 @@ func runHook(ctx context.Context, d *Deps, w io.Writer, fix bool) error {
 	if err != nil {
 		return err
 	}
-	if _, err := d.Orchestrator.Sync(ctx, p, harness.SyncOptions{Force: true, Skills: skills}); err != nil {
+	if _, err := d.Orchestrator.Sync(ctx, p, harness.SyncOptions{Force: true, Skills: skills, Global: isGlobal}); err != nil {
 		return fmt.Errorf("re-render canonical: %w", err)
 	}
 
@@ -195,7 +195,7 @@ func runHook(ctx context.Context, d *Deps, w io.Writer, fix bool) error {
 		}
 	}
 
-	still, err := driftedHarnesses(ctx, d, p)
+	still, err := driftedHarnesses(ctx, d, p, isGlobal)
 	if err != nil {
 		return err
 	}
@@ -209,12 +209,12 @@ func runHook(ctx context.Context, d *Deps, w io.Writer, fix bool) error {
 
 // driftedHarnesses returns the sorted ids of enabled harnesses whose on-disk
 // state diverges from canonical (drift, missing, or conflict).
-func driftedHarnesses(ctx context.Context, d *Deps, p project.Project) ([]string, error) {
+func driftedHarnesses(ctx context.Context, d *Deps, p project.Project, global bool) ([]string, error) {
 	skills, err := resolveSkills(d, p)
 	if err != nil {
 		return nil, err
 	}
-	reports, err := d.Orchestrator.Status(ctx, p, harness.StatusOptions{Skills: skills})
+	reports, err := d.Orchestrator.Status(ctx, p, harness.StatusOptions{Skills: skills, Global: global})
 	if err != nil {
 		return nil, err
 	}

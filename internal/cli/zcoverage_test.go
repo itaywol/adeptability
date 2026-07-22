@@ -42,7 +42,10 @@ func testDeps(t *testing.T, projectRoot, libraryRoot string) *Deps {
 	agentValidator, err := canonical.NewAgentValidator()
 	require.NoError(t, err)
 	return &Deps{
-		Flags:          &GlobalFlags{ProjectDir: projectRoot, LibraryDir: libraryRoot},
+		// projectDirExplicit pins the scope to projectRoot so ScopedProject
+		// resolves the project directly instead of walking up / falling back to
+		// global — matching the pre-scope d.Project() behavior these tests assume.
+		Flags:          &GlobalFlags{ProjectDir: projectRoot, LibraryDir: libraryRoot, projectDirExplicit: true},
 		Parser:         parser,
 		AgentValidator: agentValidator,
 		Hasher:         hash.NewHasher(),

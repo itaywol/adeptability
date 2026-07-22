@@ -158,7 +158,7 @@ func keyNames() []string {
 func newConfigListCmd(d *Deps) *cobra.Command {
 	c := &cobra.Command{Use: "list", Short: "List configurable keys and current values", Args: cobra.NoArgs}
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
-		p, err := d.Project()
+		p, _, err := d.ScopedProject()
 		if err != nil {
 			return err
 		}
@@ -226,7 +226,7 @@ func newConfigGetCmd(d *Deps) *cobra.Command {
 		ValidArgsFunction: configKeyCompletion(),
 	}
 	c.RunE = func(cmd *cobra.Command, args []string) error {
-		p, err := d.Project()
+		p, _, err := d.ScopedProject()
 		if err != nil {
 			return err
 		}
@@ -254,7 +254,7 @@ func newConfigSetCmd(d *Deps) *cobra.Command {
 		ValidArgsFunction: configKeyCompletion(),
 	}
 	c.RunE = func(cmd *cobra.Command, args []string) error {
-		p, err := d.Project()
+		p, _, err := d.ScopedProject()
 		if err != nil {
 			return err
 		}
@@ -288,7 +288,7 @@ func newConfigUnsetCmd(d *Deps) *cobra.Command {
 		ValidArgsFunction: configKeyCompletion(),
 	}
 	c.RunE = func(cmd *cobra.Command, args []string) error {
-		p, err := d.Project()
+		p, _, err := d.ScopedProject()
 		if err != nil {
 			return err
 		}
@@ -348,7 +348,7 @@ func newConfigLLMSetCmd(d *Deps) *cobra.Command {
 		if _, err := d.LLMRegistry.Get(provider); err != nil {
 			return err
 		}
-		p, err := d.Project()
+		p, _, err := d.ScopedProject()
 		if err != nil {
 			return err
 		}
@@ -370,7 +370,7 @@ func newConfigLLMSetCmd(d *Deps) *cobra.Command {
 func newConfigLLMUnsetCmd(d *Deps) *cobra.Command {
 	c := &cobra.Command{Use: "unset", Short: "Forget the LLM provider configuration", Args: cobra.NoArgs}
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
-		p, err := d.Project()
+		p, _, err := d.ScopedProject()
 		if err != nil {
 			return err
 		}

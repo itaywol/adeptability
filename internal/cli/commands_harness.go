@@ -37,9 +37,16 @@ func newHarnessAddCmd(d *Deps) *cobra.Command {
 		if _, err := d.Registry.Get(id); err != nil {
 			return fmt.Errorf("harness %q: %w", id, adept.ErrHarnessUnknown)
 		}
-		p, err := d.Project()
+		p, isGlobal, err := d.ScopedProject()
 		if err != nil {
 			return err
+		}
+		// A harness can only be enabled in the global scope when it declares a
+		// home-level output location.
+		if isGlobal {
+			if a, gerr := d.Registry.Get(id); gerr == nil && a.Spec().GlobalOutput == "" {
+				return fmt.Errorf("harness %q: %w (project scope only)", id, adept.ErrNotGlobalCapable)
+			}
 		}
 		cfg, err := p.Config()
 		if err != nil {
@@ -71,7 +78,7 @@ func newHarnessRemoveCmd(d *Deps) *cobra.Command {
 	}
 	c.RunE = func(cmd *cobra.Command, args []string) error {
 		id := args[0]
-		p, err := d.Project()
+		p, _, err := d.ScopedProject()
 		if err != nil {
 			return err
 		}
@@ -113,7 +120,7 @@ func newHarnessListCmd(d *Deps) *cobra.Command {
 			d.Log.Warn("load user adapters", "err", err)
 		}
 		enabled := map[string]bool{}
-		if p, perr := d.Project(); perr == nil {
+		if p, _, perr := d.ScopedProject(); perr == nil {
 			if cfg, cerr := p.Config(); cerr == nil {
 				for _, h := range cfg.Harnesses {
 					enabled[h] = true
