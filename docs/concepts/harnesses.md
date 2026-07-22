@@ -19,16 +19,17 @@ Enabled harness ids are recorded in `.adeptability/config.json` under `harnesses
 Five harnesses ship dedicated renderers that get the details right — correct frontmatter,
 activation translation, sidecar handling, and size budgets:
 
-| Harness | id | Output |
-| --- | --- | --- |
-| Claude Code | `claude-code` | `.claude/skills/<id>/SKILL.md` (full sidecars, `allowed-tools`) |
-| Cursor | `cursor` | `.cursor/rules/<id>.mdc` (activation → `alwaysApply`/`globs`/`description`) |
-| OpenCode | `opencode` | `.opencode/skill/<id>/SKILL.md` (full sidecars) |
-| Codex | `codex` | `AGENTS.md` (aggregated, 32 KiB cap, lowest-priority dropped first) |
-| GitHub Copilot | `copilot` | `.github/instructions/<bucket>.instructions.md` (aggregated per-glob) |
+| Harness | id | Output | Global |
+| --- | --- | --- | --- |
+| Claude Code | `claude-code` | `.claude/skills/<id>/SKILL.md` (full sidecars, `allowed-tools`) | `~/.claude/skills/<id>/SKILL.md` |
+| Cursor | `cursor` | `.cursor/rules/<id>.mdc` (activation → `alwaysApply`/`globs`/`description`) | not global-capable |
+| OpenCode | `opencode` | `.opencode/skill/<id>/SKILL.md` (full sidecars) | `~/.config/opencode/skill/<id>/SKILL.md` |
+| Codex | `codex` | `AGENTS.md` (aggregated, 32 KiB cap, lowest-priority dropped first) | `~/.codex/AGENTS.md` |
+| GitHub Copilot | `copilot` | `.github/instructions/<bucket>.instructions.md` (aggregated per-glob) | not global-capable |
 
 See the [Harness Comparison](../harness-comparison.md) for exactly what each renderer emits
-and why it differs.
+and why it differs, and [Scopes](scopes.md) for what `--global` changes and why Cursor and
+Copilot are excluded.
 
 ## Generic per-skill adapters
 
@@ -84,3 +85,21 @@ Adapter files are validated against an embedded schema on load. Key fields:
   the inverse of `frontmatter.rename`, so this is only needed for non-bijective renames.
 
 See `examples/adapters/jetbrains-junie.yaml` in the repo for the fully annotated version.
+
+## Global support
+
+Two optional keys give a config-driven adapter a home-level target, same as the built-in
+renderers:
+
+```yaml
+id: jetbrains-junie
+name: JetBrains Junie
+kind: per-skill
+output: ".junie/guidelines/{id}.md"
+global-output: ".junie/guidelines/{id}.md"    # path relative to the global render root ($HOME)
+global-base-dir: ".junie"                     # detection root when scoped globally
+```
+
+Leave both out and the adapter simply isn't global-capable: `adept --global harness add
+<id>` fails with `harness has no global config location`, same as the built-in Cursor and
+Copilot adapters. See [Scopes](scopes.md) for the full global-scope model.

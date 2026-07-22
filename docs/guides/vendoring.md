@@ -1,42 +1,28 @@
 # Vendoring a library in-repo
 
-By default a consumed library lives in the per-machine store (`~/.adeptability/libs/…`) and is
-resolved by reference. Sometimes you instead want the library content to live **inside the
-repo** — for air-gapped builds, hermetic CI, or so a clone works with zero network access.
+By default a consumed library clones into `<project>/.adeptability/libs/<name>/`, which is
+auto-gitignored. Sometimes you instead want that clone committed — for air-gapped builds,
+hermetic CI, or so a fresh clone of your repo works with zero network access.
 
-You do this by pointing the **library root** at a path inside your repo.
+## Commit the clone
 
-## Point the library root at a repo path
-
-`adept` resolves the library root from, in order:
-
-1. The `--library <path>` global flag.
-2. The `ADEPT_LIBRARY` environment variable.
-3. The default `~/.adeptability`.
-
-To vendor, point it at an in-repo directory such as `./.adept-lib`:
+Delete the `libs/` (and, if you also want staging committed, `staging/`) line from
+`.adeptability/.gitignore` and commit the clone directory itself:
 
 ```bash
-# Per-invocation:
-adept --library ./.adept-lib sync
-
-# Or for the whole session / CI job:
-export ADEPT_LIBRARY="$PWD/.adept-lib"
-adept sync
+# Remove the auto-added "libs/" line from .adeptability/.gitignore, then:
+git add .adeptability/.gitignore .adeptability/libs && git commit -m "chore: vendor team-skills library"
 ```
 
-Libraries added while this is set clone into `./.adept-lib/libs/<name>/`, which you can then
-commit:
+Trade-off: the repo now carries the full skill content instead of just the `{name, remote,
+ref}` pointer, and updates land as a normal commit (`adept library update` still works — it
+edits the clone in place) instead of a re-clone on every machine.
 
-```bash
-export ADEPT_LIBRARY="$PWD/.adept-lib"
-adept library add team-skills --from git@github.com:acme/skills.git --ref main
-git add .adept-lib && git commit -m "chore: vendor team-skills library"
-```
+## CI-hermetic use of `ADEPT_LIBRARY`
 
-## CI usage
-
-Set `ADEPT_LIBRARY` to the vendored path so builds never reach the network:
+Point `ADEPT_LIBRARY` at an in-repo path if you additionally want the *machine store* itself
+(rather than just the project's `libs/`) to stay inside the checkout — e.g. when a global-scope
+library also needs to resolve without touching `~/.adeptability`:
 
 ```yaml
 # .github/workflows/ci.yml (excerpt)
@@ -47,15 +33,6 @@ steps:
   - run: adept status      # exits 2 on drift
   - run: adept sync --dry-run
 ```
-
-## Trade-offs
-
-| | Referenced (default) | Vendored in-repo |
-| --- | --- | --- |
-| Repo size | Small (pointer only) | Larger (full skill content) |
-| Offline clone works | No (needs `adept library add`) | Yes |
-| Update flow | `adept library update` | Commit new content to the repo |
-| Best for | Most teams | Air-gapped / hermetic builds |
 
 !!! tip "Materialization mode"
     When vendoring for CI, consider `copy` mode

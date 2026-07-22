@@ -40,8 +40,9 @@ adept harness add claude-code
 adept sync
 ```
 
-`adept` clones the library into the per-machine store (`~/.adeptability/libs/team-skills/`) and
-records a **reference** — not the bytes — in `.adeptability/config.json`. Commit that config:
+`adept` clones the library into the project-local libs dir
+(`.adeptability/libs/team-skills/`, auto-gitignored) and records a **reference** — not the
+bytes — in `.adeptability/config.json`. Commit that config:
 
 ```bash
 git add .adeptability/config.json && git commit -m "chore: add team-skills library"
