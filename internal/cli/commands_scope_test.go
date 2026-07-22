@@ -40,8 +40,10 @@ func TestSyncGlobalRendersToHomeTargets(t *testing.T) {
 	foreignContent := []byte("---\nname: foreign\ndescription: not managed by adept\n---\nhands off\n")
 	require.NoError(t, os.WriteFile(foreignPath, foreignContent, 0o644))
 
+	// Pin --project to an isolated temp dir so nothing can ever write into the
+	// package cwd, even if scope resolution regresses away from --global.
 	root := NewRoot(BuildInfo{Version: "test"})
-	root.SetArgs([]string{"--global", "sync"})
+	root.SetArgs([]string{"--global", "--project", t.TempDir(), "sync"})
 	root.SetOut(io.Discard)
 	root.SetErr(io.Discard)
 	require.NoError(t, root.Execute())
@@ -70,8 +72,10 @@ func TestHarnessAddGlobalRejectsNonCapable(t *testing.T) {
 	cfgPath := filepath.Join(libRoot, adept.ConfigFileName)
 	require.NoError(t, os.WriteFile(cfgPath, cfgBytes, 0o644))
 
+	// Pin --project to an isolated temp dir so a project-scoped fallback can
+	// never write into the package cwd (guards against RED-phase pollution).
 	root := NewRoot(BuildInfo{Version: "test"})
-	root.SetArgs([]string{"--global", "harness", "add", "cursor"})
+	root.SetArgs([]string{"--global", "--project", t.TempDir(), "harness", "add", "cursor"})
 	root.SetOut(io.Discard)
 	root.SetErr(io.Discard)
 	err = root.Execute()
