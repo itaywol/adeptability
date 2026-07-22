@@ -76,10 +76,15 @@ func newLibraryUpdateCmd(d *Deps) *cobra.Command {
 		for _, l := range targets {
 			// Resolve scope-local first, then the machine store, so a globally
 			// cloned library can still be fetched from a project scope.
-			dest, onDisk := resolveLibDir(d, p, l.Name)
-			if !onDisk || !d.Git.IsRepo(dest) {
+			dest, src := resolveLibDirSource(d, p, l.Name)
+			if src == libMissing || !d.Git.IsRepo(dest) {
 				fmt.Fprintf(w, "%s: no local clone — run `adept library add %s --from %s`\n", l.Name, l.Name, l.Remote)
 				continue
+			}
+			if src == libFallback {
+				// Advancing a machine-store clone from project scope moves
+				// shared state every other project resolving from it consumes.
+				fmt.Fprintf(w, "%s: updating shared machine-store clone (%s) — affects every project resolving from it; run `adept migrate` to localize first\n", l.Name, dest)
 			}
 			ref := l.Ref
 			if ref == "" {

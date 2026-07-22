@@ -190,7 +190,28 @@ func TestLibraryUpdateUsesMachineStoreFallback(t *testing.T) {
 	require.NotContains(t, out, "no local clone")
 	require.Contains(t, out, "changed skills: bar")
 	require.Contains(t, out, "lib: updated to")
+	// The shared-clone notice fires before advancing machine-store state.
+	require.Contains(t, out, "updating shared machine-store clone")
+	require.Contains(t, out, clone)
+	require.Contains(t, out, "run `adept migrate` to localize first")
 
 	// The machine-store clone fast-forwarded.
 	require.FileExists(t, filepath.Join(clone, adept.SkillsDirName, "bar", adept.SkillFileName))
+}
+
+// TestLibraryUpdateScopeLocalNoSharedNotice asserts a scope-local clone updates
+// without the shared-machine-store notice.
+func TestLibraryUpdateScopeLocalNoSharedNotice(t *testing.T) {
+	projRoot, libRoot := t.TempDir(), t.TempDir()
+	d := depsWithRealGit(t, projRoot, libRoot)
+	upstream, _ := setupLibraryClone(t, d, "lib")
+	initProject(t, d, projRoot, &adept.Config{
+		Libraries: []adept.LibraryRef{{Name: "lib", Remote: upstream, Ref: "main"}},
+	})
+	upstreamCommit(t, upstream, "bar")
+
+	out, err := runLibUpdate(t, d, "", "--yes")
+	require.NoError(t, err)
+	require.Contains(t, out, "lib: updated to")
+	require.NotContains(t, out, "updating shared machine-store clone")
 }
