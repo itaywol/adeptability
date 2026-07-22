@@ -55,6 +55,35 @@ func TestLoader_LoadFile_Valid(t *testing.T) {
 	require.Equal(t, ".cursor", a.Spec().BaseDir)
 }
 
+func TestLoader_LoadFile_GlobalOutput(t *testing.T) {
+	loader := newLoader(t)
+	dir := t.TempDir()
+	data := []byte(`id: my-agent
+name: "My Agent"
+kind: per-skill
+output: .myagent/rules/{id}.rule
+base-dir: .myagent
+global-output: .config/myagent/rules/{id}.rule
+global-base-dir: .config/myagent
+`)
+	path := filepath.Join(dir, "my-agent.yaml")
+	require.NoError(t, os.WriteFile(path, data, 0o644))
+	a, err := loader.LoadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, ".config/myagent/rules/{id}.rule", a.Spec().GlobalOutput)
+	require.Equal(t, ".config/myagent", a.Spec().GlobalBaseDir)
+}
+
+func TestLoader_LoadFile_GlobalOutputAbsent_ZeroValue(t *testing.T) {
+	loader := newLoader(t)
+	// cursor.yaml has no global-output/global-base-dir keys; both fields must
+	// still load with zero values rather than erroring or being required.
+	a, err := loader.LoadFile(filepath.Join("testdata", "cursor.yaml"))
+	require.NoError(t, err)
+	require.Empty(t, a.Spec().GlobalOutput)
+	require.Empty(t, a.Spec().GlobalBaseDir)
+}
+
 func TestLoader_LoadFile_InvalidRejected(t *testing.T) {
 	loader := newLoader(t)
 	_, err := loader.LoadFile(filepath.Join("testdata", "invalid.yaml"))

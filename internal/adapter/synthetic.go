@@ -63,13 +63,15 @@ type bodyRule struct {
 
 func toHarnessSpec(s Spec) adept.HarnessSpec {
 	return adept.HarnessSpec{
-		ID:          s.ID,
-		Name:        s.Name,
-		Kind:        s.Kind,
-		OutputPath:  s.Output,
-		SizeBudgetB: s.Budget,
-		NeedsDir:    s.NeedsDir,
-		BaseDir:     s.BaseDir,
+		ID:            s.ID,
+		Name:          s.Name,
+		Kind:          s.Kind,
+		OutputPath:    s.Output,
+		SizeBudgetB:   s.Budget,
+		NeedsDir:      s.NeedsDir,
+		BaseDir:       s.BaseDir,
+		GlobalOutput:  s.GlobalOutput,
+		GlobalBaseDir: s.GlobalBaseDir,
 	}
 }
 
