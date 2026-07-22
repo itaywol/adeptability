@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0](https://github.com/itaywol/adeptability/compare/v1.8.1...v1.9.0) (2026-07-22)
+
+
+### Features
+
+* global scope harness management + project-scoped libraries by default ([#50](https://github.com/itaywol/adeptability/issues/50)) ([c5c1f6e](https://github.com/itaywol/adeptability/commit/c5c1f6e3ef5e13a2ad1fdbcde10efdd726ae5d23))
+
 ## [1.8.1](https://github.com/itaywol/adeptability/compare/v1.8.0...v1.8.1) (2026-07-03)
 
 
