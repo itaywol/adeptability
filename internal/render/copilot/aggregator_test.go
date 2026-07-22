@@ -303,6 +303,17 @@ func TestSpec(t *testing.T) {
 	}
 }
 
+func TestSpecGlobalOutput(t *testing.T) {
+	a := NewAdapter(New(), budget.NewPacker(), nil)
+	sp := a.Spec()
+	if sp.GlobalOutput != "" {
+		t.Fatalf("GlobalOutput = %q, want empty (not global-capable)", sp.GlobalOutput)
+	}
+	if sp.GlobalBaseDir != "" {
+		t.Fatalf("GlobalBaseDir = %q, want empty (not global-capable)", sp.GlobalBaseDir)
+	}
+}
+
 func TestDetect_CopilotInstructionsFile(t *testing.T) {
 	w := newFakeReader()
 	w.files["/proj/.github/copilot-instructions.md"] = []byte("x")

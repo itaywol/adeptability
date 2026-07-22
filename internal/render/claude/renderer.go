@@ -33,12 +33,14 @@ var _ adept.Renderer = (*Renderer)(nil)
 // Spec is the static description of the Claude Code harness.
 func Spec() adept.HarnessSpec {
 	return adept.HarnessSpec{
-		ID:         "claude-code",
-		Name:       "Claude Code",
-		Kind:       adept.KindPerSkill,
-		OutputPath: ".claude/skills/{id}/SKILL.md",
-		NeedsDir:   true,
-		BaseDir:    ".claude",
+		ID:            "claude-code",
+		Name:          "Claude Code",
+		Kind:          adept.KindPerSkill,
+		OutputPath:    ".claude/skills/{id}/SKILL.md",
+		NeedsDir:      true,
+		BaseDir:       ".claude",
+		GlobalOutput:  ".claude/skills/{id}/SKILL.md",
+		GlobalBaseDir: ".claude",
 	}
 }
 

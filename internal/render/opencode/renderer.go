@@ -28,12 +28,14 @@ var _ adept.Renderer = (*Renderer)(nil)
 // Spec is the static description of the OpenCode harness.
 func Spec() adept.HarnessSpec {
 	return adept.HarnessSpec{
-		ID:         "opencode",
-		Name:       "OpenCode",
-		Kind:       adept.KindPerSkill,
-		OutputPath: ".opencode/skill/{id}/SKILL.md",
-		NeedsDir:   true,
-		BaseDir:    ".opencode",
+		ID:            "opencode",
+		Name:          "OpenCode",
+		Kind:          adept.KindPerSkill,
+		OutputPath:    ".opencode/skill/{id}/SKILL.md",
+		NeedsDir:      true,
+		BaseDir:       ".opencode",
+		GlobalOutput:  ".config/opencode/skill/{id}/SKILL.md",
+		GlobalBaseDir: ".config/opencode",
 	}
 }
 
