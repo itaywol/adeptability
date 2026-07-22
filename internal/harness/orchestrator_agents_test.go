@@ -144,6 +144,41 @@ func TestStatus_AgentDriftMerged(t *testing.T) {
 	assert.Contains(t, reports[0].Missing, agentPath)
 }
 
+// TestStatus_GlobalSkipsAgentDrift proves global Status does not fold in agent
+// drift. Global Sync renders skills only (agents are project-scope in v1), so
+// folding the agent file into Status would report a Missing that global Sync
+// can never clear — a permanent exit-2 drift. The fold must be gated on
+// !opts.Global, mirroring Sync.
+func TestStatus_GlobalSkipsAgentDrift(t *testing.T) {
+	p := newProj(t)
+	installSkill(t, p, "skill-a")
+	installAgent(t, p, "reviewer")
+	setHarnesses(t, p, "withagents")
+
+	base := perSkillAdapter("withagents", nil)
+	base.spec.GlobalOutput = base.spec.OutputPath // make the harness global-capable
+	adapter := &agentMockAdapter{mockAdapter: base}
+	o := newOrch(t, adapter)
+
+	// Global sync renders the skill but never the agent file.
+	_, err := o.Sync(context.Background(), p, SyncOptions{Global: true})
+	require.NoError(t, err)
+
+	reports, err := o.Status(context.Background(), p, StatusOptions{Global: true})
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+	agentPath := filepath.Join(".withagents", "agents", "reviewer.md")
+	assert.NotContains(t, reports[0].Missing, agentPath, "global status must not report agent drift")
+	assert.Empty(t, reports[0].Missing, "skill synced, agent skipped => nothing missing")
+
+	// Sanity: in project scope the same setup DOES fold agent drift in (the
+	// agent file was never rendered in global mode), so the gate is real.
+	projReports, err := o.Status(context.Background(), p, StatusOptions{})
+	require.NoError(t, err)
+	require.Len(t, projReports, 1)
+	assert.Contains(t, projReports[0].Missing, agentPath, "project status still folds agent drift")
+}
+
 func TestImportAgents_InstallAndConflicts(t *testing.T) {
 	imported := func(id, harness string) []adept.ImportedAgent {
 		return []adept.ImportedAgent{{

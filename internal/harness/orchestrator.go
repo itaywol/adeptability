@@ -497,7 +497,12 @@ func (o *orchestrator) Status(ctx context.Context, p project.Project, opts Statu
 		}
 		// Agent drift folds into the same per-harness report so status/diff
 		// and interactive sync-from cover agents with no extra plumbing.
-		if as, ok := adapter.(adept.AgentSupport); ok {
+		//
+		// v1: agents are project-scope only; global agent targets are not yet
+		// defined, so global sync renders skills only (see Sync). Skipping the
+		// fold here keeps global Status from reporting agent drift that global
+		// Sync can never clear.
+		if as, ok := adapter.(adept.AgentSupport); ok && !opts.Global {
 			applicableAgents := filterAgentTargets(agents, hid)
 			if len(applicableAgents) > 0 {
 				agentParts, _, err := o.renderAllAgents(ctx, as, spec, applicableAgents, p)
