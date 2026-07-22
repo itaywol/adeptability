@@ -30,6 +30,11 @@ type GlobalFlags struct {
 	LogLevel   string
 	ProjectDir string
 	LibraryDir string
+	Global     bool
+
+	// projectDirExplicit records whether --project was user-supplied (before
+	// PersistentPreRunE defaults it to cwd). Explicit dirs skip the walk-up.
+	projectDirExplicit bool
 }
 
 // NewRoot builds the cobra root command with all subcommands attached.
@@ -60,8 +65,12 @@ func NewRoot(b BuildInfo) *cobra.Command {
 	root.PersistentFlags().StringVar(&gf.LogLevel, "log-level", "info", "log level: debug|info|warn|error")
 	root.PersistentFlags().StringVar(&gf.ProjectDir, "project", "", "project root (default: current directory)")
 	root.PersistentFlags().StringVar(&gf.LibraryDir, "library", "", "library root (default: $ADEPT_LIBRARY or $HOME/.adeptability)")
+	root.PersistentFlags().BoolVar(&gf.Global, "global", false, "operate on the global scope (home-level harness config) instead of a project")
 
 	root.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
+		// Record whether --project was explicit before defaulting it below;
+		// explicit dirs pin the scope and bypass the walk-up.
+		gf.projectDirExplicit = gf.ProjectDir != ""
 		// Resolve defaults at the latest possible moment so tests can override.
 		if gf.ProjectDir == "" {
 			cwd, err := os.Getwd()

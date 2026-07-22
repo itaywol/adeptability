@@ -240,6 +240,61 @@ func (d *Deps) Project() (project.Project, error) {
 	return d.projectAt(root, d.detectLibraryLayout(root)), nil
 }
 
+// GlobalProject returns the global-scope Project: metadata at the library
+// root (~/.adeptability), rendering into its parent (default $HOME).
+func (d *Deps) GlobalProject() (project.Project, error) {
+	libRoot, err := d.ResolveLibraryRoot()
+	if err != nil {
+		return nil, err
+	}
+	return project.NewGlobal(filepath.Dir(libRoot), libRoot, d.Parser, d.Hasher, d.Config, d.Writer), nil
+}
+
+// findProjectRoot walks up from start looking for .adeptability/config.json,
+// stopping at the filesystem root. The config probe is cheap, so no $HOME
+// boundary is needed.
+func findProjectRoot(start string) (string, bool) {
+	dir := start
+	for {
+		if _, err := os.Stat(filepath.Join(dir, adept.BaseDirName, adept.ConfigFileName)); err == nil {
+			return dir, true
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", false
+		}
+		dir = parent
+	}
+}
+
+// ScopedProject resolves the project the current invocation operates on.
+// --global forces global scope; an explicit --project pins that directory;
+// otherwise the nearest ancestor with .adeptability/config.json wins, and with
+// no project anywhere up the tree the global scope is used (noticed on stderr
+// once). The bool return is "is global scope".
+func (d *Deps) ScopedProject() (project.Project, bool, error) {
+	if d.Flags != nil && d.Flags.Global {
+		p, err := d.GlobalProject()
+		return p, true, err
+	}
+	if d.Flags != nil && d.Flags.projectDirExplicit {
+		p, err := d.Project()
+		return p, false, err
+	}
+	start, err := d.ResolveProjectRoot()
+	if err != nil {
+		return nil, false, err
+	}
+	if root, ok := findProjectRoot(start); ok {
+		return d.projectAt(root, d.detectLibraryLayout(root)), false, nil
+	}
+	if d.Log != nil {
+		d.Log.Warn("no project found (no .adeptability/config.json up the tree) — operating on global scope; pass --project to target a project")
+	}
+	p, err := d.GlobalProject()
+	return p, true, err
+}
+
 // ProjectWithLayout returns a Project for the resolved root forcing the given
 // layout, bypassing config detection. Used by `init` to build the project
 // before config.json exists on disk.
