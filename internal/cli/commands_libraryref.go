@@ -51,7 +51,6 @@ func newLibraryUpdateCmd(d *Deps) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		libsRoot := d.LibsRootFor(p)
 
 		targets := cfg.Libraries
 		if len(args) == 1 {
@@ -75,8 +74,10 @@ func newLibraryUpdateCmd(d *Deps) *cobra.Command {
 		ctx := cmd.Context()
 		updated := false
 		for _, l := range targets {
-			dest := filepath.Join(libsRoot, l.Name)
-			if !d.Git.IsRepo(dest) {
+			// Resolve scope-local first, then the machine store, so a globally
+			// cloned library can still be fetched from a project scope.
+			dest, onDisk := resolveLibDir(d, p, l.Name)
+			if !onDisk || !d.Git.IsRepo(dest) {
 				fmt.Fprintf(w, "%s: no local clone — run `adept library add %s --from %s`\n", l.Name, l.Name, l.Remote)
 				continue
 			}
@@ -262,14 +263,11 @@ func newLibraryListCmd(d *Deps) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		libsRoot := d.LibsRootFor(p)
 		rows := make([]libraryRow, 0, len(cfg.Libraries))
 		for _, l := range cfg.Libraries {
-			local := filepath.Join(libsRoot, l.Name)
-			onDisk := false
-			if _, statErr := os.Stat(local); statErr == nil {
-				onDisk = true
-			}
+			// Resolve scope-local first, then the machine store, so a globally
+			// cloned library still reports on-disk with its real resolved path.
+			local, onDisk := resolveLibDir(d, p, l.Name)
 			rows = append(rows, libraryRow{
 				Name:      l.Name,
 				Remote:    l.Remote,
