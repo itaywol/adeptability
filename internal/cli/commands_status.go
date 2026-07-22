@@ -7,7 +7,6 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -213,17 +212,11 @@ func collectStatus(ctx context.Context, d *Deps, fetch bool) (statusReport, erro
 	}
 	rep.Mode = string(d.Config.GetMode(cfg))
 
-	// Libraries
-	libsRoot, err := d.ResolveLibrariesRoot()
-	if err != nil {
-		return rep, err
-	}
+	// Libraries — resolved scope-locally with a machine-store fallback.
 	for _, l := range cfg.Libraries {
-		local := filepath.Join(libsRoot, l.Name)
-		onDisk := false
+		local, onDisk := resolveLibDir(d, p, l.Name)
 		updatable := false
-		if _, statErr := os.Stat(local); statErr == nil {
-			onDisk = true
+		if onDisk {
 			updatable = libraryHasUpdate(ctx, d, local, l.Ref, fetch)
 			if updatable {
 				rep.UpdatableLibs++

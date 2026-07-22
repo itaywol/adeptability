@@ -351,6 +351,13 @@ func (d *Deps) ResolveLibrariesRoot() (string, error) {
 	return filepath.Join(root, "libs"), nil
 }
 
+// LibsRootFor returns the scope-local library clone root: <scope base>/libs.
+// Project scope: <project>/.adeptability/libs. Global scope: the machine
+// store itself (~/.adeptability/libs) — identical to the legacy location.
+func (d *Deps) LibsRootFor(p project.Project) string {
+	return filepath.Join(p.BaseDir(), library.LibrariesDirName)
+}
+
 // ResolveProjectRoot returns --project or cwd.
 func (d *Deps) ResolveProjectRoot() (string, error) {
 	if d.Flags != nil && d.Flags.ProjectDir != "" {

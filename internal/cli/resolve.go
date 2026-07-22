@@ -78,8 +78,11 @@ func resolveSkills(d *Deps, p project.Project) ([]*adept.Skill, error) {
 // Returns nil when the project config carries no libraries — the caller
 // treats that as "project-only mode" (single-library legacy behavior).
 //
-// Library directories that do not yet exist on disk are silently dropped
-// so a stale config (someone deleted the local clone) does not break sync.
+// Each library is resolved scope-locally first (<scope>/libs/<name>) and
+// falls back to the machine store (~/.adeptability/libs/<name>), so global
+// clones stay resolvable from a project scope. Library directories that do
+// not exist in either location are silently dropped so a stale config
+// (someone deleted the local clone) does not break sync.
 func openMultiLibrary(d *Deps, p project.Project) (library.Multi, error) {
 	cfg, err := p.Config()
 	if err != nil {
@@ -88,20 +91,39 @@ func openMultiLibrary(d *Deps, p project.Project) (library.Multi, error) {
 	if len(cfg.Libraries) == 0 {
 		return nil, nil
 	}
-	libsRoot, err := d.ResolveLibrariesRoot()
-	if err != nil {
-		return nil, err
-	}
-	present := make([]adept.LibraryRef, 0, len(cfg.Libraries))
+	named := make([]library.NamedLibrary, 0, len(cfg.Libraries))
 	for _, ref := range cfg.Libraries {
-		if _, err := os.Stat(filepath.Join(libsRoot, ref.Name)); err == nil {
-			present = append(present, ref)
-		} else {
+		dir, ok := resolveLibDir(d, p, ref.Name)
+		if !ok {
 			d.Log.Warn("configured library missing on disk — skipped", "name", ref.Name, "remote", ref.Remote)
+			continue
 		}
+		named = append(named, library.NamedLibrary{
+			Name:    ref.Name,
+			Library: library.New(dir, d.Parser, d.Hasher, d.Writer),
+		})
 	}
-	if len(present) == 0 {
+	if len(named) == 0 {
 		return nil, nil
 	}
-	return library.NewMultiFromRefs(libsRoot, present, d.Parser, d.Hasher, d.Writer), nil
+	return library.NewMulti(named), nil
+}
+
+// resolveLibDir returns the on-disk directory for a configured library and
+// whether it exists. It prefers the scope-local clone (<scope>/libs/<name>)
+// and falls back to the machine store (~/.adeptability/libs/<name>). When the
+// library is absent from both, the scope-local path is returned so callers can
+// surface the location a fresh `library add` would clone into.
+func resolveLibDir(d *Deps, p project.Project, name string) (string, bool) {
+	scoped := filepath.Join(d.LibsRootFor(p), name)
+	if _, err := os.Stat(scoped); err == nil {
+		return scoped, true
+	}
+	if machineRoot, err := d.ResolveLibrariesRoot(); err == nil {
+		fallback := filepath.Join(machineRoot, name)
+		if _, err := os.Stat(fallback); err == nil {
+			return fallback, true
+		}
+	}
+	return scoped, false
 }

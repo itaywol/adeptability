@@ -45,8 +45,11 @@ func setupLibraryClone(t *testing.T, d *Deps, name string) (upstream, clone stri
 	gitRun(t, upstream, "add", ".")
 	gitRun(t, upstream, "commit", "-m", "init")
 
-	libsRoot, err := d.ResolveLibrariesRoot()
+	// Clone into the project-scope libs/ root — the location `library
+	// update` now probes (scope-local, not the machine store).
+	p, err := d.Project()
 	require.NoError(t, err)
+	libsRoot := d.LibsRootFor(p)
 	require.NoError(t, os.MkdirAll(libsRoot, 0o755))
 	clone = filepath.Join(libsRoot, name)
 	gitRun(t, libsRoot, "clone", upstream, clone)

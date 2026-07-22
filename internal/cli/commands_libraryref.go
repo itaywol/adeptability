@@ -43,7 +43,7 @@ func newLibraryUpdateCmd(d *Deps) *cobra.Command {
 	}
 	c.Flags().BoolVar(&yes, "yes", false, "apply updates without prompting")
 	c.RunE = func(cmd *cobra.Command, args []string) error {
-		p, err := d.Project()
+		p, _, err := d.ScopedProject()
 		if err != nil {
 			return err
 		}
@@ -51,10 +51,7 @@ func newLibraryUpdateCmd(d *Deps) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		libsRoot, err := d.ResolveLibrariesRoot()
-		if err != nil {
-			return err
-		}
+		libsRoot := d.LibsRootFor(p)
 
 		targets := cfg.Libraries
 		if len(args) == 1 {
@@ -155,7 +152,7 @@ func newLibraryAddCmd(d *Deps) *cobra.Command {
 	var fromURL, ref string
 	c := &cobra.Command{
 		Use:   "add <name>",
-		Short: "Clone a remote library into the project",
+		Short: "Clone a remote library into the current scope",
 		Args:  cobra.ExactArgs(1),
 	}
 	c.Flags().StringVar(&fromURL, "from", "", "remote URL (git remote or local path) — required")
@@ -166,7 +163,7 @@ func newLibraryAddCmd(d *Deps) *cobra.Command {
 		if !libraryNamePattern.MatchString(name) {
 			return fmt.Errorf("library name %q does not match %s", name, libraryNamePattern.String())
 		}
-		p, err := d.Project()
+		p, isGlobal, err := d.ScopedProject()
 		if err != nil {
 			return err
 		}
@@ -174,10 +171,7 @@ func newLibraryAddCmd(d *Deps) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		libsRoot, err := d.ResolveLibrariesRoot()
-		if err != nil {
-			return err
-		}
+		libsRoot := d.LibsRootFor(p)
 		if err := d.Writer.EnsureDir(libsRoot); err != nil {
 			return fmt.Errorf("create libraries root: %w", err)
 		}
@@ -192,6 +186,11 @@ func newLibraryAddCmd(d *Deps) *cobra.Command {
 		})
 		if err := p.SaveConfig(cfg); err != nil {
 			return err
+		}
+		if !isGlobal {
+			if err := ensureScopeGitignore(d.Writer, p.BaseDir()); err != nil {
+				d.Log.Warn("write .adeptability/.gitignore", "err", err)
+			}
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "library %q added (clone: %s)\n", name, dest)
 		return nil
@@ -210,7 +209,7 @@ func newLibraryRemoveCmd(d *Deps) *cobra.Command {
 	c.Flags().BoolVar(&deleteClone, "purge", false, "also delete the local clone directory")
 	c.RunE = func(cmd *cobra.Command, args []string) error {
 		name := args[0]
-		p, err := d.Project()
+		p, _, err := d.ScopedProject()
 		if err != nil {
 			return err
 		}
@@ -236,10 +235,7 @@ func newLibraryRemoveCmd(d *Deps) *cobra.Command {
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "library %q removed from config\n", name)
 		if deleteClone {
-			libsRoot, err := d.ResolveLibrariesRoot()
-			if err != nil {
-				return err
-			}
+			libsRoot := d.LibsRootFor(p)
 			dest := filepath.Join(libsRoot, name)
 			if err := os.RemoveAll(dest); err != nil && !errors.Is(err, fs.ErrNotExist) {
 				return fmt.Errorf("delete clone %s: %w", dest, err)
@@ -258,7 +254,7 @@ func newLibraryListCmd(d *Deps) *cobra.Command {
 		Args:  cobra.NoArgs,
 	}
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
-		p, err := d.Project()
+		p, _, err := d.ScopedProject()
 		if err != nil {
 			return err
 		}
@@ -266,10 +262,7 @@ func newLibraryListCmd(d *Deps) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		libsRoot, err := d.ResolveLibrariesRoot()
-		if err != nil {
-			return err
-		}
+		libsRoot := d.LibsRootFor(p)
 		rows := make([]libraryRow, 0, len(cfg.Libraries))
 		for _, l := range cfg.Libraries {
 			local := filepath.Join(libsRoot, l.Name)
