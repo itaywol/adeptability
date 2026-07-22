@@ -12,12 +12,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/itaywol/adeptability/internal/budget"
 	"github.com/itaywol/adeptability/internal/canonical"
 	"github.com/itaywol/adeptability/internal/config"
 	"github.com/itaywol/adeptability/internal/fsutil"
 	"github.com/itaywol/adeptability/internal/hash"
 	"github.com/itaywol/adeptability/internal/log"
 	"github.com/itaywol/adeptability/internal/project"
+	"github.com/itaywol/adeptability/internal/render/codex"
 	"github.com/itaywol/adeptability/pkg/adept"
 )
 
@@ -534,36 +536,6 @@ func globalPerSkillAdapter(id string) *mockAdapter {
 	}
 }
 
-// globalAggregatorAdapter mirrors the codex spec: its OutputPath ("AGENTS.md")
-// differs from its GlobalOutput (".codex/AGENTS.md"). The renderer carries the
-// swapped target path into each fragment; the aggregator honours it. This
-// proves the swap actually changes the materialized path.
-func globalAggregatorAdapter(id string) *mockAdapter {
-	return &mockAdapter{
-		spec: adept.HarnessSpec{
-			ID:            id,
-			Kind:          adept.KindAggregatorSingle,
-			OutputPath:    "AGENTS.md",
-			GlobalOutput:  ".codex/AGENTS.md",
-			GlobalBaseDir: ".codex",
-		},
-		render: rendererFunc(func(_ context.Context, in adept.RenderInput) (adept.RenderOutput, error) {
-			return adept.RenderOutput{
-				Path: in.Harness.OutputPath, Bytes: []byte("part:" + in.Skill.ID + "\n"), SkillID: in.Skill.ID,
-			}, nil
-		}),
-		agg: func(_ context.Context, parts []adept.RenderOutput, _ int) ([]adept.RenderOutput, error) {
-			merged := []byte{}
-			target := "AGENTS.md"
-			for _, pt := range parts {
-				merged = append(merged, pt.Bytes...)
-				target = pt.Path
-			}
-			return []adept.RenderOutput{{Path: target, Bytes: merged, Mode: 0o644}}, nil
-		},
-	}
-}
-
 func TestSyncGlobalSwapsSpecPaths(t *testing.T) {
 	p := newGlobalProj(t)
 	installSkill(t, p, "demo")
@@ -583,6 +555,9 @@ func TestSyncGlobalSwapsSpecPaths(t *testing.T) {
 	require.FileExists(t, filepath.Join(p.BaseDir(), adept.StagingDir, ".claude", "skills", "demo", "SKILL.md"))
 }
 
+// Uses the REAL codex adapter (aggregator harness) to prove the effective-spec
+// swap threads through the renderer AND aggregator to the materialized path:
+// codex's OutputPath ("AGENTS.md") is redirected to ".codex/AGENTS.md".
 func TestSyncGlobalCodexVariantSwapsPath(t *testing.T) {
 	p := newGlobalProj(t)
 	installSkill(t, p, "demo")
@@ -591,12 +566,11 @@ func TestSyncGlobalCodexVariantSwapsPath(t *testing.T) {
 	skills, err := p.ListSkills()
 	require.NoError(t, err)
 
-	orch := newOrch(t, globalAggregatorAdapter("codex"))
+	realCodex := codex.NewAdapter(codex.New(), budget.NewPacker(), fsutil.NewWriter())
+	orch := newOrch(t, realCodex)
 	_, err = orch.Sync(context.Background(), p, SyncOptions{Global: true, Skills: skills})
 	require.NoError(t, err)
 
-	// codex's OutputPath is "AGENTS.md"; the global swap redirects to
-	// ".codex/AGENTS.md" — proving the swap changes a path.
 	require.FileExists(t, filepath.Join(p.Root(), ".codex", "AGENTS.md"))
 	require.NoFileExists(t, filepath.Join(p.Root(), "AGENTS.md"))
 }

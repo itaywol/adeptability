@@ -20,10 +20,18 @@ func aggregate(p budget.Packer, parts []adept.RenderOutput, budgetB int) (adept.
 		return adept.RenderOutput{}, fmt.Errorf("codex aggregate: negative budget %d", budgetB)
 	}
 
+	// Path-agnostic: fragments all share one output path (the effective spec's
+	// OutputPath — "AGENTS.md" for project scope, ".codex/AGENTS.md" for
+	// global). Adopt the first fragment's path as the target and filter any
+	// stray mismatches against it rather than the OutputFile constant.
+	target := OutputFile
+	if len(parts) > 0 && parts[0].Path != "" {
+		target = parts[0].Path
+	}
 	bparts := make([]budget.Part, 0, len(parts))
 	for _, pt := range parts {
-		// Defensive: skip any non-AGENTS.md output that somehow slipped in.
-		if pt.Path != OutputFile {
+		// Defensive: skip any output whose path diverges from the target.
+		if pt.Path != target {
 			continue
 		}
 		bparts = append(bparts, budget.Part{
@@ -58,7 +66,7 @@ func aggregate(p budget.Packer, parts []adept.RenderOutput, budgetB int) (adept.
 	}
 
 	return adept.RenderOutput{
-		Path:  OutputFile,
+		Path:  target,
 		Bytes: []byte(body.String()),
 		Mode:  0o644,
 	}, nil
