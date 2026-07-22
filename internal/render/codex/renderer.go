@@ -52,8 +52,15 @@ func (r *Renderer) Render(_ context.Context, in adept.RenderInput) (adept.Render
 
 	hash := common.ShortSkillHash(s)
 	frag := buildFragment(s, hash)
+	// Honor the effective spec's output path (global scope swaps this to
+	// ".codex/AGENTS.md"); fall back to the default when callers construct a
+	// bare RenderInput without a Harness.
+	outPath := in.Harness.OutputPath
+	if outPath == "" {
+		outPath = OutputFile
+	}
 	out := adept.RenderOutput{
-		Path:      OutputFile,
+		Path:      outPath,
 		Bytes:     []byte(frag),
 		Mode:      0o644,
 		SkillID:   s.ID,

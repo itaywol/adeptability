@@ -71,6 +71,17 @@ composes a discovery skill + evaluator agent + cron skeleton in one shot — see
 `authoring-adept-agents`, `authoring-adept-loops`, `adept-self-improve`) so a fresh project is
 useful on day one. Skip with `--no-default-skills`.
 
+### Global skills
+
+Prefix any command with `--global` to target your home directory instead of a project — for
+skills you want everywhere without an `adept init` per repo. Supported by `claude-code`,
+`codex`, and `opencode` (not Cursor or Copilot). See
+[Scopes](https://itaywol.github.io/adeptability/concepts/scopes/).
+
+```bash
+adept --global harness add claude-code && adept --global skill add lint-style --edit && adept --global sync
+```
+
 ## Core concepts
 
 - **Canonical skill** — one `SKILL.md` (YAML frontmatter + markdown body) plus optional
@@ -83,9 +94,10 @@ useful on day one. Skip with `--no-default-skills`.
   canonical skill into every enabled harness's own path and schema; a hash-based state
   machine (`synced | ahead | behind | diverged`) powers `status` and `diff`. No lockfile.
 - **Library** — a shared, versioned set of skills, resolved package-manager style. Your
-  project commits only a *reference* (`{name, remote, ref}`); the skills themselves live in a
-  per-machine store (`$ADEPT_LIBRARY`, default `~/.adeptability`) and are cloned on demand.
-  Teammates clone your repo, run `adept`, and the library resolves into their local store and
+  project commits only a *reference* (`{name, remote, ref}`); the skills themselves clone into
+  `.adeptability/libs/<name>/` (gitignored), falling back to the machine store
+  (`$ADEPT_LIBRARY`, default `~/.adeptability`) when no project-local clone exists yet.
+  Teammates clone your repo, run `adept`, and the library resolves into their project and
   materializes into their harnesses.
 
 Read the [Concepts guide](https://itaywol.github.io/adeptability/concepts/libraries/) for the

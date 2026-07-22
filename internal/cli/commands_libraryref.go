@@ -43,15 +43,11 @@ func newLibraryUpdateCmd(d *Deps) *cobra.Command {
 	}
 	c.Flags().BoolVar(&yes, "yes", false, "apply updates without prompting")
 	c.RunE = func(cmd *cobra.Command, args []string) error {
-		p, err := d.Project()
+		p, _, err := d.ScopedProject()
 		if err != nil {
 			return err
 		}
 		cfg, err := p.Config()
-		if err != nil {
-			return err
-		}
-		libsRoot, err := d.ResolveLibrariesRoot()
 		if err != nil {
 			return err
 		}
@@ -78,10 +74,17 @@ func newLibraryUpdateCmd(d *Deps) *cobra.Command {
 		ctx := cmd.Context()
 		updated := false
 		for _, l := range targets {
-			dest := filepath.Join(libsRoot, l.Name)
-			if !d.Git.IsRepo(dest) {
+			// Resolve scope-local first, then the machine store, so a globally
+			// cloned library can still be fetched from a project scope.
+			dest, src := resolveLibDirSource(d, p, l.Name)
+			if src == libMissing || !d.Git.IsRepo(dest) {
 				fmt.Fprintf(w, "%s: no local clone — run `adept library add %s --from %s`\n", l.Name, l.Name, l.Remote)
 				continue
+			}
+			if src == libFallback {
+				// Advancing a machine-store clone from project scope moves
+				// shared state every other project resolving from it consumes.
+				fmt.Fprintf(w, "%s: updating shared machine-store clone (%s) — affects every project resolving from it; run `adept migrate` to localize first\n", l.Name, dest)
 			}
 			ref := l.Ref
 			if ref == "" {
@@ -155,7 +158,7 @@ func newLibraryAddCmd(d *Deps) *cobra.Command {
 	var fromURL, ref string
 	c := &cobra.Command{
 		Use:   "add <name>",
-		Short: "Clone a remote library into the project",
+		Short: "Clone a remote library into the current scope",
 		Args:  cobra.ExactArgs(1),
 	}
 	c.Flags().StringVar(&fromURL, "from", "", "remote URL (git remote or local path) — required")
@@ -166,7 +169,7 @@ func newLibraryAddCmd(d *Deps) *cobra.Command {
 		if !libraryNamePattern.MatchString(name) {
 			return fmt.Errorf("library name %q does not match %s", name, libraryNamePattern.String())
 		}
-		p, err := d.Project()
+		p, isGlobal, err := d.ScopedProject()
 		if err != nil {
 			return err
 		}
@@ -174,10 +177,7 @@ func newLibraryAddCmd(d *Deps) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		libsRoot, err := d.ResolveLibrariesRoot()
-		if err != nil {
-			return err
-		}
+		libsRoot := d.LibsRootFor(p)
 		if err := d.Writer.EnsureDir(libsRoot); err != nil {
 			return fmt.Errorf("create libraries root: %w", err)
 		}
@@ -192,6 +192,11 @@ func newLibraryAddCmd(d *Deps) *cobra.Command {
 		})
 		if err := p.SaveConfig(cfg); err != nil {
 			return err
+		}
+		if !isGlobal {
+			if err := ensureScopeGitignore(d.Writer, p.BaseDir()); err != nil {
+				d.Log.Warn("write .adeptability/.gitignore", "err", err)
+			}
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "library %q added (clone: %s)\n", name, dest)
 		return nil
@@ -210,7 +215,7 @@ func newLibraryRemoveCmd(d *Deps) *cobra.Command {
 	c.Flags().BoolVar(&deleteClone, "purge", false, "also delete the local clone directory")
 	c.RunE = func(cmd *cobra.Command, args []string) error {
 		name := args[0]
-		p, err := d.Project()
+		p, _, err := d.ScopedProject()
 		if err != nil {
 			return err
 		}
@@ -236,15 +241,22 @@ func newLibraryRemoveCmd(d *Deps) *cobra.Command {
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "library %q removed from config\n", name)
 		if deleteClone {
-			libsRoot, err := d.ResolveLibrariesRoot()
-			if err != nil {
-				return err
+			// Resolve the real on-disk clone before deleting. A machine-store
+			// fallback clone is shared across every project resolving from it,
+			// so --purge must never delete it (and must not falsely claim it
+			// did): only a scope-local clone is ours to remove.
+			dest, src := resolveLibDirSource(d, p, name)
+			switch src {
+			case libLocal:
+				if err := os.RemoveAll(dest); err != nil && !errors.Is(err, fs.ErrNotExist) {
+					return fmt.Errorf("delete clone %s: %w", dest, err)
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "library %q clone deleted (%s)\n", name, dest)
+			case libFallback:
+				fmt.Fprintf(cmd.OutOrStdout(), "library %q machine-store clone left intact (shared across projects): %s\n", name, dest)
+			case libMissing:
+				fmt.Fprintf(cmd.OutOrStdout(), "library %q had no local clone to delete\n", name)
 			}
-			dest := filepath.Join(libsRoot, name)
-			if err := os.RemoveAll(dest); err != nil && !errors.Is(err, fs.ErrNotExist) {
-				return fmt.Errorf("delete clone %s: %w", dest, err)
-			}
-			fmt.Fprintf(cmd.OutOrStdout(), "library %q clone deleted (%s)\n", name, dest)
 		}
 		return nil
 	}
@@ -258,7 +270,7 @@ func newLibraryListCmd(d *Deps) *cobra.Command {
 		Args:  cobra.NoArgs,
 	}
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
-		p, err := d.Project()
+		p, _, err := d.ScopedProject()
 		if err != nil {
 			return err
 		}
@@ -266,17 +278,11 @@ func newLibraryListCmd(d *Deps) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		libsRoot, err := d.ResolveLibrariesRoot()
-		if err != nil {
-			return err
-		}
 		rows := make([]libraryRow, 0, len(cfg.Libraries))
 		for _, l := range cfg.Libraries {
-			local := filepath.Join(libsRoot, l.Name)
-			onDisk := false
-			if _, statErr := os.Stat(local); statErr == nil {
-				onDisk = true
-			}
+			// Resolve scope-local first, then the machine store, so a globally
+			// cloned library still reports on-disk with its real resolved path.
+			local, onDisk := resolveLibDir(d, p, l.Name)
 			rows = append(rows, libraryRow{
 				Name:      l.Name,
 				Remote:    l.Remote,

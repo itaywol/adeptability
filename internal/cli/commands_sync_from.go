@@ -37,12 +37,33 @@ func newSyncFromCmd(d *Deps) *cobra.Command {
 	c.Flags().BoolVar(&force, "force", false, "overwrite existing project canonical content")
 	_ = c.RegisterFlagCompletionFunc("harness", enabledHarnessCompletion(d))
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
-		p, err := d.Project()
+		p, isGlobal, err := d.ScopedProject()
 		if err != nil {
 			return err
 		}
 		if err := d.LoadUserAdapters(); err != nil {
 			d.Log.Warn("load user adapters", "err", err)
+		}
+
+		// ponytail: import is spec-path-unaware; global import beyond claude needs spec threading through Import().
+		if isGlobal {
+			ids := harnessIDs
+			if len(ids) == 0 {
+				cfg, cerr := p.Config()
+				if cerr != nil {
+					return cerr
+				}
+				ids = cfg.Harnesses
+			}
+			for _, id := range ids {
+				a, gerr := d.Registry.Get(id)
+				if gerr != nil {
+					continue
+				}
+				if s := a.Spec(); s.GlobalOutput != s.OutputPath {
+					return fmt.Errorf("harness %q: sync-from --global currently supports harnesses whose global layout matches the project layout (claude-code)", id)
+				}
+			}
 		}
 
 		// Non-interactive paths first.

@@ -91,6 +91,9 @@ func (a *Adapter) Spec() adept.HarnessSpec {
 		SizeBudgetB: SizeBudgetB,
 		NeedsDir:    false,
 		BaseDir:     BucketDir,
+		// No real home-level config location — not global-capable.
+		GlobalOutput:  "",
+		GlobalBaseDir: "",
 	}
 }
 

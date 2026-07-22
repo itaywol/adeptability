@@ -81,13 +81,15 @@ var _ adept.HarnessAdapter = (*Adapter)(nil)
 // Spec returns the static description used by the harness registry.
 func (a *Adapter) Spec() adept.HarnessSpec {
 	return adept.HarnessSpec{
-		ID:          "codex",
-		Name:        "Codex",
-		Kind:        adept.KindAggregatorSingle,
-		OutputPath:  OutputFile,
-		SizeBudgetB: SizeBudgetB,
-		NeedsDir:    false,
-		BaseDir:     "",
+		ID:            "codex",
+		Name:          "Codex",
+		Kind:          adept.KindAggregatorSingle,
+		OutputPath:    OutputFile,
+		SizeBudgetB:   SizeBudgetB,
+		NeedsDir:      false,
+		BaseDir:       "",
+		GlobalOutput:  ".codex/AGENTS.md",
+		GlobalBaseDir: ".codex",
 	}
 }
 

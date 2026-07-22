@@ -7,12 +7,10 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 
 	"github.com/itaywol/adeptability/internal/harness"
-	"github.com/itaywol/adeptability/pkg/adept"
 )
 
 // newStatusCmd replaces the prior `doctor` command. Single "where am I"
@@ -195,40 +193,30 @@ func collectStatus(ctx context.Context, d *Deps, fetch bool) (statusReport, erro
 	}
 	rep.LibraryRoot = libRoot
 
-	projRoot, err := d.ResolveProjectRoot()
+	p, isGlobal, err := d.ScopedProject()
 	if err != nil {
 		return rep, err
 	}
-	rep.ProjectRoot = projRoot
+	rep.ProjectRoot = p.Root()
 
-	basePath := filepath.Join(projRoot, adept.BaseDirName)
-	if _, statErr := os.Stat(basePath); errors.Is(statErr, fs.ErrNotExist) {
+	// Init detection keys off the scoped project's metadata dir: <root>/.adeptability
+	// for a project, the library root itself for the global scope.
+	if _, statErr := os.Stat(p.BaseDir()); errors.Is(statErr, fs.ErrNotExist) {
 		rep.Initialized = false
 		return rep, nil
 	}
 	rep.Initialized = true
-
-	p, err := d.Project()
-	if err != nil {
-		return rep, err
-	}
 	cfg, err := p.Config()
 	if err != nil {
 		return rep, err
 	}
 	rep.Mode = string(d.Config.GetMode(cfg))
 
-	// Libraries
-	libsRoot, err := d.ResolveLibrariesRoot()
-	if err != nil {
-		return rep, err
-	}
+	// Libraries — resolved scope-locally with a machine-store fallback.
 	for _, l := range cfg.Libraries {
-		local := filepath.Join(libsRoot, l.Name)
-		onDisk := false
+		local, onDisk := resolveLibDir(d, p, l.Name)
 		updatable := false
-		if _, statErr := os.Stat(local); statErr == nil {
-			onDisk = true
+		if onDisk {
 			updatable = libraryHasUpdate(ctx, d, local, l.Ref, fetch)
 			if updatable {
 				rep.UpdatableLibs++
@@ -283,7 +271,7 @@ func collectStatus(ctx context.Context, d *Deps, fetch bool) (statusReport, erro
 		enabled[h] = true
 	}
 	if len(cfg.Harnesses) > 0 {
-		reports, derr := d.Orchestrator.Status(ctx, p, harness.StatusOptions{Skills: resolved})
+		reports, derr := d.Orchestrator.Status(ctx, p, harness.StatusOptions{Skills: resolved, Global: isGlobal})
 		if derr != nil {
 			return rep, derr
 		}

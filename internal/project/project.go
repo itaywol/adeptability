@@ -143,19 +143,43 @@ func NewLibrary(root string, parser canonical.Parser, hasher hash.Hasher, store 
 	}
 }
 
+// NewGlobal constructs a Project for the global scope: root is the render
+// root (parent of the library root — $HOME by default) and baseDir is the
+// adept metadata dir itself (the library root, ~/.adeptability by default).
+// It behaves like New but BaseDir() returns baseDir verbatim instead of
+// <root>/.adeptability. Consumer layout only.
+func NewGlobal(root, baseDir string, parser canonical.Parser, hasher hash.Hasher, store config.Store, w fsutil.Writer) Project {
+	return &project{
+		root:            root,
+		baseDirOverride: baseDir,
+		parser:          parser,
+		hasher:          hasher,
+		store:           store,
+		writer:          w,
+	}
+}
+
 type project struct {
-	root   string
-	parser canonical.Parser
-	hasher hash.Hasher
-	store  config.Store
-	writer fsutil.Writer
+	root string
+	// baseDirOverride, when non-empty, makes BaseDir() return it verbatim
+	// instead of <root>/.adeptability (global scope). See NewGlobal.
+	baseDirOverride string
+	parser          canonical.Parser
+	hasher          hash.Hasher
+	store           config.Store
+	writer          fsutil.Writer
 	// libraryLayout places canonical skills at <root>/skills/ instead of
 	// <root>/.adeptability/skills/. See NewLibrary.
 	libraryLayout bool
 }
 
-func (p *project) Root() string    { return p.root }
-func (p *project) BaseDir() string { return filepath.Join(p.root, adept.BaseDirName) }
+func (p *project) Root() string { return p.root }
+func (p *project) BaseDir() string {
+	if p.baseDirOverride != "" {
+		return p.baseDirOverride
+	}
+	return filepath.Join(p.root, adept.BaseDirName)
+}
 func (p *project) SkillsDir() string {
 	if p.libraryLayout {
 		return filepath.Join(p.root, adept.SkillsDirName)

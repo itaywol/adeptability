@@ -167,7 +167,7 @@ func TestRunHook_FailOnDrift_FixReconciles(t *testing.T) {
 	canon, err := os.ReadFile(filepath.Join(p.SkillsDir(), "alpha", adept.SkillFileName))
 	require.NoError(t, err)
 	require.Contains(t, string(canon), "hand edit")
-	drift, err := driftedHarnesses(context.Background(), d, p)
+	drift, err := driftedHarnesses(context.Background(), d, p, false)
 	require.NoError(t, err)
 	require.Empty(t, drift)
 }
@@ -212,7 +212,7 @@ func testDepsWithGit(t *testing.T, root string) *Deps {
 // real harness registry and orchestrator are available, pinned to temp roots.
 func newFullDeps(t *testing.T, root, lib string) *Deps {
 	t.Helper()
-	d, err := NewDeps(&GlobalFlags{ProjectDir: root, LibraryDir: lib, LogLevel: "error"}, BuildInfo{Version: "test"})
+	d, err := NewDeps(&GlobalFlags{ProjectDir: root, LibraryDir: lib, LogLevel: "error", projectDirExplicit: true}, BuildInfo{Version: "test"})
 	require.NoError(t, err)
 	return d
 }

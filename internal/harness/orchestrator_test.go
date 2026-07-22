@@ -5,18 +5,21 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/itaywol/adeptability/internal/budget"
 	"github.com/itaywol/adeptability/internal/canonical"
 	"github.com/itaywol/adeptability/internal/config"
 	"github.com/itaywol/adeptability/internal/fsutil"
 	"github.com/itaywol/adeptability/internal/hash"
 	"github.com/itaywol/adeptability/internal/log"
 	"github.com/itaywol/adeptability/internal/project"
+	"github.com/itaywol/adeptability/internal/render/codex"
 	"github.com/itaywol/adeptability/pkg/adept"
 )
 
@@ -143,6 +146,28 @@ func TestOrchestrator_Sync_PerSkillWritesFiles(t *testing.T) {
 		path := filepath.Join(root, ".alpha", id+".md")
 		require.FileExists(t, path)
 	}
+}
+
+// When a Project's BaseDir is overridden (global scope), symlink staging must
+// land under p.BaseDir()/staging/, not under <root>/.adeptability/staging/.
+func TestOrchestrator_Write_StagingUnderBaseDir(t *testing.T) {
+	tmp := t.TempDir()
+	root := filepath.Join(tmp, "render-root")
+	base := filepath.Join(tmp, "custom-lib-root")
+	require.NoError(t, os.MkdirAll(root, 0o755))
+	p := project.NewGlobal(root, base, canonical.NewParser(), hash.NewHasher(),
+		config.NewStore(nil), fsutil.NewWriter())
+
+	w := fsutil.NewWriter()
+	o := &orchestrator{writer: w, linker: fsutil.NewLinker(w)}
+
+	out := adept.RenderOutput{Path: filepath.Join(".alpha", "skill-a.md"), Bytes: []byte("body\n"), Mode: 0o644}
+	absPath := filepath.Join(root, out.Path)
+	_, _, err := o.write(p, absPath, out, adept.ModeSymlink)
+	require.NoError(t, err)
+
+	require.FileExists(t, filepath.Join(base, adept.StagingDir, out.Path))
+	require.NoFileExists(t, filepath.Join(root, adept.BaseDirName, adept.StagingDir, out.Path))
 }
 
 func TestOrchestrator_Sync_CollectsRendererWarnings(t *testing.T) {
@@ -478,4 +503,91 @@ func TestOrchestrator_Sync_ConcurrentRenderIsRaceClean(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, results[0].Written, 16)
 	require.Len(t, seen, 16)
+}
+
+// newGlobalProj builds a global-scope project: render root = tmp, canonical
+// library base = tmp/.adeptability. Never touches the real $HOME.
+func newGlobalProj(t *testing.T) project.Project {
+	t.Helper()
+	tmp := t.TempDir()
+	return project.NewGlobal(tmp, filepath.Join(tmp, adept.BaseDirName),
+		canonical.NewParser(), hash.NewHasher(), config.NewStore(nil), fsutil.NewWriter())
+}
+
+// globalPerSkillAdapter mirrors the claude-code spec: its GlobalOutput equals
+// its OutputPath. The renderer derives its path from in.Harness.OutputPath so
+// the orchestrator's spec swap is observable end-to-end.
+func globalPerSkillAdapter(id string) *mockAdapter {
+	return &mockAdapter{
+		spec: adept.HarnessSpec{
+			ID:            id,
+			Kind:          adept.KindPerSkill,
+			OutputPath:    ".claude/skills/{id}/SKILL.md",
+			BaseDir:       ".claude",
+			GlobalOutput:  ".claude/skills/{id}/SKILL.md",
+			GlobalBaseDir: ".claude",
+		},
+		render: rendererFunc(func(_ context.Context, in adept.RenderInput) (adept.RenderOutput, error) {
+			path := strings.ReplaceAll(in.Harness.OutputPath, "{id}", in.Skill.ID)
+			return adept.RenderOutput{
+				Path: path, Bytes: []byte("body " + in.Skill.ID), Mode: 0o644, SkillID: in.Skill.ID,
+			}, nil
+		}),
+	}
+}
+
+func TestSyncGlobalSwapsSpecPaths(t *testing.T) {
+	p := newGlobalProj(t)
+	installSkill(t, p, "demo")
+	setHarnesses(t, p, "claude-code")
+
+	skills, err := p.ListSkills()
+	require.NoError(t, err)
+
+	orch := newOrch(t, globalPerSkillAdapter("claude-code"))
+	_, err = orch.Sync(context.Background(), p, SyncOptions{Global: true, Skills: skills})
+	require.NoError(t, err)
+
+	// claude's GlobalOutput == OutputPath, so this proves the plumbing
+	// end-to-end: the render landed at the home-level target.
+	require.FileExists(t, filepath.Join(p.Root(), ".claude", "skills", "demo", "SKILL.md"))
+	// Staging derives from p.BaseDir() (the library base), not the spec.
+	require.FileExists(t, filepath.Join(p.BaseDir(), adept.StagingDir, ".claude", "skills", "demo", "SKILL.md"))
+}
+
+// Uses the REAL codex adapter (aggregator harness) to prove the effective-spec
+// swap threads through the renderer AND aggregator to the materialized path:
+// codex's OutputPath ("AGENTS.md") is redirected to ".codex/AGENTS.md".
+func TestSyncGlobalCodexVariantSwapsPath(t *testing.T) {
+	p := newGlobalProj(t)
+	installSkill(t, p, "demo")
+	setHarnesses(t, p, "codex")
+
+	skills, err := p.ListSkills()
+	require.NoError(t, err)
+
+	realCodex := codex.NewAdapter(codex.New(), budget.NewPacker(), fsutil.NewWriter())
+	orch := newOrch(t, realCodex)
+	_, err = orch.Sync(context.Background(), p, SyncOptions{Global: true, Skills: skills})
+	require.NoError(t, err)
+
+	require.FileExists(t, filepath.Join(p.Root(), ".codex", "AGENTS.md"))
+	require.NoFileExists(t, filepath.Join(p.Root(), "AGENTS.md"))
+}
+
+func TestSyncGlobalRejectsNonCapableHarness(t *testing.T) {
+	p := newGlobalProj(t)
+	installSkill(t, p, "demo")
+	setHarnesses(t, p, "cursor")
+
+	skills, err := p.ListSkills()
+	require.NoError(t, err)
+
+	// cursor has no GlobalOutput -> not global-capable.
+	cursor := &mockAdapter{spec: adept.HarnessSpec{
+		ID: "cursor", Kind: adept.KindPerSkill, OutputPath: ".cursor/rules/{id}.mdc", BaseDir: ".cursor",
+	}}
+	orch := newOrch(t, cursor)
+	_, err = orch.Sync(context.Background(), p, SyncOptions{Global: true, Skills: skills})
+	require.ErrorIs(t, err, adept.ErrNotGlobalCapable)
 }

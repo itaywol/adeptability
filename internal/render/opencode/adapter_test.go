@@ -55,6 +55,13 @@ func TestAdapter_Spec(t *testing.T) {
 	require.True(t, spec.NeedsDir)
 }
 
+func TestSpecGlobalOutput(t *testing.T) {
+	t.Parallel()
+	s := opencode.Spec()
+	require.Equal(t, ".config/opencode/skill/{id}/SKILL.md", s.GlobalOutput)
+	require.Equal(t, ".config/opencode", s.GlobalBaseDir)
+}
+
 func TestAdapter_Aggregate_PassesThrough(t *testing.T) {
 	t.Parallel()
 	in := []adept.RenderOutput{{Path: "x"}}

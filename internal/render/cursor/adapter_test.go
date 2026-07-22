@@ -55,6 +55,13 @@ func TestAdapter_Spec(t *testing.T) {
 	require.False(t, spec.NeedsDir)
 }
 
+func TestSpecGlobalOutput(t *testing.T) {
+	t.Parallel()
+	s := cursor.Spec()
+	require.Equal(t, "", s.GlobalOutput)
+	require.Equal(t, "", s.GlobalBaseDir)
+}
+
 func TestAdapter_Aggregate_PassesThrough(t *testing.T) {
 	t.Parallel()
 	in := []adept.RenderOutput{{Path: "x"}, {Path: "y"}}

@@ -39,6 +39,9 @@ func Spec() adept.HarnessSpec {
 		OutputPath: ".cursor/rules/{id}.mdc",
 		NeedsDir:   false,
 		BaseDir:    ".cursor",
+		// No real home-level config location — not global-capable.
+		GlobalOutput:  "",
+		GlobalBaseDir: "",
 	}
 }
 

@@ -189,6 +189,17 @@ func TestSpec(t *testing.T) {
 	}
 }
 
+func TestSpecGlobalOutput(t *testing.T) {
+	a := NewAdapter(New(), budget.NewPacker(), nil)
+	sp := a.Spec()
+	if sp.GlobalOutput != ".codex/AGENTS.md" {
+		t.Fatalf("GlobalOutput = %q", sp.GlobalOutput)
+	}
+	if sp.GlobalBaseDir != ".codex" {
+		t.Fatalf("GlobalBaseDir = %q", sp.GlobalBaseDir)
+	}
+}
+
 func min(a, b int) int {
 	if a < b {
 		return a

@@ -60,6 +60,17 @@ func TestProject_HashSkill_NonEmptyAfterInstall(t *testing.T) {
 	require.NotEmpty(t, h)
 }
 
+func TestNewGlobalBaseDirOverride(t *testing.T) {
+	tmp := t.TempDir()
+	base := filepath.Join(tmp, "custom-lib-root")
+	p := NewGlobal(tmp, base, canonical.NewParser(), hash.NewHasher(),
+		config.NewStore(fsutil.NewWriter().AtomicWrite), fsutil.NewWriter())
+	require.Equal(t, tmp, p.Root())
+	require.Equal(t, base, p.BaseDir())
+	require.Equal(t, filepath.Join(base, adept.SkillsDirName), p.SkillsDir())
+	require.Equal(t, filepath.Join(base, adept.ConfigFileName), p.ConfigPath())
+}
+
 func TestProject_HashSkill_EmptyOnMissing(t *testing.T) {
 	p, _ := newProject(t)
 	h, err := p.HashSkill("ghost")

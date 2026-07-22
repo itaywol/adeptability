@@ -80,8 +80,9 @@ func TestE2E(t *testing.T) {
 	}
 
 	// Build a standalone "remote" library elsewhere on disk. `library add`
-	// will clone it into ADEPT_LIBRARY/libs/default/. Pre-populating that
-	// destination path with files would conflict with `git clone`.
+	// clones it into the project-scope <proj>/.adeptability/libs/default/.
+	// Pre-populating that destination path with files would conflict with
+	// `git clone`.
 	remoteLib := filepath.Join(t.TempDir(), "remote-lib")
 	require.NoError(t, os.MkdirAll(filepath.Join(remoteLib, "skills", "pr-review"), 0o755))
 	require.NoError(t, os.WriteFile(
@@ -150,12 +151,19 @@ func TestE2E(t *testing.T) {
 		require.Contains(t, out, `"enabled": true`)
 	})
 
-	t.Run("library add clones into $LIB/libs/<name>", func(t *testing.T) {
+	t.Run("library add clones into project-scope .adeptability/libs/<name>", func(t *testing.T) {
 		out, code := run(t, "--project", proj, "library", "add", "default",
 			"--from", "file://"+remoteLib)
 		require.Equal(t, 0, code, out)
 		require.Contains(t, out, "library \"default\" added")
-		require.FileExists(t, filepath.Join(libRoot, "libs", "default", "skills", "pr-review", "SKILL.md"))
+		// Project-scope clone, not the machine store.
+		require.FileExists(t, filepath.Join(proj, ".adeptability", "libs", "default", "skills", "pr-review", "SKILL.md"))
+		require.NoDirExists(t, filepath.Join(libRoot, "libs", "default"))
+		// project-scope add manages .adeptability/.gitignore.
+		gi, err := os.ReadFile(filepath.Join(proj, ".adeptability", ".gitignore"))
+		require.NoError(t, err)
+		require.Contains(t, string(gi), "libs/")
+		require.Contains(t, string(gi), "staging/")
 	})
 
 	t.Run("library list shows the configured library", func(t *testing.T) {

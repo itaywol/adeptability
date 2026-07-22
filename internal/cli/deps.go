@@ -240,6 +240,90 @@ func (d *Deps) Project() (project.Project, error) {
 	return d.projectAt(root, d.detectLibraryLayout(root)), nil
 }
 
+// GlobalProject returns the global-scope Project: metadata at the library
+// root (~/.adeptability), rendering into its parent (default $HOME).
+func (d *Deps) GlobalProject() (project.Project, error) {
+	libRoot, err := d.ResolveLibraryRoot()
+	if err != nil {
+		return nil, err
+	}
+	return project.NewGlobal(filepath.Dir(libRoot), libRoot, d.Parser, d.Hasher, d.Config, d.Writer), nil
+}
+
+// findProjectRoot walks up from start looking for .adeptability/config.json,
+// stopping at the filesystem root. The config probe is cheap, so no $HOME
+// boundary is needed.
+func findProjectRoot(start string) (string, bool) {
+	dir := start
+	for {
+		if _, err := os.Stat(filepath.Join(dir, adept.BaseDirName, adept.ConfigFileName)); err == nil {
+			return dir, true
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", false
+		}
+		dir = parent
+	}
+}
+
+// ScopedProject resolves the project the current invocation operates on.
+// --global forces global scope; an explicit --project pins that directory;
+// otherwise the nearest ancestor with .adeptability/config.json wins, and with
+// no project anywhere up the tree the global scope is used (noticed on stderr
+// once). The bool return is "is global scope".
+func (d *Deps) ScopedProject() (project.Project, bool, error) {
+	if d.Flags != nil && d.Flags.Global {
+		p, err := d.GlobalProject()
+		return p, true, err
+	}
+	if d.Flags != nil && d.Flags.projectDirExplicit {
+		p, err := d.Project()
+		return p, false, err
+	}
+	start, err := d.ResolveProjectRoot()
+	if err != nil {
+		return nil, false, err
+	}
+	if root, ok := findProjectRoot(start); ok {
+		// A `--global` render seeds ~/.adeptability/config.json, whose parent
+		// is $HOME. Left alone, walk-up from any dir under $HOME would then
+		// discover that config and resolve $HOME as a PROJECT — rendering
+		// AGENTS.md/agents into $HOME and bypassing the skills-only global
+		// rule. When the found .adeptability IS the library root, it is the
+		// global scope, not a project: return the global project instead.
+		//
+		// Match the config dir itself (<root>/.adeptability == libraryRoot), not
+		// its parent: parent equality over-matches whenever the library root's
+		// basename isn't ".adeptability" — e.g. the vendored-CI topology
+		// ADEPT_LIBRARY=<project>/.adept-lib, where filepath.Dir(libRoot) is the
+		// real project root — silently resolving a real project as global and
+		// defeating its drift gate.
+		if libRoot, lerr := d.ResolveLibraryRoot(); lerr == nil &&
+			filepath.Clean(filepath.Join(root, adept.BaseDirName)) == filepath.Clean(libRoot) {
+			p, err := d.GlobalProject()
+			return p, true, err
+		}
+		return d.projectAt(root, d.detectLibraryLayout(root)), false, nil
+	}
+	if d.Log != nil {
+		d.Log.Warn("no project found (no .adeptability/config.json up the tree) — operating on global scope; pass --project to target a project")
+	}
+	p, err := d.GlobalProject()
+	return p, true, err
+}
+
+// rejectGlobal returns a clear error when --global is set. Agents and loops
+// are project-scope only by design — global scope renders skills into
+// home-level harness config and has no defined agent/loop target — so these
+// commands refuse --global up front instead of silently ignoring it.
+func rejectGlobal(d *Deps, what string) error {
+	if d.Flags != nil && d.Flags.Global {
+		return fmt.Errorf("%s are project-scope only — global scope not supported", what)
+	}
+	return nil
+}
+
 // ProjectWithLayout returns a Project for the resolved root forcing the given
 // layout, bypassing config detection. Used by `init` to build the project
 // before config.json exists on disk.
@@ -294,6 +378,13 @@ func (d *Deps) ResolveLibrariesRoot() (string, error) {
 		return "", err
 	}
 	return filepath.Join(root, "libs"), nil
+}
+
+// LibsRootFor returns the scope-local library clone root: <scope base>/libs.
+// Project scope: <project>/.adeptability/libs. Global scope: the machine
+// store itself (~/.adeptability/libs) — identical to the legacy location.
+func (d *Deps) LibsRootFor(p project.Project) string {
+	return filepath.Join(p.BaseDir(), library.LibrariesDirName)
 }
 
 // ResolveProjectRoot returns --project or cwd.

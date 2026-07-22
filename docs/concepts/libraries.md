@@ -6,10 +6,13 @@ once and consumes them across many projects — resolved **package-manager style
 ## The package-manager model
 
 This is the single most important mental model in `adept`, and the most common source of
-confusion. A consumed library is **not committed into your project**. Instead:
+confusion. A consumed library is **not committed into your project's canonical skills**.
+Instead:
 
-- The library's skills live in a **per-machine shared store**:
-  `$ADEPT_LIBRARY/libs/<name>/skills/` — by default `~/.adeptability/libs/<name>/skills/`.
+- The library's skills are cloned **into the project**, at
+  `<project>/.adeptability/libs/<name>/skills/` — but that clone directory is auto-gitignored
+  (`adept` appends `libs/` and `staging/` to `.adeptability/.gitignore` the first time it's
+  created), so the clone itself never enters version control.
 - Your project commits only a **reference** in `.adeptability/config.json`:
 
   ```json
@@ -22,19 +25,39 @@ confusion. A consumed library is **not committed into your project**. Instead:
   ```
 
 The `libraries[]` entry is a *pointer* (`{name, remote, ref}`), not the skill bytes. Think of
-it like `~/.m2`, `~/.cargo`, or the Go module cache: the project declares what it depends on;
-the actual content is cached once per machine and shared across every project that references
-it.
+it like a lockfile-driven dependency: the project declares what it depends on, and `adept
+library add` / `adept migrate` re-materialize the clone from that pointer on any machine.
 
 ```
-project/.adeptability/config.json   →  libraries: [{name, remote, ref}]   (committed)
-                                          │ resolves to
-                                          ▼
-$ADEPT_LIBRARY/libs/<name>/skills/  →  the actual skill content            (per-machine store)
-                                          │ rendered by `adept sync`
-                                          ▼
-project/.claude/  .cursor/  AGENTS.md  …  materialized harness output       (gitignored / generated)
+project/.adeptability/config.json      →  libraries: [{name, remote, ref}]   (committed)
+                                             │ resolves to
+                                             ▼
+project/.adeptability/libs/<name>/skills/  →  the actual skill content       (gitignored clone)
+                                             │ rendered by `adept sync`
+                                             ▼
+project/.claude/  .cursor/  AGENTS.md  …     materialized harness output     (gitignored / generated)
 ```
+
+### The machine store
+
+`$ADEPT_LIBRARY` (default `~/.adeptability`) is the **machine store** — it's also where the
+[global scope](scopes.md) keeps its own skills, config, and library clones. Two things fall
+back to it from project scope:
+
+- **Resolution fallback**: if a configured library has no clone under
+  `<project>/.adeptability/libs/<name>/`, `adept` looks for one at
+  `~/.adeptability/libs/<name>/` and uses it if found — logging a warning that the library
+  resolved from the machine store and suggesting `adept migrate` to localize it. This keeps a
+  library added under `--global` (or a legacy project) usable from any project without
+  re-cloning.
+- **`adept migrate`**: for every configured library, clones it into
+  `<project>/.adeptability/libs/` if it isn't already a valid local git clone there
+  (libraries already local are left untouched and reported as such), so resolution stops
+  depending on the machine store. It then ensures the project's `.gitignore` covers the clone
+  dir. It only touches the project's own clone directory — the machine store is never deleted,
+  since the global scope and other projects may still be using it. Running it against
+  `--global` is rejected (global libraries already live in the machine store — there's nothing
+  to localize).
 
 ## Adding a library
 
@@ -46,9 +69,13 @@ adept init --from git@github.com:acme/skills.git --name team-skills --ref main
 adept library add team-skills --from git@github.com:acme/skills.git --ref main
 ```
 
-Either clones the remote into `$ADEPT_LIBRARY/libs/team-skills/` and appends the reference to
-`config.json`. Stack multiple libraries — on a skill-id collision, **first-wins**, and any
-project-canonical skill shadows all of them.
+Either clones the remote into `<project>/.adeptability/libs/team-skills/` and appends the
+reference to `config.json`. Stack multiple libraries — on a skill-id collision, **first-wins**,
+and any project-canonical skill shadows all of them.
+
+Run the same command with the root `--global` flag to clone into the machine store instead
+(`adept --global library add team-skills --from … ` → `~/.adeptability/libs/team-skills/`) —
+see [Scopes](scopes.md).
 
 Manage libraries:
 
@@ -68,15 +95,17 @@ library reference:
 1. **Clone the repo.** They get `.adeptability/config.json` with the `libraries[]` reference —
    but no skill bytes, because those were never committed.
 2. **Run `adept`** (`adept sync`, or `adept library add`/`update` if the clone isn't present).
-   `adept` reads the reference and **clones the remote into their own local store**
-   (`~/.adeptability/libs/<name>/`).
+   `adept` reads the reference and **clones the remote into their own project-local libs dir**
+   (`<project>/.adeptability/libs/<name>/`) — unless a clone already exists in their machine
+   store from an earlier project or `--global` use, in which case it resolves from there
+   instead (see [The machine store](#the-machine-store)).
 3. **Harnesses materialize.** `adept sync` renders the resolved skills into their harness dirs
    (`.claude/`, `.cursor/`, …) using their configured [materialization mode](#materialization).
 
 ```bash
 git clone git@github.com:acme/webapp.git && cd webapp
 adept status                 # shows: library "team-skills" — no (run `adept library add` or `git pull`)
-adept library add team-skills --from git@github.com:acme/skills.git   # resolve into local store
+adept library add team-skills --from git@github.com:acme/skills.git   # clone into .adeptability/libs/
 adept sync                   # materialize into this machine's harnesses
 ```
 

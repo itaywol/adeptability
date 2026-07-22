@@ -23,6 +23,14 @@ type HarnessSpec struct {
 	SizeBudgetB int    // 0 = unlimited
 	NeedsDir    bool
 	BaseDir     string // detection root (e.g. ".claude" or ".cursor")
+
+	// GlobalOutput is the OutputPath equivalent when rendering in global
+	// scope, relative to the global render root (the parent of the library
+	// root — $HOME by default). Empty means the harness has no real
+	// home-level config location and cannot be enabled with --global.
+	GlobalOutput string
+	// GlobalBaseDir is the BaseDir equivalent for global scope detection.
+	GlobalBaseDir string
 }
 
 // DriftReport summarizes what a Detect/Validate pass found on disk.

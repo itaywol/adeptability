@@ -62,7 +62,7 @@ func newSkillAddCmd(d *Deps) *cobra.Command {
 		if err := validateSkillID(id); err != nil {
 			return err
 		}
-		p, err := d.Project()
+		p, _, err := d.ScopedProject()
 		if err != nil {
 			return err
 		}
@@ -231,7 +231,7 @@ func newSkillEditCmd(d *Deps) *cobra.Command {
 	}
 	c.RunE = func(cmd *cobra.Command, args []string) error {
 		id := args[0]
-		p, err := d.Project()
+		p, _, err := d.ScopedProject()
 		if err != nil {
 			return err
 		}
@@ -259,7 +259,7 @@ func newSkillRemoveCmd(d *Deps) *cobra.Command {
 	}
 	c.RunE = func(cmd *cobra.Command, args []string) error {
 		id := args[0]
-		p, err := d.Project()
+		p, _, err := d.ScopedProject()
 		if err != nil {
 			return err
 		}
@@ -294,7 +294,7 @@ func newSkillListCmd(d *Deps) *cobra.Command {
 	}
 	c.Flags().BoolVar(&projectOnly, "project-only", false, "only show skills present in the project canonical")
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
-		p, err := d.Project()
+		p, _, err := d.ScopedProject()
 		if err != nil {
 			return err
 		}
@@ -442,7 +442,7 @@ func projectSkillCompletion(d *Deps) cobra.CompletionFunc {
 		if len(args) > 0 {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
-		p, err := d.Project()
+		p, _, err := d.ScopedProject()
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}

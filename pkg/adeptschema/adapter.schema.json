@@ -11,6 +11,8 @@
     "kind": { "type": "string", "enum": ["per-skill", "aggregator-single", "aggregator-per-glob"] },
     "output": { "type": "string", "minLength": 1 },
     "base-dir": { "type": "string" },
+    "global-output": { "type": "string" },
+    "global-base-dir": { "type": "string" },
     "needs-directory": { "type": "boolean", "default": false },
     "size-budget-bytes": { "type": "integer", "minimum": 0, "default": 0 },
     "frontmatter": {
