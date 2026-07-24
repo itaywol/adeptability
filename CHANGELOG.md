@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.0](https://github.com/itaywol/adeptability/compare/v1.9.0...v1.10.0) (2026-07-24)
+
+
+### Features
+
+* launch adeptability.itaywol.tools website with Astro + Starlight docs ([#52](https://github.com/itaywol/adeptability/issues/52)) ([77ecf59](https://github.com/itaywol/adeptability/commit/77ecf59db1520f688e8122a43234f551b9b00161))
+
 ## [1.9.0](https://github.com/itaywol/adeptability/compare/v1.8.1...v1.9.0) (2026-07-22)
 
 
