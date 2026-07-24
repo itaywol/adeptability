@@ -53,17 +53,24 @@ const GROUPS = [
     name: "Guides",
     slugs: [
       "guides/authoring",
+      "guides/installing-skills",
       "guides/sharing-a-library",
       "guides/importing",
       "guides/vendoring",
       "guides/git-hook",
       "guides/loops",
       "guides/safety-scans",
+      "guides/automation-json",
     ],
   },
   {
     name: "Reference",
-    slugs: ["reference/commands", "harness-comparison", "exchange"],
+    slugs: [
+      "reference/commands",
+      "reference/configuration",
+      "harness-comparison",
+      "exchange",
+    ],
   },
 ];
 

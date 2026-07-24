@@ -27,16 +27,19 @@ The full text of every documentation page is available at https://adeptability.i
 ## Guides
 
 - [Authoring a skill](https://adeptability.itaywol.tools/docs/guides/authoring/): Write a canonical skill that renders well across every harness.
+- [Installing skills from skills.sh and GitHub](https://adeptability.itaywol.tools/docs/guides/installing-skills/): Search skills.sh, install a skill into your project canonical, and keep external skills SHA-locked and updatable.
 - [Sharing a library across a team](https://adeptability.itaywol.tools/docs/guides/sharing-a-library/): Author skills once, publish them as a library, and let every project and teammate consume them.
 - [Importing existing rules](https://adeptability.itaywol.tools/docs/guides/importing/): Already have .cursor/rules, .claude/skills, an AGENTS.md, or GitHub instructions? Import them into adept.
 - [Vendoring a library in-repo](https://adeptability.itaywol.tools/docs/guides/vendoring/): Vendor a consumed library directly in your repo instead of cloning it on demand.
 - [Git drift hook](https://adeptability.itaywol.tools/docs/guides/git-hook/): Install a git pre-commit hook that keeps committed harness files honest.
 - [Composing loops](https://adeptability.itaywol.tools/docs/guides/loops/): A loop is a system that prompts your agents on a schedule so you don't have to.
 - [Safety scans & LLM config](https://adeptability.itaywol.tools/docs/guides/safety-scans/): Scan skills for unsafe instructions before running them, and configure the LLM used for scans.
+- [Scripting and CI with --json](https://adeptability.itaywol.tools/docs/guides/automation-json/): Use the global --json flag, jq pipelines, and drift exit codes to gate CI on skill sync state.
 
 ## Reference
 
 - [Command reference](https://adeptability.itaywol.tools/docs/reference/commands/): Every adept command and flag, generated faithfully from the cobra definitions.
+- [Configuration reference](https://adeptability.itaywol.tools/docs/reference/configuration/): Every adept config key with its type, default, and effect, plus the LLM provider config and project vs global scope.
 - [Harness comparison](https://adeptability.itaywol.tools/docs/harness-comparison/): How a single canonical skill produces correct output for every supported harness.
 - [Exchange, the team expertise billboard](https://adeptability.itaywol.tools/docs/exchange/): The exchange is a lightweight request/answer board for sharing expertise across a team.
 

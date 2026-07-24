@@ -40,6 +40,33 @@ conversation's system prompt. Identity is `(id, content-hash)`, exactly like ski
 skills, agents have no sidecars (no harness supports attaching files to an agent definition)
 and no published/private library split — they render to the maintainer's harnesses only.
 
+## Templates
+
+`adept agent add <id>` scaffolds a new canonical agent from a best-practice template instead of
+a blank file:
+
+```bash
+adept agent add pr-reviewer                      # --template default (the default)
+adept agent add pr-reviewer --template evaluator
+adept agent add pr-reviewer --edit               # open in $EDITOR after creating
+adept agent add pr-reviewer --from ./existing.md # import an existing agent file instead
+```
+
+Both templates encode the structure the `adept agent check` linter looks for: a trigger-shaped
+description, a one-line role, when-invoked steps, an output contract, and an explicit boundaries
+section.
+
+- `default`: a general specialist skeleton. Placeholder frontmatter (commented `mode`, `tools`,
+  `model`), a role line, a numbered "When invoked" sequence, an "Output" contract, and
+  "Boundaries" split into do / do-not.
+- `evaluator`: the generator/evaluator pattern for a reviewer that verifies someone else's work.
+  It assumes the work is broken, insists on acting (running tests) over reading, uses a
+  PASS/REJECT verdict, and sets report-only boundaries (never fix, never approve unexecuted
+  work). Its tool hint includes `Bash` because an evaluator must run things.
+
+`agent add` is project-scoped; it refuses `--global`. See the bundled `authoring-adept-agents`
+skill (seeded by `adept init`) for the authoring playbook.
+
 ## Where agents render
 
 | Harness | Output | Notes |
