@@ -1,0 +1,476 @@
+---
+// adeptability — landing page. Ported ~1:1 from the design reference.
+// Self-hosted fonts (zero external requests) + scoped styles imported below.
+import '@fontsource/space-grotesk/400.css';
+import '@fontsource/space-grotesk/500.css';
+import '@fontsource/space-grotesk/600.css';
+import '@fontsource/space-grotesk/700.css';
+import '@fontsource/jetbrains-mono/400.css';
+import '@fontsource/jetbrains-mono/500.css';
+import '@fontsource/jetbrains-mono/600.css';
+import '../styles/landing.css';
+
+const title = 'adeptability — write an AI skill once, run it in every coding agent';
+const description =
+  'adept lets you author an AI coding skill or subagent once, then render it accurately into Claude Code, Cursor, Copilot, Codex, OpenCode and 50+ more agents. Dotfiles for your AI coding agents.';
+const ogDescription =
+  'One source of truth. The right on-disk format everywhere. Author a skill or subagent once and adept renders it into every coding agent.';
+const canonical = 'https://adeptability.itaywol.tools/';
+const socialCard = `${canonical}social-card.png`;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="color-scheme" content="dark" />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" href="/logo.png" />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={ogDescription} />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={socialCard} />
+    <meta property="og:image:alt" content="adeptability — write an AI skill once, run it in every coding agent" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={ogDescription} />
+    <meta name="twitter:image" content={socialCard} />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <!-- ========================================================= HEADER -->
+    <header class="site-header">
+      <div class="container nav">
+        <a class="brand" href="/" aria-label="adeptability home">
+          <!-- logo mark: hexagon + sparkle -->
+          <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
+            <defs>
+              <linearGradient id="hexGrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#1b2a45" />
+                <stop offset="1" stop-color="#111a2b" />
+              </linearGradient>
+            </defs>
+            <path class="hex" d="M16 1.7 27.4 8.4 27.4 23.6 16 30.3 4.6 23.6 4.6 8.4Z" />
+            <path class="spark" d="M16 8 C16.6 13.6 18.4 15.4 24 16 C18.4 16.6 16.6 18.4 16 24 C15.4 18.4 13.6 16.6 8 16 C13.6 15.4 15.4 13.6 16 8 Z" />
+          </svg>
+          <span>adeptability</span>
+        </a>
+        <nav class="nav__links" aria-label="Primary">
+          <a class="nav-hide" href="#install">Install</a>
+          <a class="nav-hide" href="#how">How it works</a>
+          <a class="nav-hide" href="/docs/">Docs</a>
+          <a class="btn btn--ghost" href="https://github.com/itaywol/adeptability" rel="noopener">
+            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+            GitHub
+          </a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+
+      <!-- ========================================================= HERO -->
+      <section class="hero container" aria-labelledby="hero-title">
+        <div class="hero__grid">
+          <div class="hero__copy">
+            <p class="eyebrow">dotfiles for your AI coding agents</p>
+            <h1 id="hero-title">
+              Write an AI skill <span class="grad">once</span>, run it in every coding agent.
+            </h1>
+            <p class="hero__sub">
+              Author one canonical skill or subagent. <code style="font-family:var(--font-mono);color:var(--spark)">adept sync</code> renders
+              it — accurately — into Claude&nbsp;Code, Cursor, Copilot, Codex, OpenCode <b style="color:var(--fg)">+ 50 more</b>.
+              Frontmatter, activation rules, aggregation,
+              and size budgets, handled for you.
+            </p>
+            <div class="hero__cta">
+              <a class="btn btn--primary" href="/docs/getting-started/install/">
+                Get started
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </a>
+              <a class="btn btn--ghost" href="https://github.com/itaywol/adeptability" rel="noopener">
+                <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+                GitHub
+              </a>
+            </div>
+            <p class="hero__meta">
+              <span>❯ <b>MIT</b> licensed</span>
+              <span>❯ single <b>Go</b> binary</span>
+              <span>❯ <b>5</b> native renderers</span>
+              <span>❯ no lockfile</span>
+            </p>
+          </div>
+
+          <!-- SIGNATURE: one file fans out into many harness files -->
+          <div class="fanout" aria-hidden="false">
+            <svg viewBox="0 0 560 460" role="img"
+                 aria-label="One canonical SKILL.md fans out into Claude Code, Cursor, Codex, Copilot, OpenCode, and 50 more agents, each in its own on-disk format.">
+              <defs>
+                <linearGradient id="srcGrad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="#18243a" />
+                  <stop offset="1" stop-color="#101a2b" />
+                </linearGradient>
+              </defs>
+
+              <!-- beams (behind nodes) -->
+              <g fill="none">
+                <path class="fo-beam fo-b1" style="stroke:var(--h-claude)"  d="M210 230 C 296 230, 288 35,  360 35"  />
+                <path class="fo-beam fo-b2" style="stroke:var(--h-cursor)"  d="M210 230 C 296 230, 288 109, 360 109" />
+                <path class="fo-beam fo-b3" style="stroke:var(--h-codex)"   d="M210 230 C 300 230, 300 183, 360 183" />
+                <path class="fo-beam fo-b4" style="stroke:var(--h-copilot)" d="M210 230 C 300 230, 300 257, 360 257" />
+                <path class="fo-beam fo-b5" style="stroke:var(--h-opencode)"d="M210 230 C 296 230, 288 331, 360 331" />
+                <path class="fo-beam fo-b6" style="stroke:var(--h-more)"    d="M210 230 C 296 230, 288 405, 360 405" />
+              </g>
+
+              <!-- SOURCE node -->
+              <g>
+                <rect class="fo-node fo-source" x="20" y="182" width="190" height="96" rx="16" />
+                <text class="fo-sub" x="40" y="206">canonical · one file</text>
+                <path class="fo-star" d="M44 224 C46 231 48 233 55 235 C48 237 46 239 44 246 C42 239 40 237 33 235 C40 233 42 231 44 224 Z" />
+                <text class="fo-label" x="64" y="232" style="font-weight:600">SKILL.md</text>
+                <text class="fo-sub"   x="64" y="249">+ skill.yaml</text>
+              </g>
+
+              <!-- TARGET nodes -->
+              <!-- 1 Claude Code -->
+              <g class="fo-target fo-t1">
+                <rect class="fo-node" x="360" y="8" width="184" height="54" rx="12" />
+                <rect x="360" y="8" width="5" height="54" rx="2.5" fill="var(--h-claude)" />
+                <text class="fo-title" x="378" y="31" style="fill:var(--h-claude)">Claude Code</text>
+                <text class="fo-sub"   x="378" y="47">.claude/skills/</text>
+              </g>
+              <!-- 2 Cursor -->
+              <g class="fo-target fo-t2">
+                <rect class="fo-node" x="360" y="82" width="184" height="54" rx="12" />
+                <rect x="360" y="82" width="5" height="54" rx="2.5" fill="var(--h-cursor)" />
+                <text class="fo-title" x="378" y="105" style="fill:var(--h-cursor)">Cursor</text>
+                <text class="fo-sub"   x="378" y="121">.cursor/rules/*.mdc</text>
+              </g>
+              <!-- 3 Codex -->
+              <g class="fo-target fo-t3">
+                <rect class="fo-node" x="360" y="156" width="184" height="54" rx="12" />
+                <rect x="360" y="156" width="5" height="54" rx="2.5" fill="var(--h-codex)" />
+                <text class="fo-title" x="378" y="179" style="fill:var(--h-codex)">Codex</text>
+                <text class="fo-sub"   x="378" y="195">AGENTS.md · aggregated</text>
+              </g>
+              <!-- 4 Copilot -->
+              <g class="fo-target fo-t4">
+                <rect class="fo-node" x="360" y="230" width="184" height="54" rx="12" />
+                <rect x="360" y="230" width="5" height="54" rx="2.5" fill="var(--h-copilot)" />
+                <text class="fo-title" x="378" y="253" style="fill:var(--h-copilot)">Copilot</text>
+                <text class="fo-sub"   x="378" y="269">.github/instructions/</text>
+              </g>
+              <!-- 5 OpenCode -->
+              <g class="fo-target fo-t5">
+                <rect class="fo-node" x="360" y="304" width="184" height="54" rx="12" />
+                <rect x="360" y="304" width="5" height="54" rx="2.5" fill="var(--h-opencode)" />
+                <text class="fo-title" x="378" y="327" style="fill:var(--h-opencode)">OpenCode</text>
+                <text class="fo-sub"   x="378" y="343">.opencode/</text>
+              </g>
+              <!-- 6 +50 more -->
+              <g class="fo-target fo-t6">
+                <rect class="fo-node" x="360" y="378" width="184" height="54" rx="12" />
+                <rect x="360" y="378" width="5" height="54" rx="2.5" fill="var(--h-more)" />
+                <text class="fo-title" x="378" y="401" style="fill:var(--h-more)">+ 50 more</text>
+                <text class="fo-sub"   x="378" y="417">Windsurf · Gemini · Cline…</text>
+              </g>
+            </svg>
+          </div>
+        </div>
+
+        <!-- hero demo gif -->
+        <div class="hero-demo">
+          <div class="window">
+            <div class="window__bar">
+              <span class="window__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="window__title">adept sync — fan-out</span>
+            </div>
+            <div class="window__body">
+              <img src="/demo.gif" width="760" height="428" loading="eager" decoding="async"
+                   alt="Terminal recording: one skill is authored, then adept sync renders it into Claude Code, Cursor, Codex, and OpenCode at once." />
+            </div>
+          </div>
+          <p class="cap">❯ adept sync — one command, every enabled harness updated in place.</p>
+        </div>
+      </section>
+
+      <!-- ========================================================= INSTALL -->
+      <section id="install" class="container" aria-labelledby="install-title">
+        <div class="section-head">
+          <p class="eyebrow">install</p>
+          <h2 id="install-title">Ships as a single Go binary.</h2>
+          <p>Pick your ecosystem. Every path lands the same <code style="font-family:var(--font-mono);color:var(--spark)">adept</code> on your <span style="font-family:var(--font-mono);color:var(--fg-muted)">$PATH</span>.</p>
+        </div>
+
+        <div class="install__grid">
+          <!-- Go -->
+          <article class="card">
+            <div class="card__head">
+              <span class="card__badge">Go</span>
+              <span class="card__title">Go install</span>
+              <span class="card__note">any platform</span>
+            </div>
+            <div class="codeblock">
+              <button class="copy-btn" type="button" aria-label="Copy Go install command"
+                data-copy="go install github.com/itaywol/adeptability/cmd/adept@latest">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V4A1.5 1.5 0 0 0 9 2.5H4A1.5 1.5 0 0 0 2.5 4v5A1.5 1.5 0 0 0 4 10.5h1.5"/></svg>
+              </button>
+              <code><span class="tok-prompt">$ </span><span class="tok-cmd">go install</span> <span class="tok-arg">github.com/itaywol/adeptability/cmd/adept@latest</span></code>
+            </div>
+          </article>
+
+          <!-- Homebrew -->
+          <article class="card">
+            <div class="card__head">
+              <span class="card__badge">br</span>
+              <span class="card__title">Homebrew</span>
+              <span class="card__note">macOS · Linux</span>
+            </div>
+            <div class="codeblock">
+              <button class="copy-btn" type="button" aria-label="Copy Homebrew install command"
+                data-copy="brew install itaywol/tap/adeptability">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V4A1.5 1.5 0 0 0 9 2.5H4A1.5 1.5 0 0 0 2.5 4v5A1.5 1.5 0 0 0 4 10.5h1.5"/></svg>
+              </button>
+              <code><span class="tok-prompt">$ </span><span class="tok-cmd">brew install</span> <span class="tok-arg">itaywol/tap/adeptability</span></code>
+            </div>
+          </article>
+
+          <!-- curl -->
+          <article class="card">
+            <div class="card__head">
+              <span class="card__badge">sh</span>
+              <span class="card__title">curl</span>
+              <span class="card__note">installer</span>
+            </div>
+            <div class="codeblock">
+              <button class="copy-btn" type="button" aria-label="Copy curl install command"
+                data-copy="curl -fsSL https://raw.githubusercontent.com/itaywol/adeptability/main/scripts/install.sh | sh">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V4A1.5 1.5 0 0 0 9 2.5H4A1.5 1.5 0 0 0 2.5 4v5A1.5 1.5 0 0 0 4 10.5h1.5"/></svg>
+              </button>
+              <code><span class="tok-prompt">$ </span><span class="tok-cmd">curl</span> <span class="tok-arg">-fsSL https://raw.githubusercontent.com/…/install.sh | sh</span></code>
+            </div>
+          </article>
+
+          <!-- Nix -->
+          <article class="card">
+            <div class="card__head">
+              <span class="card__badge">nix</span>
+              <span class="card__title">Nix</span>
+              <span class="card__note">flake</span>
+            </div>
+            <div class="codeblock">
+              <button class="copy-btn" type="button" aria-label="Copy Nix install command"
+                data-copy="nix profile install github:itaywol/adeptability">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V4A1.5 1.5 0 0 0 9 2.5H4A1.5 1.5 0 0 0 2.5 4v5A1.5 1.5 0 0 0 4 10.5h1.5"/></svg>
+              </button>
+              <code><span class="tok-prompt">$ </span><span class="tok-cmd">nix profile install</span> <span class="tok-arg">github:itaywol/adeptability</span></code>
+            </div>
+          </article>
+
+          <!-- Docker -->
+          <article class="card">
+            <div class="card__head">
+              <span class="card__badge">◧</span>
+              <span class="card__title">Docker</span>
+              <span class="card__note">ghcr.io</span>
+            </div>
+            <div class="codeblock">
+              <button class="copy-btn" type="button" aria-label="Copy Docker run command"
+                data-copy={'docker run --rm -v "$PWD:/work" -w /work ghcr.io/itaywol/adeptability:latest --help'}>
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V4A1.5 1.5 0 0 0 9 2.5H4A1.5 1.5 0 0 0 2.5 4v5A1.5 1.5 0 0 0 4 10.5h1.5"/></svg>
+              </button>
+              <code><span class="tok-prompt">$ </span><span class="tok-cmd">docker run</span> <span class="tok-arg">--rm -v "$PWD:/work" -w /work ghcr.io/itaywol/adeptability:latest --help</span></code>
+            </div>
+          </article>
+        </div>
+
+        <p class="install__foot">
+          Prefer a signed binary? Grab a cosign-signed build from the
+          <a href="https://github.com/itaywol/adeptability/releases" rel="noopener">latest release</a>.
+        </p>
+      </section>
+
+      <!-- ========================================================= HOW IT WORKS -->
+      <section id="how" class="container" aria-labelledby="how-title">
+        <div class="section-head">
+          <p class="eyebrow">how it works</p>
+          <h2 id="how-title">Three steps, zero copy-paste.</h2>
+          <p>Stop maintaining the same prompt in five dotfolders. Author once, publish everywhere.</p>
+        </div>
+
+        <div class="steps">
+          <article class="step">
+            <div class="step__num">01</div>
+            <h3>Author</h3>
+            <p>Write one canonical <code>SKILL.md</code> + <code>skill.yaml</code> — YAML frontmatter, a markdown body, optional <span class="kbd">scripts/</span> and <span class="kbd">references/</span> sidecars. One source of truth.</p>
+          </article>
+
+          <article class="step">
+            <div class="step__num">02</div>
+            <h3>Sync</h3>
+            <p>Run <code>adept sync</code>. Each harness gets its own native format — frontmatter translated, activation rules mapped, files aggregated, size budgets respected.</p>
+          </article>
+
+          <article class="step">
+            <div class="step__num">03</div>
+            <h3>Everywhere</h3>
+            <p>The same skill materializes into every enabled agent. Five ship specialized renderers; 50+ more work via adapters.</p>
+            <ul class="step__list">
+              <li>Claude Code</li><li>Cursor</li><li>Codex</li><li>Copilot</li><li>OpenCode</li><li>+50 more</li>
+            </ul>
+          </article>
+        </div>
+
+        <p class="punchline">One source of truth. <span class="grad">The right on-disk format everywhere.</span></p>
+      </section>
+
+      <!-- ========================================================= MORE DEMOS -->
+      <section class="container" aria-labelledby="demos-title">
+        <div class="section-head">
+          <p class="eyebrow">see it move</p>
+          <h2 id="demos-title">More than sync.</h2>
+        </div>
+
+        <div class="demos">
+          <div class="demo">
+            <figure>
+              <div class="window">
+                <div class="window__bar">
+                  <span class="window__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+                  <span class="window__title">adept skill add · adept status</span>
+                </div>
+                <div class="window__body">
+                  <img src="/authoring.gif" width="760" height="428" loading="lazy" decoding="async"
+                       alt="Terminal recording: authoring a skill with adept skill add, editing SKILL.md, then adept status detecting drift between canonical and a hand-edited harness file." />
+                </div>
+              </div>
+              <figcaption><b>Author &amp; catch drift.</b> Scaffold a skill, edit it, and <code style="font-family:var(--font-mono);color:var(--spark)">adept status</code> flags any harness that has drifted — <span style="font-family:var(--font-mono)">synced · ahead · behind · diverged</span>.</figcaption>
+            </figure>
+          </div>
+
+          <div class="demo">
+            <figure>
+              <div class="window">
+                <div class="window__bar">
+                  <span class="window__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+                  <span class="window__title">adept agent add · adept exchange</span>
+                </div>
+                <div class="window__body">
+                  <img src="/agents.gif" width="760" height="428" loading="lazy" decoding="async"
+                       alt="Terminal recording: creating a subagent with adept agent add, running the safety and best-practice check, then browsing the team expertise exchange." />
+                </div>
+              </div>
+              <figcaption><b>Subagents &amp; the Exchange.</b> Render a reviewer or test-runner into every harness, then trade expertise with your team over <code style="font-family:var(--font-mono);color:var(--spark)">adept exchange</code>.</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================= GOODIES -->
+      <section class="goodies" aria-labelledby="goodies-title">
+        <div class="container">
+          <div class="section-head" style="margin-bottom:var(--sp-8)">
+            <p class="eyebrow">go deeper</p>
+            <h2 id="goodies-title" style="font-size:var(--step-2)">Everything else worth a click.</h2>
+          </div>
+          <div class="goodies__grid">
+            <a class="goody" href="/docs/">
+              <span class="goody__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M14 3v5h5"/></svg></span>
+              <span class="goody__text"><b>Docs</b><span>getting started + guides</span></span>
+              <span class="goody__arrow" aria-hidden="true">→</span>
+            </a>
+            <a class="goody" href="/docs/harness-comparison/">
+              <span class="goody__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h16"/><circle cx="8" cy="5" r="1.6" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="10" cy="19" r="1.6" fill="currentColor" stroke="none"/></svg></span>
+              <span class="goody__text"><b>Harness comparison</b><span>what each renderer emits</span></span>
+              <span class="goody__arrow" aria-hidden="true">→</span>
+            </a>
+            <a class="goody" href="/docs/exchange/">
+              <span class="goody__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M7 8h11l-3-3M17 16H6l3 3"/></svg></span>
+              <span class="goody__text"><b>Exchange</b><span>team expertise billboard</span></span>
+              <span class="goody__arrow" aria-hidden="true">→</span>
+            </a>
+            <a class="goody" href="https://github.com/itaywol/adeptability/releases" rel="noopener">
+              <span class="goody__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3l7 4v6c0 4-3 6-7 8-4-2-7-4-7-8V7z"/><path d="M9 12l2 2 4-4"/></svg></span>
+              <span class="goody__text"><b>Releases</b><span>signed builds &amp; changelog</span></span>
+              <span class="goody__arrow" aria-hidden="true">→</span>
+            </a>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- ========================================================= FOOTER -->
+    <footer class="site-footer">
+      <div class="container">
+        <div class="footer__top">
+          <div class="footer__brand">
+            <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
+              <path class="hex" d="M16 1.7 27.4 8.4 27.4 23.6 16 30.3 4.6 23.6 4.6 8.4Z" />
+              <path class="spark" d="M16 8 C16.6 13.6 18.4 15.4 24 16 C18.4 16.6 16.6 18.4 16 24 C15.4 18.4 13.6 16.6 8 16 C13.6 15.4 15.4 13.6 16 8 Z" />
+            </svg>
+            <div>
+              <b>adeptability</b>
+              <div class="footer__tag">write once · run in every coding agent</div>
+            </div>
+          </div>
+          <nav class="footer__links" aria-label="Footer">
+            <a href="https://github.com/itaywol/adeptability" rel="noopener">
+              <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+              GitHub
+            </a>
+            <a href="/docs/">Docs</a>
+            <a href="https://buymeacoffee.com/woitayf" rel="noopener">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 8h11v5a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4z"/><path d="M16 9h2.5a2.5 2.5 0 0 1 0 5H16"/><path d="M7 3v2M10 3v2M13 3v2"/></svg>
+              Buy me a coffee
+            </a>
+            <a href="https://itaywol.com" rel="noopener">itaywol.com</a>
+            <a href="https://www.linkedin.com/in/itaywolfish/" rel="noopener">
+              <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M13.6 0H2.4A2.4 2.4 0 0 0 0 2.4v11.2A2.4 2.4 0 0 0 2.4 16h11.2a2.4 2.4 0 0 0 2.4-2.4V2.4A2.4 2.4 0 0 0 13.6 0ZM4.9 13.4H2.6V6h2.3zM3.7 5A1.35 1.35 0 1 1 3.7 2.3 1.35 1.35 0 0 1 3.7 5Zm9.7 8.4h-2.3V9.8c0-.86-.02-1.97-1.2-1.97s-1.38.94-1.38 1.9v3.67H6.2V6h2.2v1h.03a2.42 2.42 0 0 1 2.18-1.2c2.33 0 2.76 1.53 2.76 3.53z"/></svg>
+              LinkedIn
+            </a>
+          </nav>
+        </div>
+        <div class="footer__bottom">
+          <span class="license">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M14.8 9.5a3 3 0 1 0 0 5"/></svg>
+            <b>MIT licensed</b> — © itaywol
+          </span>
+          <span>built for people who live in the terminal.</span>
+        </div>
+      </div>
+    </footer>
+
+    <!-- Clipboard copy (essential, minimal). -->
+    <script is:inline>
+      (function () {
+        var check = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 8.5l3.5 3.5L13 4.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        document.querySelectorAll('.copy-btn').forEach(function (btn) {
+          var original = btn.innerHTML;
+          btn.addEventListener('click', function () {
+            var text = btn.getAttribute('data-copy') || '';
+            navigator.clipboard.writeText(text).then(function () {
+              btn.classList.add('copied');
+              btn.innerHTML = check;
+              btn.setAttribute('aria-label', 'Copied to clipboard');
+              setTimeout(function () {
+                btn.classList.remove('copied');
+                btn.innerHTML = original;
+                btn.setAttribute('aria-label', 'Copy command');
+              }, 1600);
+            });
+          });
+        });
+      })();
+    </script>
+  </body>
+</html>

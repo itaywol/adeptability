@@ -12,6 +12,8 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
 </p>
 
+<p align="center"><a href="https://adeptability.itaywol.tools"><b>adeptability.itaywol.tools</b></a></p>
+
 <p align="center">
   <img src="assets/demo.gif" alt="Write one skill, run adept sync, and it renders into Claude Code, Cursor, Codex, and OpenCode at once" width="760">
 </p>
@@ -23,7 +25,7 @@ each harness's frontmatter, activation rules, aggregation, and size budgets for 
 **dotfiles for your AI coding agents**: one source of truth, the right on-disk format
 everywhere.
 
-📖 **[Full documentation → itaywol.github.io/adeptability](https://itaywol.github.io/adeptability)**
+📖 **[Full documentation → adeptability.itaywol.tools](https://adeptability.itaywol.tools)**
 
 ## Install
 
@@ -65,7 +67,7 @@ adept status                        # init state, libraries, harnesses, and drif
 inside a harness instead? Run `adept sync-from` to pull it back to canonical, then
 `adept sync` to re-publish everywhere. Building scheduled automation? `adept loop add`
 composes a discovery skill + evaluator agent + cron skeleton in one shot — see the
-[loops guide](https://itaywol.github.io/adeptability/guides/loops/).
+[loops guide](https://adeptability.itaywol.tools/docs/guides/loops/).
 
 `init` also seeds bundled default skills (`using-adept`, `authoring-adept-skills`,
 `authoring-adept-agents`, `authoring-adept-loops`, `adept-self-improve`) so a fresh project is
@@ -76,7 +78,7 @@ useful on day one. Skip with `--no-default-skills`.
 Prefix any command with `--global` to target your home directory instead of a project — for
 skills you want everywhere without an `adept init` per repo. Supported by `claude-code`,
 `codex`, and `opencode` (not Cursor or Copilot). See
-[Scopes](https://itaywol.github.io/adeptability/concepts/scopes/).
+[Scopes](https://adeptability.itaywol.tools/docs/concepts/scopes/).
 
 ```bash
 adept --global harness add claude-code && adept --global skill add lint-style --edit && adept --global sync
@@ -89,7 +91,7 @@ adept --global harness add claude-code && adept --global skill add lint-style --
 - **Canonical agent** — one `.adeptability/agents/<id>.md` (frontmatter + system prompt)
   rendered to `.claude/agents/`, `.opencode/agents/`, `.cursor/agents/`, `.github/agents/`,
   and `.codex/agents/*.toml`. `adept agent check` runs a safety scan plus a best-practice
-  lint. See [Canonical agents](https://itaywol.github.io/adeptability/concepts/agents/).
+  lint. See [Canonical agents](https://adeptability.itaywol.tools/docs/concepts/agents/).
 - **Harness** — a target AI agent (Claude Code, Cursor, Codex, …). `adept sync` renders each
   canonical skill into every enabled harness's own path and schema; a hash-based state
   machine (`synced | ahead | behind | diverged`) powers `status` and `diff`. No lockfile.
@@ -100,7 +102,7 @@ adept --global harness add claude-code && adept --global skill add lint-style --
   Teammates clone your repo, run `adept`, and the library resolves into their project and
   materializes into their harnesses.
 
-Read the [Concepts guide](https://itaywol.github.io/adeptability/concepts/libraries/) for the
+Read the [Concepts guide](https://adeptability.itaywol.tools/docs/concepts/libraries/) for the
 library model, the consumer-vs-library layouts, and the 3-way drift machine.
 
 ## Supported harnesses
@@ -113,12 +115,12 @@ bucketed per-glob).
 50+ more agents (Windsurf, Gemini CLI, Cline, Continue, Roo, Goose, Junie, …) work out of the
 box via a generic per-skill adapter. Run `adept harness list` for the live registry, or drop a
 YAML adapter into `$ADEPT_LIBRARY/adapters/` to add one without recompiling. See the
-[Harness Comparison](https://itaywol.github.io/adeptability/harness-comparison/) for exactly
+[Harness Comparison](https://adeptability.itaywol.tools/docs/harness-comparison/) for exactly
 what each renderer emits and why.
 
 ## Docs & contributing
 
-- **[Documentation site](https://itaywol.github.io/adeptability)** — getting started, concepts,
+- **[Documentation site](https://adeptability.itaywol.tools)** — getting started, concepts,
   guides, full command reference, and the harness comparison.
 - **[CONTRIBUTING.md](./CONTRIBUTING.md)** — build, test, and PR gates.
 - **[AGENTS.md](./AGENTS.md)** — architecture, resolution model, and invariants for agents

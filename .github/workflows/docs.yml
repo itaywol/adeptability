@@ -1,11 +1,14 @@
-name: Docs
+name: Docs redirect
+
+# The documentation site moved to https://adeptability.itaywol.tools (Astro +
+# Starlight, deployed via Cloudflare from site/). This workflow keeps the old
+# GitHub Pages URL alive as a tiny static redirect that forwards visitors —
+# preserving their path — to the new home.
 
 on:
   push:
     branches: [main]
     paths:
-      - "docs/**"
-      - "mkdocs.yml"
       - ".github/workflows/docs.yml"
   workflow_dispatch:
 
@@ -23,17 +26,52 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - name: Generate redirect site
+        run: |
+          mkdir -p _site
+          NEW="https://adeptability.itaywol.tools"
 
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.x"
+          # Root: send the old docs home to the new docs home.
+          cat > _site/index.html <<EOF
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="utf-8" />
+              <title>Redirecting…</title>
+              <meta http-equiv="refresh" content="0; url=${NEW}/docs/" />
+              <link rel="canonical" href="${NEW}/docs/" />
+              <script>location.replace("${NEW}/docs/");</script>
+            </head>
+            <body>
+              <p>This site has moved to <a href="${NEW}/docs/">adeptability.itaywol.tools</a>.</p>
+            </body>
+          </html>
+          EOF
 
-      - name: Install MkDocs Material
-        run: pip install mkdocs-material
-
-      - name: Build site
-        run: mkdocs build --strict --site-dir _site
+          # 404 handler: GitHub Pages serves this for every unknown path under
+          # the project site (/adeptability/<path>). Strip the repo prefix and
+          # forward to the new /docs/<path>, preserving any query and hash. The
+          # meta-refresh falls back to the docs root if JavaScript is disabled.
+          cat > _site/404.html <<EOF
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="utf-8" />
+              <title>Redirecting…</title>
+              <meta http-equiv="refresh" content="0; url=${NEW}/docs/" />
+              <script>
+                (function () {
+                  var base = "${NEW}";
+                  var path = location.pathname.replace(/^\/adeptability\/?/, "");
+                  location.replace(base + "/docs/" + path + location.search + location.hash);
+                })();
+              </script>
+            </head>
+            <body>
+              <p>This site has moved to <a href="${NEW}/docs/">adeptability.itaywol.tools</a>.</p>
+            </body>
+          </html>
+          EOF
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
