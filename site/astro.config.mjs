@@ -10,8 +10,8 @@ export default defineConfig({
       title: "adeptability",
       description:
         "Write an AI coding skill once, run it in every AI coding assistant.",
-      logo: { src: "./src/assets/logo.png", alt: "adeptability" },
-      favicon: "/logo.png",
+      logo: { src: "./src/assets/logo-mark.svg", alt: "adeptability" },
+      favicon: "/favicon.svg",
       social: [
         {
           icon: "github",

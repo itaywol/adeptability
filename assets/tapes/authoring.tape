@@ -8,13 +8,9 @@ Output "assets/authoring.gif"
 Set Shell "bash"
 Set FontFamily "JetBrains Mono"
 Set FontSize 26
-Set Width 1320
-Set Height 820
+Set Width 1520
+Set Height 856
 Set Padding 32
-Set Margin 56
-Set MarginFill "#0b111b"
-Set BorderRadius 12
-Set WindowBar Colorful
 Set TypingSpeed 45ms
 Set Theme { "background": "#111a29", "foreground": "#eaf0f8", "cursor": "#7c88ff", "selection": "#22314c", "black": "#0b111b", "red": "#ff6b6b", "green": "#7ed992", "yellow": "#f6c667", "blue": "#7c88ff", "magenta": "#b79cff", "cyan": "#4fe3cd", "white": "#c8d4e3", "brightBlack": "#64788f", "brightRed": "#ff8b64", "brightGreen": "#a5e8b5", "brightYellow": "#ffd98a", "brightBlue": "#a3acff", "brightMagenta": "#cdb8ff", "brightCyan": "#7ff0dd", "brightWhite": "#eaf0f8" }
 

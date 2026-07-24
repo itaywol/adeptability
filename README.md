@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.png" alt="adeptability: cross-harness AI skill portability CLI" width="480">
+  <img src="assets/logo-mark.svg" alt="adeptability: cross-harness AI skill portability CLI" width="150">
 </p>
 
 <h1 align="center">write an AI skill once, run it in every coding agent</h1>
