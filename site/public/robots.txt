@@ -1,0 +1,66 @@
+# robots.txt for adeptability
+# Policy: allow everyone, including AI crawlers, citation engines, and browsing agents.
+# adeptability is open source (MIT). We want it discovered, indexed, cited, and acted on.
+
+# --- Default: allow all user agents everything ---
+User-agent: *
+Allow: /
+
+# --- AI training and browsing crawlers (explicitly allowed) ---
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: cohere-ai
+Allow: /
+
+User-agent: Bytespider
+Allow: /
+
+# --- Traditional search crawlers (explicitly allowed) ---
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+# --- Machine-readable discovery for AI systems ---
+# LLM-friendly index:  https://adeptability.itaywol.tools/llms.txt
+# Full docs corpus:    https://adeptability.itaywol.tools/llms-full.txt
+
+Sitemap: https://adeptability.itaywol.tools/sitemap-index.xml

@@ -1,0 +1,50 @@
+# adeptability
+
+> adept is an open source Go CLI (MIT licensed) that lets you author an AI coding skill or subagent once, in a single canonical format, then render it accurately into Claude Code, Cursor, GitHub Copilot, OpenAI Codex, OpenCode, and 50+ other AI coding agents. Think of it as dotfiles for your AI coding agents: one source of truth, and the correct on-disk format everywhere. A hash-based 3-way detector flags drift, and libraries let a team share a versioned set of skills by reference.
+
+The full text of every documentation page is available at https://adeptability.itaywol.tools/llms-full.txt
+
+## Overview
+
+- [Documentation home](https://adeptability.itaywol.tools/docs/): Write an AI coding skill once, run it in every AI coding assistant.
+
+## Getting started
+
+- [Install](https://adeptability.itaywol.tools/docs/getting-started/install/): Install adept, a single self-contained binary, via whichever channel fits your platform.
+- [Quickstart](https://adeptability.itaywol.tools/docs/getting-started/quickstart/): Author a skill once and watch it materialize into every enabled harness in about a minute.
+- [Your first skill](https://adeptability.itaywol.tools/docs/getting-started/first-skill/): Build your first canonical skill from scratch and render it into every harness.
+
+## Concepts
+
+- [Canonical skills](https://adeptability.itaywol.tools/docs/concepts/canonical-skills/): The canonical skill is adept's single source of truth for everything it renders.
+- [Canonical agents](https://adeptability.itaywol.tools/docs/concepts/agents/): Skills make knowledge portable; agents make delegation portable across every harness.
+- [Harnesses & adapters](https://adeptability.itaywol.tools/docs/concepts/harnesses/): A harness is a target AI coding agent. Learn how adept adapts skills to each one.
+- [Libraries](https://adeptability.itaywol.tools/docs/concepts/libraries/): A library is a shared, versioned set of skills a team authors once and reuses everywhere.
+- [Scopes](https://adeptability.itaywol.tools/docs/concepts/scopes/): A scope decides where adept reads and writes its metadata, skills, and materialized files.
+- [Layouts](https://adeptability.itaywol.tools/docs/concepts/layouts/): A project's layout decides where canonical skills live on disk.
+- [Drift & the 3-way model](https://adeptability.itaywol.tools/docs/concepts/drift/): adept has no lockfile: the filesystem is the source of truth. Understand the 3-way drift model.
+
+## Guides
+
+- [Authoring a skill](https://adeptability.itaywol.tools/docs/guides/authoring/): Write a canonical skill that renders well across every harness.
+- [Installing skills from skills.sh and GitHub](https://adeptability.itaywol.tools/docs/guides/installing-skills/): Search skills.sh, install a skill into your project canonical, and keep external skills SHA-locked and updatable.
+- [Sharing a library across a team](https://adeptability.itaywol.tools/docs/guides/sharing-a-library/): Author skills once, publish them as a library, and let every project and teammate consume them.
+- [Importing existing rules](https://adeptability.itaywol.tools/docs/guides/importing/): Already have .cursor/rules, .claude/skills, an AGENTS.md, or GitHub instructions? Import them into adept.
+- [Vendoring a library in-repo](https://adeptability.itaywol.tools/docs/guides/vendoring/): Vendor a consumed library directly in your repo instead of cloning it on demand.
+- [Git drift hook](https://adeptability.itaywol.tools/docs/guides/git-hook/): Install a git pre-commit hook that keeps committed harness files honest.
+- [Composing loops](https://adeptability.itaywol.tools/docs/guides/loops/): A loop is a system that prompts your agents on a schedule so you don't have to.
+- [Safety scans & LLM config](https://adeptability.itaywol.tools/docs/guides/safety-scans/): Scan skills for unsafe instructions before running them, and configure the LLM used for scans.
+- [Scripting and CI with --json](https://adeptability.itaywol.tools/docs/guides/automation-json/): Use the global --json flag, jq pipelines, and drift exit codes to gate CI on skill sync state.
+
+## Reference
+
+- [Command reference](https://adeptability.itaywol.tools/docs/reference/commands/): Every adept command and flag, generated faithfully from the cobra definitions.
+- [Configuration reference](https://adeptability.itaywol.tools/docs/reference/configuration/): Every adept config key with its type, default, and effect, plus the LLM provider config and project vs global scope.
+- [Harness comparison](https://adeptability.itaywol.tools/docs/harness-comparison/): How a single canonical skill produces correct output for every supported harness.
+- [Exchange, the team expertise billboard](https://adeptability.itaywol.tools/docs/exchange/): The exchange is a lightweight request/answer board for sharing expertise across a team.
+
+## Links
+
+- [GitHub repository](https://github.com/itaywol/adeptability): Source code, issues, and discussion. Written in Go, MIT licensed.
+- [Releases](https://github.com/itaywol/adeptability/releases): Signed binaries and the changelog for every version.
+- [Landing page](https://adeptability.itaywol.tools/): Project overview, feature tour, and install options.
