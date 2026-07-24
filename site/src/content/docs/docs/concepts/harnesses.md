@@ -1,6 +1,6 @@
 ---
 title: "Harnesses & adapters"
-description: "A harness is a target AI coding agent — learn how adept adapts skills to each one."
+description: "A harness is a target AI coding agent. Learn how adept adapts skills to each one."
 ---
 
 A **harness** is a target AI coding agent. Each one loads skills from its own path with its own

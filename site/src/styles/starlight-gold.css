@@ -1,0 +1,25 @@
+/* ============================================================================
+   adeptability - starlight-gold.css
+   Retheme the Starlight docs accent from the default blue to the gold family
+   used across the landing page and the neon-gold logo.
+   Gold ramp: pale #ffd77a  ·  core #f6c667  ·  deep #e0a43b  ·  depth #c98a2e
+   Only the accent custom properties are overridden; Starlight's dark navy
+   surfaces and neutral grays are left untouched.
+   ========================================================================== */
+
+/* Dark theme (Starlight default). Accent text sits on near-black surfaces, so
+   the high tone is a pale gold with strong contrast; the low tone is a deep
+   amber used for subtle backgrounds and active-item fills. */
+:root {
+  --sl-color-accent-low: #3f2f0b;
+  --sl-color-accent: #c08a1e;
+  --sl-color-accent-high: #f4d489;
+}
+
+/* Light theme. Accent text sits on white, so the high tone is a deep gold and
+   the low tone is a pale wash. */
+:root[data-theme="light"] {
+  --sl-color-accent-low: #ffedc7;
+  --sl-color-accent: #9a6c11;
+  --sl-color-accent-high: #4d360a;
+}

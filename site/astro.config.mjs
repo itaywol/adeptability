@@ -12,6 +12,35 @@ export default defineConfig({
         "Write an AI coding skill once, run it in every AI coding assistant.",
       logo: { src: "./src/assets/logo-mark.svg", alt: "adeptability" },
       favicon: "/favicon.svg",
+      // Gold accent retheme, matching the landing page + neon-gold logo.
+      customCss: ["./src/styles/starlight-gold.css"],
+      // Social preview image on every docs page. Starlight already emits
+      // og:title/description/url, og:site_name, and twitter:card, but not an
+      // image, so we add og:image + twitter:image here.
+      head: [
+        {
+          tag: "meta",
+          attrs: {
+            property: "og:image",
+            content: "https://adeptability.itaywol.tools/social-card.png",
+          },
+        },
+        {
+          tag: "meta",
+          attrs: {
+            property: "og:image:alt",
+            content:
+              "adeptability: write an AI skill once, run it in every coding agent",
+          },
+        },
+        {
+          tag: "meta",
+          attrs: {
+            name: "twitter:image",
+            content: "https://adeptability.itaywol.tools/social-card.png",
+          },
+        },
+      ],
       social: [
         {
           icon: "github",
@@ -19,7 +48,7 @@ export default defineConfig({
           href: "https://github.com/itaywol/adeptability",
         },
       ],
-      // Docs live under /docs/ — content is nested in src/content/docs/docs/.
+      // Docs live under /docs/ - content is nested in src/content/docs/docs/.
       sidebar: [
         { label: "Home", slug: "docs" },
         {

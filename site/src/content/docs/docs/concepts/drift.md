@@ -1,6 +1,6 @@
 ---
 title: "Drift & the 3-way model"
-description: "adept has no lockfile — the filesystem is the source of truth. Understand the 3-way drift model."
+description: "adept has no lockfile: the filesystem is the source of truth. Understand the 3-way drift model."
 ---
 
 `adept` has no lockfile. The **filesystem itself is the source of truth**, and hash

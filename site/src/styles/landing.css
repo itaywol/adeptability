@@ -1,7 +1,7 @@
 /* ============================================================================
-   adeptability — landing.css
+   adeptability - landing.css
    Dark, terminal-native landing page. Ported from the design reference.
-   Fonts are self-hosted via @fontsource (imported from the page) — no external
+   Fonts are self-hosted via @fontsource (imported from the page) - no external
    requests. Light JS only for clipboard copy.
    ========================================================================== */
 
@@ -25,20 +25,25 @@
   --line:       rgba(148, 173, 210, 0.12);
   --line-2:     rgba(148, 173, 210, 0.20);
 
-  /* --- Brand accents --- */
-  --iris:       #7c88ff;   /* primary — periwinkle/iris (AI, adjacent to navy) */
-  --iris-bright:#a3acff;
-  --iris-dim:   #5b64c9;
-  --spark:      #4fe3cd;   /* the logo sparkle — cyan/teal glow               */
-  --spark-dim:  #2fae9c;
+  /* --- Brand accents (gold, matched to the neon-gold logo) --- */
+  /* Token names kept so every var(--spark)/var(--iris) caller follows the
+     retheme automatically. Values are now the gold family, varied by lightness:
+     pale #ffd77a  ·  core #f6c667  ·  deep #e0a43b  ·  depth #c98a2e */
+  --iris:       #e0a43b;   /* deep gold - secondary accent            */
+  --iris-bright:#ffd77a;   /* pale gold - highlight end of gradients  */
+  --iris-dim:   #c98a2e;   /* dark gold - strokes / outlines          */
+  --spark:      #f6c667;   /* core gold - primary bright accent       */
+  --spark-dim:  #c98a2e;   /* dark gold                               */
 
-  /* --- Prism: per-harness hues for the fan-out motif --- */
-  --h-claude:   #ff8b64;   /* Claude Code  */
-  --h-cursor:   #7c88ff;   /* Cursor       */
-  --h-codex:    #4fe3cd;   /* Codex        */
-  --h-copilot:  #7ed992;   /* Copilot      */
-  --h-opencode: #f6c667;   /* OpenCode     */
-  --h-more:     #b79cff;   /* +50 more     */
+  /* --- Prism: per-harness hues for the fan-out motif ---
+     Full gold monochrome, varied lightness (pale -> deep) so the six beams read
+     as one gold system while still separating each harness node. */
+  --h-claude:   #ffe0a3;   /* pale  */
+  --h-cursor:   #ffd77a;
+  --h-codex:    #f6c667;   /* core  */
+  --h-copilot:  #edba55;
+  --h-opencode: #e0a43b;
+  --h-more:     #c98a2e;   /* deep  */
 
   /* --- Feedback --- */
   --ok:         #7ed992;
@@ -65,7 +70,7 @@
   /* --- Elevation --- */
   --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
   --shadow-md: 0 12px 30px -12px rgba(0,0,0,.7);
-  --shadow-glow: 0 0 0 1px rgba(124,136,255,.25), 0 20px 60px -24px rgba(79,227,205,.35);
+  --shadow-glow: 0 0 0 1px rgba(224,164,59,.25), 0 20px 60px -24px rgba(246,198,103,.35);
 
   --container: 1120px;
   --transition: 200ms cubic-bezier(.2,.7,.3,1);
@@ -98,8 +103,8 @@ body::before {
   inset: 0;
   z-index: -2;
   background:
-    radial-gradient(650px 420px at 82% -6%, rgba(124,136,255,.16), transparent 70%),
-    radial-gradient(720px 520px at 6% 8%, rgba(79,227,205,.10), transparent 68%),
+    radial-gradient(650px 420px at 82% -6%, rgba(224,164,59,.16), transparent 70%),
+    radial-gradient(720px 520px at 6% 8%, rgba(246,198,103,.10), transparent 68%),
     var(--ink);
 }
 body::after {
@@ -118,7 +123,7 @@ a { color: inherit; text-decoration: none; }
 
 h1, h2, h3 { line-height: 1.08; letter-spacing: -0.02em; font-weight: 600; }
 
-::selection { background: rgba(124,136,255,.35); color: #fff; }
+::selection { background: rgba(246,198,103,.35); color: #fff; }
 
 :focus-visible {
   outline: 2px solid var(--spark);
@@ -169,17 +174,17 @@ section { padding-block: var(--sp-24); }
 
 .btn--primary {
   color: #0a0f18;
-  background: linear-gradient(135deg, var(--spark), var(--iris-bright));
-  box-shadow: 0 10px 30px -10px rgba(79,227,205,.5);
+  background: linear-gradient(135deg, var(--iris-bright), var(--spark) 45%, var(--iris));
+  box-shadow: 0 10px 30px -10px rgba(246,198,103,.5);
 }
-.btn--primary:hover { transform: translateY(-2px); box-shadow: 0 16px 40px -12px rgba(124,136,255,.6); }
+.btn--primary:hover { transform: translateY(-2px); box-shadow: 0 16px 40px -12px rgba(224,164,59,.6); }
 
 .btn--ghost {
   color: var(--fg);
   background: rgba(148,173,210,.06);
   border-color: var(--line-2);
 }
-.btn--ghost:hover { border-color: var(--iris); background: rgba(124,136,255,.12); transform: translateY(-2px); }
+.btn--ghost:hover { border-color: var(--iris); background: rgba(246,198,103,.12); transform: translateY(-2px); }
 
 .btn svg { width: 1.15em; height: 1.15em; }
 
@@ -203,9 +208,12 @@ section { padding-block: var(--sp-24); }
   .nav__links a.nav-hide { display: none; }
 }
 
-/* ---- Logo mark (inline SVG) ---- */
-.mark .hex { fill: url(#hexGrad); stroke: rgba(124,136,255,.55); stroke-width: 1; }
-.mark .spark { fill: var(--spark); }
+/* ---- Logo mark (inline SVG) - neon gold outline ---- */
+.mark .hex   { fill: #131C2B; stroke: url(#goldStroke); stroke-width: 0.9; stroke-linejoin: round; }
+.mark .spark { fill: #f6c667; }
+/* blurred underlay = the glow */
+.mark .hexGlow   { fill: none; stroke: #f6c667; stroke-width: 1.5; stroke-linejoin: round; }
+.mark .sparkGlow { fill: #f6c667; }
 
 /* ============================================================================
    HERO
@@ -226,7 +234,7 @@ section { padding-block: var(--sp-24); }
   max-width: 15ch;
 }
 .hero h1 .grad {
-  background: linear-gradient(100deg, var(--spark), var(--iris-bright) 60%);
+  background: linear-gradient(100deg, var(--iris-bright), var(--spark) 45%, var(--iris));
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
 .hero__sub { color: var(--fg-muted); font-size: var(--step-1); margin-top: var(--sp-6); max-width: 52ch; }
@@ -239,7 +247,7 @@ section { padding-block: var(--sp-24); }
 .hero__meta b { color: var(--spark); font-weight: 500; }
 
 /* ============================================================================
-   FAN-OUT MOTIF (hero signature) — pure SVG + CSS
+   FAN-OUT MOTIF (hero signature) - pure SVG + CSS
    ========================================================================== */
 .fanout {
   position: relative;
@@ -250,7 +258,7 @@ section { padding-block: var(--sp-24); }
 
 /* source + target nodes */
 .fo-node    { fill: var(--ink-2); stroke: var(--line-2); stroke-width: 1; }
-.fo-source  { fill: url(#srcGrad); stroke: rgba(124,136,255,.5); }
+.fo-source  { fill: url(#srcGrad); stroke: rgba(224,164,59,.5); }
 .fo-label   { font-family: var(--font-mono); font-size: 12px; fill: var(--fg); }
 .fo-sub     { font-family: var(--font-mono); font-size: 10px; fill: var(--fg-dim); }
 .fo-title   { font-family: var(--font-mono); font-size: 11px; font-weight: 600; }
@@ -362,8 +370,8 @@ section { padding-block: var(--sp-24); }
 .card__badge {
   font-family: var(--font-mono); font-size: 0.7rem; font-weight: 600;
   width: 34px; height: 34px; display: grid; place-items: center;
-  border-radius: var(--r-sm); background: rgba(124,136,255,.12);
-  color: var(--iris-bright); border: 1px solid rgba(124,136,255,.25);
+  border-radius: var(--r-sm); background: rgba(246,198,103,.12);
+  color: var(--iris-bright); border: 1px solid rgba(246,198,103,.25);
 }
 .card__title { font-weight: 600; font-size: var(--step-1); }
 .card__note  { font-family: var(--font-mono); font-size: var(--step--1); color: var(--fg-dim); margin-left: auto; }
@@ -391,7 +399,7 @@ section { padding-block: var(--sp-24); }
   width: 30px; height: 30px; display: grid; place-items: center;
   transition: all var(--transition);
 }
-.copy-btn:hover { color: var(--spark); border-color: var(--spark); background: rgba(79,227,205,.1); }
+.copy-btn:hover { color: var(--spark); border-color: var(--spark); background: rgba(246,198,103,.1); }
 .copy-btn svg { width: 15px; height: 15px; }
 .copy-btn.copied { color: var(--ok); border-color: var(--ok); }
 
@@ -449,7 +457,7 @@ section { padding-block: var(--sp-24); }
   letter-spacing: -0.02em;
 }
 .punchline .grad {
-  background: linear-gradient(100deg, var(--spark), var(--iris-bright));
+  background: linear-gradient(100deg, var(--iris-bright), var(--spark) 50%, var(--iris));
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
 .punchline::before, .punchline::after { color: var(--iris-dim); font-family: var(--font-mono); }
@@ -473,7 +481,7 @@ section { padding-block: var(--sp-24); }
 .goodies {
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
-  background: linear-gradient(180deg, rgba(124,136,255,.05), transparent);
+  background: linear-gradient(180deg, rgba(246,198,103,.05), transparent);
 }
 .goodies__grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-4); }
 @media (max-width: 760px) { .goodies__grid { grid-template-columns: 1fr 1fr; } }
@@ -490,8 +498,8 @@ section { padding-block: var(--sp-24); }
 .goody__icon {
   width: 40px; height: 40px; flex: none; border-radius: var(--r-sm);
   display: grid; place-items: center;
-  background: rgba(79,227,205,.1); color: var(--spark);
-  border: 1px solid rgba(79,227,205,.25);
+  background: rgba(246,198,103,.1); color: var(--spark);
+  border: 1px solid rgba(246,198,103,.25);
 }
 .goody__icon svg { width: 20px; height: 20px; }
 .goody__text b { display: block; font-weight: 600; }

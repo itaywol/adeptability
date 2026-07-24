@@ -1,6 +1,6 @@
 ---
 title: "Install"
-description: "Install adept — a single self-contained binary — via whichever channel fits your platform."
+description: "Install adept, a single self-contained binary, via whichever channel fits your platform."
 ---
 
 `adept` is a single self-contained binary. Pick whichever channel fits your platform.
