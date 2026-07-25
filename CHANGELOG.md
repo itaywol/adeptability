@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.0](https://github.com/itaywol/adeptability/compare/v1.10.0...v1.11.0) (2026-07-25)
+
+
+### Features
+
+* **site:** PostHog analytics via npm bundle + CI site deploys ([#55](https://github.com/itaywol/adeptability/issues/55)) ([62a3364](https://github.com/itaywol/adeptability/commit/62a33640588e488362777084cb1812ed3d5937ba))
+
 ## [1.10.0](https://github.com/itaywol/adeptability/compare/v1.9.0...v1.10.0) (2026-07-24)
 
 
