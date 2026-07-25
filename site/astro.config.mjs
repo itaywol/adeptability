@@ -12,6 +12,8 @@ export default defineConfig({
         "Write an AI coding skill once, run it in every AI coding assistant.",
       logo: { src: "./src/assets/logo-mark.svg", alt: "adeptability" },
       favicon: "/favicon.svg",
+      // Head override adds the bundled PostHog script to every docs page.
+      components: { Head: "./src/components/Head.astro" },
       // Gold accent retheme, matching the landing page + neon-gold logo.
       customCss: ["./src/styles/starlight-gold.css"],
       // Social preview image on every docs page. Starlight already emits
