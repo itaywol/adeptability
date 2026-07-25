@@ -1,0 +1,10 @@
+---
+// Starlight Head override: default head plus the bundled PostHog script,
+// so every docs page ships analytics without an external snippet.
+import Default from '@astrojs/starlight/components/Head.astro';
+---
+
+<Default><slot /></Default>
+<script>
+  import '../scripts/analytics';
+</script>

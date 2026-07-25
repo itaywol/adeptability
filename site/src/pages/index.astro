@@ -83,6 +83,11 @@ const jsonLd = {
 
     <!-- Structured data (JSON-LD) -->
     <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+
+    <!-- PostHog analytics (bundled from npm; key injected at build time) -->
+    <script>
+      import '../scripts/analytics';
+    </script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
